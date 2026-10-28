@@ -1,0 +1,74 @@
+# Git hooks (https://pre-commit.com). Run `pre-commit install` once after
+# cloning; every commit then checks the Go packages, the Python SDK and the
+# TypeScript SDK (each only when its files are staged), plus a secrets scan.
+# A hook that rewrites a file (gofmt, go mod tidy, ruff) fails the commit so
+# the change can be reviewed and staged.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        name: detect hardcoded secrets
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^python/
+      - id: ruff-format
+        files: ^python/
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -w
+        language: system
+        types: [go]
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: go mod tidy
+        language: system
+        pass_filenames: false
+        files: ^(go\.mod|go\.sum|.*\.go)$
+
+      - id: go-vet
+        name: go vet ./...
+        entry: go vet ./...
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      - id: go-test
+        name: go test ./... (includes the signing vectors)
+        entry: go test ./...
+        language: system
+        pass_filenames: false
+        files: ^(.*\.go|spec/vectors/.*)$
+
+      - id: python-tests
+        name: python SDK tests
+        entry: bash -c 'cd python && uv run --with pytest pytest -q'
+        language: system
+        pass_filenames: false
+        files: ^(python/|spec/vectors/)
+
+      - id: typescript-checks
+        name: typescript SDK typecheck + tests
+        entry: bash -c 'cd typescript && npm run typecheck && npm test'
+        language: system
+        pass_filenames: false
+        files: ^(typescript/|spec/vectors/)

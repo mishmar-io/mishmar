@@ -1,0 +1,208 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	"github.com/mishmar-io/mishmar/api"
+	"github.com/mishmar-io/mishmar/ecdsa2p"
+	"github.com/mishmar-io/mishmar/frost"
+	"github.com/mishmar-io/mishmar/signer"
+)
+
+type addAgentOptions struct {
+	engine, token, name, portfolio, config string
+	tradingAccounts                        []string
+}
+
+func newAddAgentCmd() *cobra.Command {
+	var o addAgentOptions
+	cmd := &cobra.Command{
+		Use:     "add-agent",
+		GroupID: groupSetup,
+		Short:   "Create an agent on the engine, issue its key, deal a venue key per trading account, write the signer's config",
+		Long: `The one-command setup of a new agent, over the operator API with a bearer
+token (--token or MISHMAR_OPERATOR_TOKEN):
+
+  1. the trading accounts are read, so a trading account whose venue has no supported key type
+     stops the command before anything is created;
+  2. the agent is created in the portfolio and a key is issued; its secret,
+     shown once, goes straight into the signer's config, which is written
+     (mode 0600) before anything else happens;
+  3. for every trading account a two-party venue key is dealt here, the engine's share
+     is sent to the engine (POST /agents/{id}/venue-keys), and the agent's
+     share is stored in the config under the venue key id the engine returns.
+
+The command prints what the venue needs next for each key. It never prints
+a share or the secret. The config file must not exist yet: an agent's
+identity is not overwritten.
+
+Environment:
+  MISHMAR_OPERATOR_TOKEN   the operator token, when --token is not given`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if o.token == "" {
+				o.token = os.Getenv("MISHMAR_OPERATOR_TOKEN")
+			}
+			if o.token == "" {
+				return errors.New("an operator token is required: --token or MISHMAR_OPERATOR_TOKEN")
+			}
+			return addAgent(cmd.Context(), o, cmd.OutOrStdout())
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&o.engine, "engine", "http://localhost:8080/v1", "engine API base URL")
+	f.StringVar(&o.token, "token", "", "operator token (or MISHMAR_OPERATOR_TOKEN)")
+	f.StringVar(&o.name, "name", "", "the agent's name")
+	f.StringVar(&o.portfolio, "portfolio", "", "the portfolio the agent belongs to (pf_…)")
+	f.StringArrayVar(&o.tradingAccounts, "trading-account", nil, "a trading account the agent trades through (ta_…); repeat for several")
+	configFlag(cmd, &o.config)
+	for _, name := range []string{"name", "portfolio", "trading-account"} {
+		_ = cmd.MarkFlagRequired(name)
+	}
+	return cmd
+}
+
+// plannedKey is one venue key to deal: the trading account and its scheme.
+type plannedKey struct {
+	tradingAccount api.TradingAccount
+	scheme         string
+}
+
+func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
+	path, err := configPath(o.config)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("%s exists already and holds an agent's identity; pass --config for another file, or remove it first", path)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	op := newOperatorClient(o.engine, o.token)
+
+	// 1. The trading accounts, and whether this signer can serve their keys.
+	plan := make([]plannedKey, 0, len(o.tradingAccounts))
+	for _, id := range o.tradingAccounts {
+		tradingAccount, err := op.getTradingAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		if tradingAccount.Kind == api.TradingAccountKindCosignerCallback {
+			return fmt.Errorf("trading account %s (%s) is a custodian's callback: it takes no venue keys, any agent may use it; leave it out", id, tradingAccount.Name)
+		}
+		scheme, ok := signer.SchemeForVenue(string(tradingAccount.Venue))
+		if !ok {
+			return fmt.Errorf("trading account %s (%s) is on %s, whose keys (%s) are not supported by this signer yet", id, tradingAccount.Name, tradingAccount.Venue, venueKeyType(tradingAccount.Venue))
+		}
+		plan = append(plan, plannedKey{tradingAccount: tradingAccount, scheme: scheme})
+	}
+
+	// 2. The agent and its key; the config is written at once.
+	agent, err := op.createAgent(ctx, api.AgentCreate{Name: o.name, PortfolioId: o.portfolio})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "agent %s (%s) created in %s\n", agent.Id, agent.Name, agent.PortfolioId)
+	issued, err := op.issueKey(ctx, agent.Id)
+	if err != nil {
+		return fmt.Errorf("agent %s was created but no key was issued: %w", agent.Id, err)
+	}
+	cfg := &signer.Config{Engine: o.engine, KeyID: issued.Id, Secret: issued.Secret, AgentID: agent.Id, VenueKeys: map[string]signer.VenueKey{}}
+	if err := cfg.Save(path); err != nil {
+		return fmt.Errorf("agent %s has key %s, whose secret could not be saved (it is shown once; revoke the key and start over): %w", agent.Id, issued.Id, err)
+	}
+	fmt.Fprintf(out, "key %s issued; the secret is in %s (mode 0600)\n", issued.Id, path)
+
+	// 3. A venue key per trading account.
+	for _, p := range plan {
+		agentShare, engineShare, public, err := deal(p.scheme)
+		if err != nil {
+			return err
+		}
+		engineShareText := string(engineShare)
+		vk, err := op.createVenueKey(ctx, agent.Id, api.VenueKeyCreate{TradingAccountId: p.tradingAccount.Id, EngineShare: &engineShareText})
+		if err != nil {
+			return fmt.Errorf("trading account %s: %w (the agent and its key exist; add this trading account's key later with mishmar keygen and the console)", p.tradingAccount.Id, err)
+		}
+		if err := cfg.AddVenueKey(vk.Id, signer.VenueKey{TradingAccountID: p.tradingAccount.Id, Venue: string(p.tradingAccount.Venue), Scheme: p.scheme, Share: json.RawMessage(agentShare)}); err != nil {
+			return err
+		}
+		if err := cfg.Save(path); err != nil {
+			return err
+		}
+		if vk.PublicKey != nil {
+			public = *vk.PublicKey
+		}
+		fmt.Fprintf(out, "venue key %s on trading account %s (%s, %s): %s\n", vk.Id, p.tradingAccount.Id, p.tradingAccount.Venue, p.scheme, vk.Status)
+		fmt.Fprint(out, nextStep(p.tradingAccount, vk, public))
+	}
+	fmt.Fprintf(out, "\nStart the signer with: mishmar signer run --config %s\n", path)
+	return nil
+}
+
+// deal makes a venue key of the scheme and returns the agent's share, the
+// engine's share (both as JSON) and what the venue needs to know the key.
+func deal(scheme string) (agentShare, engineShare []byte, public string, err error) {
+	switch scheme {
+	case signer.SchemeFrostEd25519:
+		a, e, err := frost.Deal()
+		if err != nil {
+			return nil, nil, "", err
+		}
+		if agentShare, err = json.Marshal(a); err != nil {
+			return nil, nil, "", err
+		}
+		if engineShare, err = json.Marshal(e); err != nil {
+			return nil, nil, "", err
+		}
+		return agentShare, engineShare, "", nil
+	case signer.SchemeECDSA2p:
+		a, e, err := ecdsa2p.Deal()
+		if err != nil {
+			return nil, nil, "", err
+		}
+		if agentShare, err = json.Marshal(a); err != nil {
+			return nil, nil, "", err
+		}
+		if engineShare, err = json.Marshal(e); err != nil {
+			return nil, nil, "", err
+		}
+		return agentShare, engineShare, e.Address(), nil
+	}
+	return nil, nil, "", fmt.Errorf("no dealer for scheme %s", scheme)
+}
+
+// nextStep says what the venue needs for the key.
+func nextStep(tradingAccount api.TradingAccount, vk api.VenueKey, public string) string {
+	switch tradingAccount.Kind {
+	case api.TradingAccountKindHyperliquid:
+		s := fmt.Sprintf("  approve the API wallet %s from the master wallet in the console (venue key → approval), then verify the key.\n", public)
+		s += "  note: two-party ECDSA signing is not built yet; the signer refuses this key's requests until it is.\n"
+		return s
+	default:
+		s := fmt.Sprintf("  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the engine):\n", tradingAccount.Venue)
+		s += indent(public)
+		s += "  then enter the key id the venue issued in the console (venue key → register) and verify the key with the signer running.\n"
+		return s
+	}
+}
+
+// venueKeyType names a venue's key type for a message.
+func venueKeyType(v api.Venue) string {
+	switch v {
+	case api.VenueBybit:
+		return "RSA"
+	case api.VenueOkx:
+		return "HMAC"
+	case api.VenueFireblocks:
+		return "none, a custodian's callback"
+	}
+	return "unknown"
+}

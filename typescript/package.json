@@ -1,0 +1,42 @@
+{
+  "name": "mishmar",
+  "version": "0.0.1",
+  "description": "Mishmar client: sign and submit proposals to the engine that guards your trading agent",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mishmar-io/mishmar",
+    "directory": "typescript"
+  },
+  "homepage": "https://mishmar.io",
+  "keywords": [
+    "trading",
+    "agents",
+    "risk",
+    "guardrails",
+    "hyperliquid",
+    "binance"
+  ]
+}

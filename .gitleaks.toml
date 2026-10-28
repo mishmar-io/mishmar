@@ -1,0 +1,21 @@
+# gitleaks (the pre-commit hook reads this from the repo root): the default
+# rules, less what they mistake for keys here. Every allowlist names one
+# shape, so a real secret in the same files is still caught.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Mishmar ids: msh-<key>-<suffix> client order ids, <prefix>_<12> and key_<account>_<12>"
+regexes = [
+  '''^msh-[a-z0-9]+-[a-z0-9]{6}$''',
+  '''^[a-z]{2,4}_[a-z0-9]{12}$''',
+  '''^key_[a-z0-9]+_[a-z0-9]{12}$''',
+]
+
+[[allowlists]]
+description = "The conformance vectors' Ed25519 test key, published with its public key so every SDK can check its signatures"
+condition = "AND"
+paths = ['''^spec/vectors/[^/]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"secret": "''']

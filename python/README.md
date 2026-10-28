@@ -1,0 +1,36 @@
+# mishmar (Python)
+
+The Python client for [Mishmar](https://mishmar.io): build a proposal, sign
+it with the agent's key, send it to the engine, read the decision.
+
+```python
+from datetime import timedelta
+from mishmar import AgentKey, Client, Proposal
+
+key = AgentKey.parse("msk_…")           # shown once when the engine issued the key
+client = Client("http://localhost:8080/v1", key, key_id="key_…")
+
+decision = client.propose(Proposal(
+    trading_account_id="ta_…", symbol="BTC", side="buy", size="0.25",
+    order_type="market", valid_for=timedelta(minutes=5),
+))
+print(decision["verdict"])              # allow | require_approval | block
+
+# Pull a resting order this agent placed through Mishmar: a cancel names the
+# order by the clientOrderId its decision carries, and has no side or size.
+client.propose(Proposal(
+    trading_account_id="ta_…", symbol="BTC", kind="cancel",
+    target_client_order_id=decision["proposal"]["clientOrderId"],
+))
+```
+
+Sizes, prices and leverage are decimal **strings** and are signed exactly as
+written: `"0.5"` and `"0.50"` are the same quantity but different signatures.
+Never pass a float.
+
+Run the tests, which include the cross-language vectors in `../spec/vectors`:
+
+```
+pip install -e ".[test]"
+python -m pytest
+```

@@ -1,0 +1,11 @@
+# oapi-codegen configuration for the contract's Go types: models only, no
+# client or server. `make gen` runs it (go generate ./api) from this
+# directory, so the paths here are relative to api/.
+package: api
+output: types.gen.go
+generate:
+  models: true
+compatibility:
+  always-prefix-enum-values: true
+output-options:
+  skip-prune: true

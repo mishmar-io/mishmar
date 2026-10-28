@@ -1,0 +1,2912 @@
+openapi: 3.1.0
+info:
+  title: Mishmar API
+  version: 0.12.0
+  summary: Trading-aware policy service at the signing layer.
+  description: |
+    Mishmar checks every order, transaction or signed message an agent produces
+    against wallet-wide and per-agent risk rules before the key co-signs or the
+    exchange proxy forwards it.
+
+    Three callers share it: people through the web app with a bearer token;
+    agents with their own Ed25519 key, through `POST /proposals` and the
+    `agent` tag (reads of their own state and the signer channel); and
+    operators through the CLI. The contract lives in the public mishmar repo,
+    and the engine, the web app and the SDKs are generated from it.
+
+    Conventions:
+    - All timestamps are RFC 3339 strings in UTC.
+    - Money and quantities are decimal strings (see the Decimal schema), never
+      JSON numbers, so the bytes an agent signs are the bytes the engine verifies
+      and no cent is lost to binary floating point.
+    - Every mutation of configuration bumps the account's `configRevision`.
+    - Lists that can grow without bound (decisions) are cursor paginated.
+servers:
+  - url: http://localhost:8080/v1
+    description: Self-hosted engine on a laptop
+security:
+  - bearerAuth: []
+tags:
+  - name: account
+  - name: portfolios
+  - name: agents
+  - name: trading-accounts
+  - name: rules
+  - name: decisions
+  - name: approvals
+  - name: pnl
+  - name: proposals
+  - name: ledger
+    description: Agent-facing. Signed with the agent's key, not the operator token.
+  - name: agent
+    description: |
+      Agent-facing: what a bot needs to function without acting on the account.
+      Reads of the agent's own decisions, approvals, positions, PnL and trading accounts,
+      and the signer channel through which the agent's signer co-signs venue
+      requests. Authenticated with the agent's key (agentAuth), never the
+      operator token.
+
+paths:
+  /account:
+    get:
+      tags: [account]
+      operationId: getAccount
+      summary: The caller's account, its kill switch and current configuration revision
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        default: { $ref: '#/components/responses/Error' }
+  /account/kill:
+    post:
+      tags: [account]
+      operationId: killAccount
+      summary: Stop all trading. Every proposal is refused, reduce-only included, until resumed.
+      description: |
+        The console calls this "Stop all trading". Nothing is closed or
+        cancelled: the engine holds only its half of each trading key and never
+        trades on its own. Positions and resting orders stay at the venue.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        default: { $ref: '#/components/responses/Error' }
+  /account/pause:
+    post:
+      tags: [account]
+      operationId: pauseAccount
+      summary: Pause all trading. Only reduce-only orders pass, so agents can wind down, until resumed.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        default: { $ref: '#/components/responses/Error' }
+  /account/resume:
+    post:
+      tags: [account]
+      operationId: resumeAccount
+      summary: Resume trading. Clears both the stop and the pause.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /whoami:
+    get:
+      tags: [account]
+      operationId: whoami
+      summary: Who the caller is and which mode the engine runs in
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operator' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /portfolios:
+    get:
+      tags: [portfolios]
+      operationId: listPortfolios
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [portfolios]
+      operationId: createPortfolio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PortfolioCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+  /portfolios/{portfolioId}:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    get:
+      tags: [portfolios]
+      operationId: getPortfolio
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [portfolios]
+      operationId: updatePortfolio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PortfolioUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [portfolios]
+      operationId: deletePortfolio
+      summary: Delete an empty portfolio. Refused while it still holds agents.
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /portfolios/{portfolioId}/kill:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [portfolios]
+      operationId: killPortfolio
+      summary: Kill switch for every agent in the portfolio
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+  /portfolios/{portfolioId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [portfolios]
+      operationId: resumePortfolio
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /agents:
+    get:
+      tags: [agents]
+      operationId: listAgents
+      parameters:
+        - name: portfolioId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/AgentStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [agents]
+      operationId: createAgent
+      summary: Add an agent. It starts active with no key and no trading accounts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    get:
+      tags: [agents]
+      operationId: getAgent
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [agents]
+      operationId: updateAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [agents]
+      operationId: deleteAgent
+      summary: Delete an agent. Its keys are revoked and its decisions are kept.
+      description: |
+        Retiring an agent releases its whole book: its positions on every trading account
+        move to that trading account's unassigned book at the mark, so a withdrawal of what it
+        held afterwards comes from the unassigned book and restricts nothing.
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/keys:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [agents]
+      operationId: issueAgentKey
+      summary: Issue a new API key. The secret is returned once and never again.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentKeyIssued' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/keys/{keyId}:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - name: keyId
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [agents]
+      operationId: revokeAgentKey
+      responses:
+        '204': { description: Revoked }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/venue-keys:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    get:
+      tags: [agents]
+      operationId: listVenueKeys
+      summary: The agent's trading keys, one per trading account it may use
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VenueKey' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [agents]
+      operationId: createVenueKey
+      summary: Give the agent a trading key on a trading account
+      description: |
+        The agent may then propose through the trading account. For venues with Ed25519,
+        ECDSA or RSA keys the key is a two-party key dealt on the owner's
+        machine (`mishmar keygen`, or `mishmar add-agent`, which does all of
+        this): `engineShare` is the engine's share, the agent's share goes to
+        the agent's signer, and the engine never holds the key whole. The
+        response carries what the venue needs: a public key to register at an
+        exchange (then `register` with the key id the venue issues), or an API
+        wallet address for the master wallet to approve (`approval`). For HMAC
+        venues there is no share: the signer the customer runs holds the whole
+        key, and the engine records only that the key exists. Verify the key
+        afterwards; it becomes `active` when the venue accepts a co-signed read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueKeyCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueKey' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/venue-keys/{venueKeyId}:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/venueKeyId'
+    get:
+      tags: [agents]
+      operationId: getVenueKey
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueKey' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [agents]
+      operationId: revokeVenueKey
+      summary: Revoke the key. The engine forgets its share; revoke the key at the venue as well.
+      responses:
+        '204': { description: Revoked }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/venue-keys/{venueKeyId}/register:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/venueKeyId'
+    post:
+      tags: [agents]
+      operationId: registerVenueKey
+      summary: Record the key id the exchange issued when the public key was registered
+      description: |
+        Exchanges with Ed25519, ECDSA or RSA keys issue a key id on
+        registration; the engine sends it in the header the venue expects.
+        Verify the key next. A Hyperliquid API wallet (approved, not
+        registered) and an HMAC key (its id travels with the signer that holds
+        it) refuse this with a conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueKeyRegistration' }
+      responses:
+        '200':
+          description: OK. Verify the key next.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueKey' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/venue-keys/{venueKeyId}/approval:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/venueKeyId'
+    post:
+      tags: [agents]
+      operationId: createWalletApproval
+      summary: Start the master wallet's approval of the agent's API wallet
+      description: |
+        Hyperliquid keys only (409 for other venues). Returns the EIP-712 typed
+        data the master wallet must sign in the browser to approve this key's
+        API wallet. The engine builds it, so the venue's signing rules live in
+        one place. The signature goes back through `submitWalletApproval` with
+        the `approvalId`. The typed data expires; ask again if it does.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WalletApprovalRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalletApproval' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/venue-keys/{venueKeyId}/approval/signature:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/venueKeyId'
+    post:
+      tags: [agents]
+      operationId: submitWalletApproval
+      summary: Submit the master wallet's signature; the engine sends the approval to the venue
+      description: |
+        Errors: `approval_expired` (409) when the typed data expired or was already
+        used, ask for new typed data; `venue_rejected` (409) when the venue refused
+        the signature, with the venue's message.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WalletApprovalSignature' }
+      responses:
+        '200':
+          description: |
+            OK: the venue took the signature and the engine verified the key
+            again. The key as the venue now sees it: approved, and active when
+            every check passed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueKey' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/venue-keys/{venueKeyId}/verify:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/venueKeyId'
+    post:
+      tags: [agents]
+      operationId: verifyVenueKey
+      summary: Prove the key end to end
+      description: |
+        The engine asks the agent's signer to co-sign a harmless read and sends
+        it to the venue, so one call proves the whole chain: the signer is
+        connected, both shares agree, the venue knows the key. Needs the agent's
+        signer connected (`signer_unreachable`, 409, otherwise). Checks: the
+        venue accepts the co-signed request, the key cannot withdraw, the IP
+        allowlist is set (live). All pass and the key becomes `active`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueKey' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/pause:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [agents]
+      operationId: pauseAgent
+      summary: Pause. Only reduce-only orders pass while paused.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [agents]
+      operationId: resumeAgent
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/kill:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [agents]
+      operationId: killAgent
+      summary: Kill. Nothing passes, including reduce-only, until resumed.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /trading-accounts:
+    get:
+      tags: [trading-accounts]
+      operationId: listTradingAccounts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [trading-accounts]
+      operationId: createTradingAccount
+      summary: |
+        Add a venue account: for an exchange, a read-only key the engine uses for
+        margin, positions and fills; for Hyperliquid, the master address and the
+        network; for Fireblocks, the callback. The trading account stays `pending` until
+        `verify` passes. Trading keys are not here: each agent gets its own on
+        the trading account (VenueKey).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TradingAccountCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    get:
+      tags: [trading-accounts]
+      operationId: getTradingAccount
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [trading-accounts]
+      operationId: updateTradingAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TradingAccountUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [trading-accounts]
+      operationId: deleteTradingAccount
+      summary: Remove the trading account. Refused while any agent holds a venue key on it.
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/verify:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: verifyTradingAccount
+      summary: |
+        Run the venue checks: the exchange's read-only key is accepted and can
+        neither trade nor withdraw, the account has margin and is in one-way
+        mode, the environment matches; the Hyperliquid master exists on the
+        network; the Fireblocks callback is registered. All pass and the trading account
+        becomes `active`. Each agent's trading key is verified on its own
+        (`verifyVenueKey`).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/pause:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: pauseTradingAccount
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: resumeTradingAccount
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/kill:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: killTradingAccount
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/maintenance:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: openMaintenance
+      summary: Open a maintenance window to trade the account by hand
+      description: |
+        While the window is open the trading account's agents are paused (only
+        reduce-only orders pass) and fills Mishmar did not place are expected:
+        each is booked to the unassigned book for now and listed as a discrepancy
+        with `duringMaintenance`, and an agents-only trading account is not restricted by
+        them. Opening a window that is already open is a conflict (409).
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MaintenanceOpen' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/maintenance/close:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: closeMaintenance
+      summary: Close the maintenance window and resume the agents it paused
+      description: |
+        Agents that were paused before the window opened stay paused. The
+        window's fills stay where they were booked, in the unassigned book unless
+        a discrepancy was resolved to an agent; the console asks the owner to
+        assign them before closing, and they can be re-assigned afterwards.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/positions/reassign:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    post:
+      tags: [trading-accounts]
+      operationId: reassignPosition
+      summary: Move part or all of a position between books on the trading account, at the mark
+      description: |
+        Release an agent's holding to the unassigned book (before withdrawing it),
+        hand an unassigned holding to an agent (an asset deposited for it to trade),
+        or move a holding between agents. Nothing is sent to the venue and the
+        venue's position does not change. The move is booked at the mark: the
+        giving book realises its PnL to the mark and the receiving book's entry
+        price is the mark, so its PnL starts at zero. Refused (422) when the
+        giving book holds less than `size` in that direction, and when the
+        symbol has no mark.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PositionReassign' }
+      responses:
+        '200':
+          description: The trading account's positions in the symbol, every book, after the move.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Position' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /discrepancies:
+    get:
+      tags: [trading-accounts]
+      operationId: listDiscrepancies
+      summary: Changes at the venue the books could not explain, newest first
+      description: |
+        What the console's resolve screen lists: fills Mishmar did not place,
+        positions or balances that disagree with the books, and stream gaps.
+        Each says what it restricts while open (`restricts`).
+      parameters:
+        - name: tradingAccountId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/DiscrepancyStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Discrepancy' }
+        default: { $ref: '#/components/responses/Error' }
+  /discrepancies/{discrepancyId}:
+    parameters:
+      - $ref: '#/components/parameters/discrepancyId'
+    get:
+      tags: [trading-accounts]
+      operationId: getDiscrepancy
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Discrepancy' }
+        default: { $ref: '#/components/responses/Error' }
+  /discrepancies/{discrepancyId}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/discrepancyId'
+    post:
+      tags: [trading-accounts]
+      operationId: resolveDiscrepancy
+      summary: Say what the change was, which lifts whatever it restricted
+      description: |
+        Assign a fill or a position difference to the unassigned book or to an
+        agent on the trading account, or record a balance change as a transfer
+        (`capital`). A resolved discrepancy can be resolved again to move it,
+        so a re-attribution after the fact is the same call. Resolving a
+        stream gap is refused (409): the engine clears it when it has re-read
+        the venue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscrepancyResolve' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Discrepancy' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /rules:
+    get:
+      tags: [rules]
+      operationId: listRules
+      parameters:
+        - name: scopeKind
+          in: query
+          schema: { $ref: '#/components/schemas/ScopeKind' }
+        - name: scopeId
+          in: query
+          schema: { type: string }
+        - name: enabled
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Rule' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [rules]
+      operationId: createRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuleCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rule' }
+        default: { $ref: '#/components/responses/Error' }
+  /rules/{ruleId}:
+    parameters:
+      - $ref: '#/components/parameters/ruleId'
+    get:
+      tags: [rules]
+      operationId: getRule
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rule' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [rules]
+      operationId: updateRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuleUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rule' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [rules]
+      operationId: deleteRule
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Error' }
+
+  /decisions:
+    get:
+      tags: [decisions]
+      operationId: listDecisions
+      summary: Every proposal with its verdict and inputs, newest first
+      parameters:
+        - name: agentId
+          in: query
+          schema: { type: string }
+        - name: portfolioId
+          in: query
+          schema: { type: string }
+        - name: tradingAccountId
+          in: query
+          schema: { type: string }
+        - name: verdict
+          in: query
+          schema: { $ref: '#/components/schemas/Verdict' }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DecisionPage' }
+        default: { $ref: '#/components/responses/Error' }
+  /decisions/{decisionId}:
+    parameters:
+      - name: decisionId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [decisions]
+      operationId: getDecision
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Decision' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /approvals:
+    get:
+      tags: [approvals]
+      operationId: listApprovals
+      summary: Proposals that require a person, newest first
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ApprovalStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Approval' }
+        default: { $ref: '#/components/responses/Error' }
+  /approvals/{approvalId}:
+    parameters:
+      - $ref: '#/components/parameters/approvalId'
+    get:
+      tags: [approvals]
+      operationId: getApproval
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Approval' }
+        default: { $ref: '#/components/responses/Error' }
+  /approvals/{approvalId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/approvalId'
+    post:
+      tags: [approvals]
+      operationId: approveApproval
+      summary: Co-sign. The engine forwards the proposal to its trading account.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalDecide' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Approval' }
+        default: { $ref: '#/components/responses/Error' }
+  /approvals/{approvalId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/approvalId'
+    post:
+      tags: [approvals]
+      operationId: rejectApproval
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalDecide' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Approval' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /proposals:
+    post:
+      tags: [proposals]
+      operationId: submitProposal
+      security: []
+      summary: Submit a proposal for evaluation
+      description: |
+        Agent-facing. The agent names its key by `keyId` and proves possession
+        with an Ed25519 signature over the canonical proposal (see
+        ProposalSubmit). The engine never holds the agent's private key.
+
+        The engine decodes the action, evaluates every rule in scope against
+        the projected state, writes the decision to the ledger, and only then
+        forwards it (`allow`), parks it for a person (`require_approval`) or
+        rejects it (`block`). The response is the decision either way.
+        Venue-shaped endpoints wrap this in later build steps.
+
+        Exits: a reduce-only order that moves both the agent's own position
+        and the trading account's net position in the symbol toward zero, without
+        crossing zero, is an exit. Its size may be at most the smaller of the
+        two, and zero when they point opposite ways. Every rule without
+        `appliesToExits` is waived for an exit and recorded as waived; a stop
+        still refuses it, a pause lets it through. A reduce-only order larger
+        than the exit size is blocked, not resized, with the exit size in the
+        reason. A plain order is never an exit, even one that reduces. Exits
+        already working at the venue count against both positions. Only a
+        venue that enforces reduce-only itself can have exits: the engine
+        judges an order when it decides, and only the venue sees the position
+        when the order fills. On any other venue a reduce-only order runs
+        every rule like a plain one.
+
+        Cancels (`kind: cancel`) pull a resting order the same agent placed
+        through Mishmar on the same trading account: no rules run, nothing waits for a
+        person, and a stop does not refuse them.
+
+        One-shot (`venueMessage`): the agent's signer has already built the
+        venue request and signed its half, so an allowed order is co-signed
+        and forwarded with no round trip to the signer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProposalSubmit' }
+      responses:
+        '200':
+          description: Evaluated. Read `verdict`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Decision' }
+        '401':
+          description: Unknown or revoked key, bad signature, stale `proposedAt` or replayed `nonce`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /agent/decisions:
+    get:
+      tags: [agent]
+      operationId: agentListDecisions
+      security: [{ agentAuth: [] }]
+      summary: The calling agent's decisions, newest first
+      description: |
+        The same page as `listDecisions`, restricted to the decisions of the
+        agent the key belongs to, so a bot can follow what happened to its
+        proposals without an operator token.
+      parameters:
+        - name: tradingAccountId
+          in: query
+          schema: { type: string }
+        - name: verdict
+          in: query
+          schema: { $ref: '#/components/schemas/Verdict' }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DecisionPage' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/decisions/{decisionId}:
+    parameters:
+      - name: decisionId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [agent]
+      operationId: agentGetDecision
+      security: [{ agentAuth: [] }]
+      summary: One of the calling agent's decisions
+      description: A decision of another agent is 404, not 403; the agent learns nothing about it.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Decision' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/approvals:
+    get:
+      tags: [agent]
+      operationId: agentListApprovals
+      security: [{ agentAuth: [] }]
+      summary: The calling agent's proposals that wait for, or were decided by, a person
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ApprovalStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Approval' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/positions:
+    get:
+      tags: [agent]
+      operationId: agentListPositions
+      security: [{ agentAuth: [] }]
+      summary: The calling agent's open positions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Position' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/pnl:
+    get:
+      tags: [agent]
+      operationId: agentGetPnl
+      security: [{ agentAuth: [] }]
+      summary: Daily realized and unrealized PnL of the calling agent
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PnlSeries' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/trading-accounts/{tradingAccountId}:
+    parameters:
+      - name: tradingAccountId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [agent]
+      operationId: agentGetTradingAccount
+      security: [{ agentAuth: [] }]
+      summary: A trading account as the agent may see it, its setup without any secret
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/trading-accounts/{tradingAccountId}/venue-rules:
+    parameters:
+      - name: tradingAccountId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [agent]
+      operationId: agentGetVenueRules
+      security: [{ agentAuth: [] }]
+      summary: What the trading account's venue accepts, per symbol, for the signer that builds orders
+      description: |
+        Tick, step and minimums, and the venue's own encoding of each symbol,
+        as the engine last read them from the venue. The signer caches them
+        and builds venue requests within them; the engine checks a one-shot
+        message against the same rules when it decodes it. A trading account the agent
+        holds no venue key on is 404.
+      parameters:
+        - name: symbol
+          in: query
+          description: Only this symbol.
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueRules' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/signer/commitments:
+    post:
+      tags: [agent]
+      operationId: requestCommitments
+      security: [{ agentAuth: [] }]
+      summary: Take a batch of the engine's single-use commitments for one-shot signing
+      description: |
+        FROST needs both parties' commitments before either computes a share,
+        so the engine hands the agent's signer a batch of its own ahead of
+        time, and the signer can then sign an order's half by itself
+        (ProposalSubmit.venueMessage). Each commitment is used once, whatever
+        the decision, and expires 24 hours after it was issued. The account's
+        entitlements cap how many unused ones a signer may hold per venue key
+        (`commitmentBatch`): a request returns at most the difference, possibly
+        none, and a burst that outruns the batch falls back to the signer
+        channel. Two-party ECDSA keys will use presignatures made over the
+        channel instead; until then they answer 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommitmentRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommitmentBatch' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/signer/poll:
+    post:
+      tags: [agent]
+      operationId: signerPoll
+      security: [{ agentAuth: [] }]
+      summary: Wait for venue requests the agent's signer must sign
+      description: |
+        The signer channel's first transport: long-poll. The agent's signer
+        keeps one of these open; the engine answers as soon as it has
+        something to sign for this agent, or with an empty list when
+        `waitSeconds` pass. Each request is handed out once; a request taken
+        and not answered before it expires is handed out again with a higher
+        `attempt`. The messages are the same whatever the transport, so a
+        WebSocket or a webhook can carry them later without changing the
+        signer or the engine.
+
+        Every answer names the engine instance (`Mishmar-Engine-Instance`),
+        which changes each time the engine starts. The engine keeps its
+        one-shot commitments in memory only, so a signer that sees a new
+        instance drops the commitments it holds and takes a fresh batch
+        rather than finding out from a refused proposal.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignerPoll' }
+      responses:
+        '200':
+          description: Requests to sign, possibly none.
+          headers:
+            Mishmar-Engine-Instance:
+              required: true
+              description: The engine instance answering; see CommitmentBatch.engineInstance.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SignRequest' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/signer/requests/{requestId}/answer:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [agent]
+      operationId: signerAnswer
+      security: [{ agentAuth: [] }]
+      summary: Answer a sign request
+      description: |
+        The signer's share, signature or forwarded venue response, or its
+        refusal. An answer whose `kind` does not fit the request's scheme is
+        refused (422). An answer to a request that is not open is 404: already
+        answered, expired, or never made.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignerAnswer' }
+      responses:
+        '204':
+          description: Taken. The decision records what the signer did.
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /ledger/head:
+    get:
+      tags: [ledger]
+      operationId: getLedgerHead
+      summary: The audit ledger's latest event and the engine's public key
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LedgerHead' }
+        default: { $ref: '#/components/responses/Error' }
+  /ledger/events:
+    get:
+      tags: [ledger]
+      operationId: listLedgerEvents
+      summary: Page through the audit ledger, oldest first
+      description: |
+        Every change the ledger ever recorded, hash-chained and in order. Export the
+        whole chain with `mishmar-engine export-ledger` and check it offline with
+        `mishmar-engine verify-ledger`, which recomputes every hash and verifies every
+        engine and agent signature with the public keys alone.
+      parameters:
+        - in: query
+          name: after
+          schema: { type: integer, format: int64, minimum: 0 }
+          description: Return events with a sequence number above this. Default 0.
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000 }
+          description: Page size, default 200.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LedgerEventPage' }
+        default: { $ref: '#/components/responses/Error' }
+  /pnl/summary:
+    get:
+      tags: [pnl]
+      operationId: getPnlSummary
+      summary: One row per account, portfolio and agent with today and month-to-date PnL
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PnlSummary' }
+        default: { $ref: '#/components/responses/Error' }
+  /pnl:
+    get:
+      tags: [pnl]
+      operationId: getPnl
+      summary: Daily realized and unrealized PnL for one scope
+      parameters:
+        - name: scopeKind
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/ScopeKind' }
+        - name: scopeId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PnlSeries' }
+        default: { $ref: '#/components/responses/Error' }
+  /positions:
+    put:
+      tags: [pnl]
+      operationId: replacePositions
+      summary: Replace the account's positions and equity (development)
+      description: |
+        Until venue streams feed the state service, this is how positions,
+        marks and equity get into the engine so rules have something to check.
+        Replaces the whole set. Goes away when the trading accounts report real fills.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StateImport' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Position' }
+        default: { $ref: '#/components/responses/Error' }
+    get:
+      tags: [pnl]
+      operationId: listPositions
+      summary: Open positions from the state service, optionally narrowed to one scope
+      parameters:
+        - name: scopeKind
+          in: query
+          schema: { $ref: '#/components/schemas/ScopeKind' }
+        - name: scopeId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Position' }
+        default: { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: A static operator token for self-hosted, a session token for hosted.
+    agentAuth:
+      type: apiKey
+      in: header
+      name: X-Mishmar-Signature
+      description: |
+        Agent-facing endpoints (tag `agent`) are authenticated by the agent's
+        Ed25519 key, never by the operator token. Four headers:
+
+        - `X-Mishmar-Key-Id`: the key id (key_…).
+        - `X-Mishmar-Signed-At`: RFC 3339 in UTC; rejected when more than 60
+          seconds off the engine's clock.
+        - `X-Mishmar-Nonce`: unique per request for this key; a replay within
+          the engine's window is rejected.
+        - `X-Mishmar-Signature`: base64 Ed25519 signature over the canonical
+          JSON (keys sorted, no whitespace, absent fields omitted) of
+          `{"bodySha256","keyId","method","nonce","path","query","signedAt"}`,
+          where `method` is upper case, `path` is the request path without the
+          server prefix (`/agent/decisions`), `query` is the raw query string
+          without the `?` (absent when empty) and `bodySha256` is the
+          lower-case hex SHA-256 of the request body (absent when there is none).
+
+        The bytes are pinned in spec/vectors/agent-request-signing.json and the
+        SDKs sign this way themselves. `POST /proposals` keeps its signature
+        inside the body.
+  parameters:
+    portfolioId:
+      name: portfolioId
+      in: path
+      required: true
+      schema: { type: string }
+    agentId:
+      name: agentId
+      in: path
+      required: true
+      schema: { type: string }
+    tradingAccountId:
+      name: tradingAccountId
+      in: path
+      required: true
+      schema: { type: string }
+    ruleId:
+      name: ruleId
+      in: path
+      required: true
+      schema: { type: string }
+    approvalId:
+      name: approvalId
+      in: path
+      required: true
+      schema: { type: string }
+    venueKeyId:
+      name: venueKeyId
+      in: path
+      required: true
+      schema: { type: string }
+    discrepancyId:
+      name: discrepancyId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    AgentUnauthorized:
+      description: Unknown or revoked key, bad signature, stale `X-Mishmar-Signed-At` or replayed `X-Mishmar-Nonce`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: |
+            Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
+            `forbidden`, `unavailable`, `approval_expired`, `venue_rejected`, `internal`,
+            `not_implemented` (501: in the contract, not yet in this engine).
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+
+    Decimal:
+      type: string
+      pattern: '^-?[0-9]+(\.[0-9]+)?$'
+      description: |
+        A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+        quantities are never JSON numbers. A string survives every language's
+        float formatting unchanged, so the bytes an agent signs are the bytes the
+        engine verifies, and sums of cents stay exact.
+
+    ScopeKind:
+      type: string
+      enum: [account, portfolio, agent, trading_account]
+    Scope:
+      type: object
+      required: [kind, id]
+      properties:
+        kind: { $ref: '#/components/schemas/ScopeKind' }
+        id: { type: string }
+
+    Account:
+      type: object
+      required: [id, name, killSwitch, paused, configRevision, entitlements, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        killSwitch:
+          type: boolean
+          description: |
+            True while all trading is stopped (killAccount): every proposal
+            from every agent is refused, reduce-only included. Nothing is
+            closed or cancelled; positions and resting orders stay at the venue.
+        paused:
+          type: boolean
+          description: |
+            True while all trading is paused (pauseAccount): only reduce-only
+            orders pass, so agents can close their own positions. A stop
+            outranks a pause.
+        configRevision:
+          type: integer
+          description: Bumped on every configuration change. Decisions record the revision they were evaluated under.
+        entitlements: { $ref: '#/components/schemas/Entitlements' }
+        createdAt: { type: string, format: date-time }
+
+    Tier:
+      type: string
+      enum: [free, pro, team, enterprise]
+    SignerTransport:
+      type: string
+      enum: [long_poll, websocket, webhook, queue]
+      description: How the engine reaches an agent's signer. The messages are the same on every transport.
+    Entitlements:
+      type: object
+      description: |
+        What the account's tier includes (plan doc, Pricing). Billing writes it
+        for hosted accounts and a self-hosted engine reads it from its signed
+        licence; the API only reads it. Safety is never gated: every rule, the
+        stop, the pause, cancels, exits and approvals are in every tier.
+      required: [tier, signerTransports, commitmentBatch, dedicatedCell, failoverCell, selfHosted]
+      properties:
+        tier: { $ref: '#/components/schemas/Tier' }
+        signerTransports:
+          type: array
+          description: The transports the signer channel may use. long_poll is in every tier.
+          items: { $ref: '#/components/schemas/SignerTransport' }
+        commitmentBatch:
+          type: integer
+          minimum: 1
+          description: |
+            The most unused engine commitments (or presignatures) an agent's
+            signer may hold per venue key: how many orders in a burst take the
+            one-shot path before the rest fall back to the signer channel.
+        dedicatedCell:
+          type: boolean
+          description: The account runs on a cell of its own.
+        failoverCell:
+          type: boolean
+          description: A standby cell in another availability zone takes over when the account's cell fails (the uptime guarantee).
+        selfHosted:
+          type: boolean
+          description: Licensed to run the engine on the customer's own infrastructure.
+
+    EngineMode:
+      type: string
+      enum: [paper, live]
+      description: |
+        paper: venues are simulated or test networks; fixtures may be imported.
+        live: real venues and real money; the engine refuses fixtures and refuses
+        to start if any trading account's venue lacks a live adapter.
+    Operator:
+      type: object
+      required: [name, mode]
+      properties:
+        name:
+          type: string
+          description: The person behind the bearer token. Recorded on approvals as decidedBy.
+        mode: { $ref: '#/components/schemas/EngineMode' }
+
+    PortfolioStatus:
+      type: string
+      enum: [active, killed]
+    Portfolio:
+      type: object
+      required: [id, name, budgetUsd, status, agentCount, grossExposureUsd, netExposureUsd, dayPnlUsd, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        budgetUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Shared gross-exposure budget for every agent in the portfolio.
+        status: { $ref: '#/components/schemas/PortfolioStatus' }
+        agentCount: { type: integer }
+        grossExposureUsd: { $ref: '#/components/schemas/Decimal' }
+        netExposureUsd: { $ref: '#/components/schemas/Decimal' }
+        dayPnlUsd: { $ref: '#/components/schemas/Decimal' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PortfolioCreate:
+      type: object
+      required: [name, budgetUsd]
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+        budgetUsd: { $ref: '#/components/schemas/Decimal' }
+    PortfolioUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+        budgetUsd: { $ref: '#/components/schemas/Decimal' }
+
+    AgentStatus:
+      type: string
+      enum: [active, paused, killed]
+    AgentKey:
+      type: object
+      required: [id, prefix, createdAt]
+      properties:
+        id:
+          type: string
+          description: key_<account suffix>_<12 random characters>; the account id is readable off it (acc_<suffix>), so a hosted router can map a proposal to its account's cell from the key id alone.
+        prefix:
+          type: string
+          description: First characters of the key, enough to recognise it. Never the secret.
+        publicKey:
+          type: string
+          description: The agent's Ed25519 public key, base64. The engine verifies proposal signatures with it.
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time }
+    AgentKeyIssued:
+      allOf:
+        - $ref: '#/components/schemas/AgentKey'
+        - type: object
+          required: [secret]
+          properties:
+            secret:
+              type: string
+              description: |
+                The agent's Ed25519 private key seed, base64. Shown once. The
+                engine keeps only the public key, so a leaked engine database
+                cannot sign as the agent.
+    Agent:
+      type: object
+      required: [id, name, portfolioId, status, keys, venueKeys, tradingAccountIds, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        portfolioId: { type: string }
+        status: { $ref: '#/components/schemas/AgentStatus' }
+        keys:
+          type: array
+          items: { $ref: '#/components/schemas/AgentKey' }
+        venueKeys:
+          type: array
+          description: The agent's trading keys, one per trading account it may use.
+          items: { $ref: '#/components/schemas/VenueKey' }
+        tradingAccountIds:
+          type: array
+          description: The trading accounts the agent holds an unrevoked venue key on. Derived from `venueKeys`.
+          items: { type: string }
+        lastDecisionAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AgentCreate:
+      type: object
+      required: [name, portfolioId]
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+        portfolioId: { type: string }
+    AgentUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+        portfolioId: { type: string }
+    VenueKeyScheme:
+      type: string
+      enum: [ed25519, ecdsa, rsa, hmac]
+      description: |
+        The venue's key type, which alone decides how the key is held and used:
+        Ed25519, ECDSA and RSA keys are two-party keys (FROST, two-party ECDSA,
+        two-party RSA) with one share in the engine and one in the agent's
+        signer; HMAC keys are held whole by the signer the customer runs, which
+        signs only what both the agent and the engine signed. Per venue:
+        Binance ed25519, Hyperliquid ecdsa (an API wallet), Bybit rsa, Coinbase
+        ecdsa, OKX hmac.
+    VenueKeyStatus:
+      type: string
+      enum: [pending, active, revoked]
+    VenueKey:
+      type: object
+      description: One agent's trading key on one trading account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
+      required: [id, agentId, tradingAccountId, venue, scheme, status, apiKeyRegistered, createdAt]
+      properties:
+        id: { type: string }
+        agentId: { type: string }
+        tradingAccountId: { type: string }
+        venue: { $ref: '#/components/schemas/Venue' }
+        scheme: { $ref: '#/components/schemas/VenueKeyScheme' }
+        status: { $ref: '#/components/schemas/VenueKeyStatus' }
+        publicKey:
+          type: string
+          description: |
+            What the venue needs to know the key: the public key to register at an
+            exchange (SPKI PEM), or the API wallet's address for the master wallet
+            to approve on Hyperliquid. Absent for HMAC keys.
+        fingerprint: { type: string }
+        apiKeyRegistered:
+          type: boolean
+          description: Whether the engine holds the key id the exchange issued (`register`). True from creation for HMAC keys, whose id the signer carries, and for Hyperliquid, which has none.
+        hyperliquid:
+          type: object
+          description: Hyperliquid keys only. The master wallet's approval of the API wallet.
+          required: [approvalStatus]
+          properties:
+            approvalStatus: { type: string, enum: [pending, approved] }
+            approvedAt:
+              type: string
+              format: date-time
+              description: When the engine first saw the master account's approval on the venue.
+            validUntil:
+              type: string
+              format: date-time
+              description: When the venue will expire the approval, as the venue reports it.
+        withdrawalsDisabled: { type: boolean }
+        ipAllowlisted: { type: boolean }
+        verification: { $ref: '#/components/schemas/TradingAccountVerification' }
+        createdAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time }
+    VenueKeyCreate:
+      type: object
+      required: [tradingAccountId]
+      properties:
+        tradingAccountId: { type: string }
+        engineShare:
+          type: string
+          description: |
+            The engine's share as `mishmar keygen` printed it (JSON). Required for
+            venues with Ed25519, ECDSA or RSA keys, refused for HMAC venues.
+            Write-only; the agent's share never passes through the engine, and
+            the public key is derived from this share.
+    VenueKeyRegistration:
+      type: object
+      required: [apiKey]
+      properties:
+        apiKey:
+          type: string
+          minLength: 1
+          description: The key id the exchange issued when the public key was registered.
+
+    Venue:
+      type: string
+      enum: [hyperliquid, binance, bybit, okx, coinbase, fireblocks]
+    TradingAccountKind:
+      type: string
+      enum: [exchange, hyperliquid, cosigner_callback]
+      description: An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
+    TradingAccountStatus:
+      type: string
+      enum: [pending, active, paused, killed]
+    TradingAccountMode:
+      type: string
+      enum: [agents_only, shared]
+      description: |
+        What a fill Mishmar did not place means on the trading account. Several agents
+        may share a trading account in either mode, and transfers, funding, liquidations
+        and the venue's other entries are handled the same way in both.
+        agents_only (the default): Mishmar is the only thing trading on the
+        trading account, so such a fill restricts new risk on the trading account, exits still
+        passing, until the owner assigns it (resolveDiscrepancy) or it falls in
+        a maintenance window. shared: such a fill is booked to the unassigned book
+        and trading continues; account and trading account rules see it, agent rules do not.
+    TradingAccount:
+      type: object
+      required: [id, name, venue, kind, status, mode, setup, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        venue: { $ref: '#/components/schemas/Venue' }
+        kind: { $ref: '#/components/schemas/TradingAccountKind' }
+        status: { $ref: '#/components/schemas/TradingAccountStatus' }
+        mode: { $ref: '#/components/schemas/TradingAccountMode' }
+        setup: { $ref: '#/components/schemas/TradingAccountSetup' }
+        verification: { $ref: '#/components/schemas/TradingAccountVerification' }
+        restrictions:
+          type: array
+          description: |
+            What blocks new risk on the trading account right now, set by the engine
+            rather than by a person (pause and stop are `status`). Exits pass
+            under every restriction. Absent when there is none.
+          items: { $ref: '#/components/schemas/TradingAccountRestriction' }
+        maintenance: { $ref: '#/components/schemas/MaintenanceWindow' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TradingAccountRestriction:
+      type: object
+      required: [scope, cause, since]
+      properties:
+        scope:
+          type: string
+          enum: [trading_account, asset]
+          description: The whole trading account, or one asset on it (every market that trades that asset).
+        asset: { type: string, description: The asset, when `scope` is asset. }
+        cause:
+          type: string
+          enum: [foreign_fill, unexplained_position, ambiguous_transfer, stream_gap, state_unavailable]
+          description: |
+            foreign_fill: an agents-only trading account saw a fill Mishmar did not place.
+            unexplained_position: the venue's position in the asset disagrees
+            with the books and nothing explains it. ambiguous_transfer: an
+            asset several agents hold was transferred out beyond what the unassigned
+            book holds. stream_gap: the venue's stream missed more than its
+            history can fill. state_unavailable: the venue's state cannot be read.
+        since: { type: string, format: date-time }
+        discrepancyId: { type: string, description: The discrepancy that lifts it once resolved, when there is one. }
+    MaintenanceWindow:
+      type: object
+      required: [openedAt, openedBy]
+      description: An open maintenance window (openMaintenance). Absent when none is open.
+      properties:
+        openedAt: { type: string, format: date-time }
+        openedBy: { type: string, description: The operator who opened it. }
+        comment: { type: string }
+    MaintenanceOpen:
+      type: object
+      properties:
+        comment: { type: string }
+    TradingAccountSetup:
+      oneOf:
+        - $ref: '#/components/schemas/HyperliquidSetup'
+        - $ref: '#/components/schemas/ExchangeSetup'
+        - $ref: '#/components/schemas/CosignerCallbackSetup'
+      discriminator:
+        propertyName: kind
+        mapping:
+          hyperliquid: '#/components/schemas/HyperliquidSetup'
+          exchange: '#/components/schemas/ExchangeSetup'
+          cosigner_callback: '#/components/schemas/CosignerCallbackSetup'
+    HyperliquidSetup:
+      type: object
+      required: [kind, network, masterAddress]
+      properties:
+        kind: { type: string, enum: [hyperliquid] }
+        network: { type: string, enum: [mainnet, testnet] }
+        masterAddress:
+          type: string
+          description: |
+            The customer's Hyperliquid master account. Reads need no key: the info
+            API is public by address. Each agent's API wallet (its VenueKey) is
+            approved by this account.
+    ExchangeSetup:
+      type: object
+      required: [kind, environment, readKeyRegistered]
+      properties:
+        kind: { type: string, enum: [exchange] }
+        environment:
+          type: string
+          enum: [demo, live]
+          description: Demo trading (what a paper engine creates) or the live venue.
+        subaccount: { type: string }
+        readKeyRegistered:
+          type: boolean
+          description: |
+            Whether the engine holds the account's read-only key, for margin,
+            positions and fills. The trading keys belong to the agents (VenueKey);
+            a trading account without a read key verifies and streams nothing.
+        readKeyFingerprint: { type: string }
+        engineEgressIp:
+          type: string
+          description: Allowlist this at the venue on every key of the account. Present only when the engine runs in live mode and knows its egress address.
+    CosignerCallbackSetup:
+      type: object
+      required: [kind, callbackUrl, callbackPublicKey]
+      properties:
+        kind: { type: string, enum: [cosigner_callback] }
+        callbackUrl:
+          type: string
+          description: Register this as the co-signer callback.
+        callbackPublicKey: { type: string }
+        apiUserId:
+          type: string
+          description: The Fireblocks API user that maps to this trading account.
+    TradingAccountVerification:
+      type: object
+      required: [checks]
+      properties:
+        verifiedAt: { type: string, format: date-time }
+        checks:
+          type: array
+          items:
+            type: object
+            required: [name, passed]
+            properties:
+              name: { type: string }
+              passed: { type: boolean }
+              detail: { type: string }
+    TradingAccountCreate:
+      type: object
+      required: [name, venue]
+      properties:
+        name: { type: string, minLength: 1 }
+        venue: { $ref: '#/components/schemas/Venue' }
+        mode:
+          $ref: '#/components/schemas/TradingAccountMode'
+          description: Default agents_only.
+        hyperliquid:
+          type: object
+          required: [masterAddress, network]
+          properties:
+            masterAddress: { type: string }
+            network:
+              type: string
+              enum: [mainnet, testnet]
+              description: A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
+        exchange:
+          type: object
+          required: [readApiKey, readApiSecret]
+          description: An exchange account. The trading keys come later, one per agent (VenueKey).
+          properties:
+            subaccount: { type: string }
+            readApiKey:
+              type: string
+              description: A key with read permissions only, for the account's margin, positions and fills. Write-only.
+            readApiSecret:
+              type: string
+              description: The read-only key's secret (HMAC). Write-only and stored whole; it cannot trade or withdraw.
+        fireblocks:
+          type: object
+          required: [apiUserId]
+          properties:
+            apiUserId: { type: string }
+    TradingAccountUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        mode: { $ref: '#/components/schemas/TradingAccountMode' }
+    VenueRules:
+      type: object
+      required: [tradingAccountId, venue, asOf, symbols]
+      properties:
+        tradingAccountId: { type: string }
+        venue: { $ref: '#/components/schemas/Venue' }
+        asOf:
+          type: string
+          format: date-time
+          description: When the engine last read the rules from the venue.
+        symbols:
+          type: array
+          items: { $ref: '#/components/schemas/SymbolRules' }
+    SymbolRules:
+      type: object
+      required: [symbol]
+      description: |
+        One market's rules as the venue states them. Fields the venue does not
+        state are absent. Hyperliquid states no tick: a perp price has at most
+        five significant figures and at most (6 - sizeDecimals) decimals, and
+        any integer price is valid.
+      properties:
+        symbol: { type: string }
+        tickSize: { $ref: '#/components/schemas/Decimal' }
+        stepSize: { $ref: '#/components/schemas/Decimal' }
+        minSize: { $ref: '#/components/schemas/Decimal' }
+        minNotional: { $ref: '#/components/schemas/Decimal' }
+        maxLeverage: { $ref: '#/components/schemas/Decimal' }
+        assetIndex:
+          type: integer
+          description: Hyperliquid only. The asset's index, which orders name instead of the symbol.
+        sizeDecimals:
+          type: integer
+          description: Hyperliquid only. Decimals a size may have.
+    WalletApprovalRequest:
+      type: object
+      properties:
+        walletChainId:
+          type: string
+          description: |
+            The chain the browser wallet is connected to, as the wallet reports it
+            (hex, e.g. "0x66eee"). Some wallets refuse typed data for another chain;
+            Hyperliquid accepts any chain id in the signature domain.
+    WalletApproval:
+      type: object
+      required: [approvalId, typedData, expiresAt]
+      properties:
+        approvalId:
+          type: string
+          description: Correlates the signature with this typed data. Single use.
+        typedData:
+          type: object
+          additionalProperties: true
+          description: EIP-712 typed data (domain, types, primaryType, message) for the wallet's signTypedData call.
+        expiresAt: { type: string, format: date-time }
+    WalletApprovalSignature:
+      type: object
+      required: [approvalId, signature]
+      properties:
+        approvalId: { type: string }
+        signature:
+          type: string
+          description: The 65-byte hex signature the master wallet produced, 0x-prefixed.
+
+    RuleMetric:
+      type: string
+      enum: [gross_exposure, net_exposure, leverage, concentration, drawdown, daily_loss, daily_realized_loss, order_size]
+      description: |
+        gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
+        leverage is a ratio. concentration and drawdown are percentages.
+        net_exposure and concentration accept an `asset` to narrow to one name.
+        daily_loss is today's loss counting open positions at their marks
+        (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
+        with fees and funding (PnlTotals.realizedNetUsd).
+    RuleUnit:
+      type: string
+      enum: [usd, ratio, pct]
+    RuleOutcome:
+      type: string
+      enum: [allow, require_approval, block]
+      description: What happens when the threshold is breached. `allow` records the breach and lets it through.
+    Rule:
+      type: object
+      required: [id, name, scope, metric, threshold, unit, outcome, enabled, appliesToExits, revision, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        scope: { $ref: '#/components/schemas/Scope' }
+        metric: { $ref: '#/components/schemas/RuleMetric' }
+        threshold: { $ref: '#/components/schemas/Decimal' }
+        unit: { $ref: '#/components/schemas/RuleUnit' }
+        asset:
+          type: string
+          description: Narrow the metric to one asset, e.g. `NVDA` or `BTC`.
+        outcome: { $ref: '#/components/schemas/RuleOutcome' }
+        enabled: { type: boolean }
+        appliesToExits:
+          type: boolean
+          description: |
+            Whether the rule also judges exits (see submitProposal). False by
+            default: the rule is waived for an exit, and the waiver is recorded
+            on the decision's evaluation. Set it for a rule that must hold even
+            while an agent closes, an order-size cap on a thin market, say.
+        revision:
+          type: integer
+          description: The configuration revision that last changed this rule.
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RuleCreate:
+      type: object
+      required: [name, scope, metric, threshold, unit, outcome]
+      properties:
+        name: { type: string, minLength: 1 }
+        scope: { $ref: '#/components/schemas/Scope' }
+        metric: { $ref: '#/components/schemas/RuleMetric' }
+        threshold: { $ref: '#/components/schemas/Decimal' }
+        unit: { $ref: '#/components/schemas/RuleUnit' }
+        asset: { type: string }
+        outcome: { $ref: '#/components/schemas/RuleOutcome' }
+        enabled: { type: boolean, default: true }
+        appliesToExits: { type: boolean, default: false }
+    RuleUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        scope: { $ref: '#/components/schemas/Scope' }
+        metric: { $ref: '#/components/schemas/RuleMetric' }
+        threshold: { $ref: '#/components/schemas/Decimal' }
+        unit: { $ref: '#/components/schemas/RuleUnit' }
+        asset: { type: string }
+        outcome: { $ref: '#/components/schemas/RuleOutcome' }
+        enabled: { type: boolean }
+        appliesToExits: { type: boolean }
+
+    Verdict:
+      type: string
+      enum: [allow, require_approval, block]
+    ProposalKind:
+      type: string
+      enum: [order, transaction, signed_message, cancel]
+      description: |
+        cancel pulls a resting order the agent placed through Mishmar, named by
+        `targetClientOrderId`; it carries no order fields.
+    Side:
+      type: string
+      enum: [buy, sell]
+    Proposal:
+      type: object
+      required: [kind, venue, symbol, side, size, orderType, reduceOnly, notionalUsd, clientOrderId, expiresAt]
+      description: |
+        The proposal as the engine priced it. For a cancel, the order fields
+        (side, size, price, orderType, reduceOnly) describe the order being
+        cancelled as its own decision recorded it, and notionalUsd is "0": a
+        cancel adds no exposure.
+      properties:
+        kind: { $ref: '#/components/schemas/ProposalKind' }
+        venue: { $ref: '#/components/schemas/Venue' }
+        symbol: { type: string }
+        side: { $ref: '#/components/schemas/Side' }
+        size: { $ref: '#/components/schemas/Decimal' }
+        price: { $ref: '#/components/schemas/Decimal' }
+        orderType: { type: string, enum: [market, limit] }
+        leverage: { $ref: '#/components/schemas/Decimal' }
+        reduceOnly: { type: boolean }
+        notionalUsd: { $ref: '#/components/schemas/Decimal' }
+        clientOrderId:
+          type: string
+          description: Assigned by the engine. Names the agent so fills attribute per agent on a shared account.
+        expiresAt:
+          type: string
+          format: date-time
+          description: The deadline the agent set (ProposalSubmit.expiresAt). Nothing is forwarded past it.
+        targetClientOrderId:
+          type: string
+          description: Cancels only. The clientOrderId of the order being cancelled.
+        targetDecisionId:
+          type: string
+          description: Cancels only. The decision that placed the order being cancelled.
+    RuleEvaluation:
+      type: object
+      required: [ruleId, ruleName, scope, metric, observed, threshold, unit, passed, outcome]
+      properties:
+        ruleId: { type: string }
+        ruleName: { type: string }
+        scope: { $ref: '#/components/schemas/Scope' }
+        metric: { $ref: '#/components/schemas/RuleMetric' }
+        observed:
+          $ref: '#/components/schemas/Decimal'
+          description: The metric's value after the proposal, as evaluated.
+        threshold: { $ref: '#/components/schemas/Decimal' }
+        unit: { $ref: '#/components/schemas/RuleUnit' }
+        passed: { type: boolean }
+        outcome: { $ref: '#/components/schemas/RuleOutcome' }
+        waived:
+          type: boolean
+          description: |
+            True when the order is an exit and the rule does not apply to exits.
+            The rule is still evaluated and `observed` and `passed` recorded, so
+            the ledger shows what was skipped, but a waived evaluation never
+            affects the verdict. Absent when the rule applied.
+        waivedReason:
+          type: string
+          description: Why the rule was waived, for a person, e.g. "exit of 0.5 BTC; the rule does not apply to exits".
+    StateSnapshot:
+      type: object
+      required: [asOf, grossExposureUsd, netExposureUsd, leverage, drawdownPct, dailyPnlUsd]
+      properties:
+        asOf: { type: string, format: date-time }
+        grossExposureUsd: { $ref: '#/components/schemas/Decimal' }
+        netExposureUsd: { $ref: '#/components/schemas/Decimal' }
+        leverage: { $ref: '#/components/schemas/Decimal' }
+        drawdownPct: { $ref: '#/components/schemas/Decimal' }
+        dailyPnlUsd: { $ref: '#/components/schemas/Decimal' }
+    VenueAck:
+      type: object
+      required: [orderId, status, receivedAt]
+      properties:
+        orderId: { type: string }
+        status: { type: string }
+        receivedAt: { type: string, format: date-time }
+        clientOrderId:
+          type: string
+          description: >-
+            The id the venue indexed the order under when it is not the proposal's own
+            clientOrderId (Hyperliquid derives a 16-byte cloid from it). Fills the venue
+            reports under it are attributed to this decision, also after the engine restarts.
+    Decision:
+      type: object
+      required: [id, createdAt, agentId, agentName, portfolioId, tradingAccountId, verdict, proposal, evaluations, state, configRevision, latencyMs, agentSignature]
+      properties:
+        id: { type: string }
+        createdAt: { type: string, format: date-time }
+        agentId: { type: string }
+        agentName: { type: string }
+        portfolioId: { type: string }
+        tradingAccountId: { type: string }
+        verdict: { $ref: '#/components/schemas/Verdict' }
+        reason:
+          type: string
+          description: One line for a person, e.g. the rule that blocked it or the kill switch that was engaged.
+        proposal: { $ref: '#/components/schemas/Proposal' }
+        exit:
+          type: boolean
+          description: |
+            True when the engine judged the order an exit (see submitProposal):
+            every rule without appliesToExits was waived. Absent otherwise.
+        evaluations:
+          type: array
+          items: { $ref: '#/components/schemas/RuleEvaluation' }
+        state: { $ref: '#/components/schemas/StateSnapshot' }
+        configRevision: { type: integer }
+        latencyMs: { type: number, format: double }
+        agentSignature: { type: string }
+        engineSignature:
+          type: string
+          description: |
+            The engine key's Ed25519 signature over the decision record as written
+            (every field above plus `submission`, without `venueAck`, `approval`,
+            `signing` and this field), base64. Present on every decision. See
+            docs/ledger.md.
+        venueAck: { $ref: '#/components/schemas/VenueAck' }
+        approvalId: { type: string }
+        submission:
+          $ref: '#/components/schemas/DecisionSubmission'
+        approval:
+          $ref: '#/components/schemas/ApprovalOutcome'
+          description: The approval's outcome, when the decision was parked for a person.
+        signing:
+          $ref: '#/components/schemas/SigningStatus'
+          description: |
+            Where the order stands with the agent's signer. Absent on trading accounts that
+            need no signer (the paper simulator, co-signer callbacks).
+    DecisionSubmission:
+      type: object
+      required: [keyId, nonce, proposedAt]
+      description: |
+        What the agent submitted that the priced proposal does not keep, so the
+        agent's signature can be verified again from the ledger alone: the key,
+        the nonce, the submission time, the price as sent (absent for a market
+        order, whose stored price is the mark the engine used) and the
+        one-shot venue message when there was one. A cancel's target is on the
+        proposal (`targetClientOrderId`).
+      properties:
+        keyId: { type: string }
+        nonce: { type: string }
+        proposedAt: { type: string, format: date-time }
+        price: { $ref: '#/components/schemas/Decimal' }
+        venueMessage: { $ref: '#/components/schemas/ProposalVenueMessage' }
+    ApprovalOutcome:
+      type: object
+      required: [id, status, requestedAt, expiresAt]
+      properties:
+        id: { type: string }
+        status: { $ref: '#/components/schemas/ApprovalStatus' }
+        requestedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time }
+        decidedBy: { type: string }
+        comment: { type: string }
+    LedgerHead:
+      type: object
+      required: [seq, hash, events, enginePublicKey]
+      properties:
+        seq:
+          type: integer
+          format: int64
+          description: The latest event's sequence number; 0 when the chain is empty.
+        hash: { type: string, description: The latest event's hash, hex; empty when the chain is empty. }
+        events: { type: integer, format: int64 }
+        enginePublicKey:
+          type: string
+          description: The engine key's Ed25519 public key, base64. Verifies every engineSignature.
+    LedgerEvent:
+      type: object
+      required: [seq, at, kind, payload, prevHash, hash]
+      description: |
+        One append-only entry of the audit ledger. `hash` is SHA-256 over the previous
+        event's hash, a newline and the canonical JSON of `payload` (keys sorted, no
+        whitespace, nulls dropped), hex; the first event's prevHash is empty. The
+        kinds: decision (the record as written), forwarded (reason, venue ack, fills
+        the venue returned), fills (fills a venue stream reported), parked, approval
+        (the outcome), expired (approvals nobody decided in time), cancelled (the
+        venue's answer to a cancel), capital (a transfer in or out, valued at the
+        mark), venue_event (funding, a liquidation or auto-deleveraging, a
+        settlement, a rebate, interest and the venue's other non-trade entries, with
+        how they were booked), discrepancy (one opened), resolved (one resolved, and
+        how), reassigned (a position moved between books), maintenance (a window
+        opened or closed).
+      properties:
+        seq: { type: integer, format: int64 }
+        at: { type: string, format: date-time }
+        kind:
+          type: string
+          enum: [decision, forwarded, fills, parked, approval, expired, cancelled, capital, venue_event, discrepancy, resolved, reassigned, maintenance]
+        decisionId: { type: string }
+        payload:
+          type: object
+          additionalProperties: true
+        prevHash: { type: string }
+        hash: { type: string }
+    LedgerEventPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LedgerEvent' }
+        nextAfter:
+          type: integer
+          format: int64
+          description: Pass as `after` for the next page; absent on the last page.
+    DecisionPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Decision' }
+        nextCursor: { type: string }
+
+    ApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected, expired]
+    Approval:
+      type: object
+      required: [id, decisionId, status, requestedAt, expiresAt, decision]
+      properties:
+        id: { type: string }
+        decisionId: { type: string }
+        status: { $ref: '#/components/schemas/ApprovalStatus' }
+        requestedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time }
+        decidedBy: { type: string }
+        comment: { type: string }
+        decision: { $ref: '#/components/schemas/Decision' }
+    ApprovalDecide:
+      type: object
+      properties:
+        comment: { type: string }
+
+    ProposalSubmit:
+      type: object
+      required: [keyId, tradingAccountId, kind, symbol, nonce, proposedAt, expiresAt, signature]
+      description: |
+        Every kind but cancel needs side, size, orderType and reduceOnly; a
+        cancel needs targetClientOrderId and must leave the order fields
+        (side, size, price, orderType, leverage, reduceOnly) out. The engine
+        refuses either mistake (422).
+      properties:
+        keyId:
+          type: string
+          description: The id returned when the key was issued.
+        tradingAccountId: { type: string }
+        kind: { $ref: '#/components/schemas/ProposalKind' }
+        symbol:
+          type: string
+          description: For a cancel, the symbol of the order being cancelled; the venues need it.
+        side:
+          $ref: '#/components/schemas/Side'
+          x-go-type-skip-optional-pointer: true
+        size:
+          $ref: '#/components/schemas/Decimal'
+          x-go-type-skip-optional-pointer: true
+        price:
+          $ref: '#/components/schemas/Decimal'
+          description: Required for limit orders. Ignored for market orders, which are priced at mark.
+        orderType:
+          type: string
+          enum: [market, limit]
+          x-go-type-skip-optional-pointer: true
+        leverage: { $ref: '#/components/schemas/Decimal' }
+        reduceOnly:
+          type: boolean
+          description: |
+            The agent's claim that the order only reduces its position. With it
+            the signer sets the venue's own reduce-only flag, and the engine
+            judges whether the order is an exit (see submitProposal).
+        targetClientOrderId:
+          type: string
+          description: |
+            Cancels only, and required for them: the clientOrderId the engine
+            assigned on the decision of the order to pull. That order must be
+            the same agent's, on the same trading account, and must have reached the
+            venue. Refused on every other kind.
+        venueMessage: { $ref: '#/components/schemas/ProposalVenueMessage' }
+        nonce:
+          type: string
+          description: Unique per proposal. A replayed nonce is rejected.
+        proposedAt:
+          type: string
+          format: date-time
+          description: Rejected when more than 60 seconds old.
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            The latest moment the order may reach the venue. Must be after
+            proposedAt and at most 24 hours later. A decision parked for a
+            person expires then (sooner when the engine's approval window is
+            shorter), an approval after it is refused, and nothing is forwarded
+            past it. A proposal that is already past it is refused (422).
+        signature:
+          type: string
+          description: |
+            Base64 Ed25519 signature over the canonical JSON of every other
+            field in this object: keys sorted at every level (venueMessage
+            included), no whitespace, numbers as the shortest round-trip
+            decimal, absent optional fields omitted. Pinned in
+            spec/vectors/proposal-signing.json.
+    ProposalVenueMessage:
+      type: object
+      required: [venueKeyId, scheme, message, engineCommitmentId, share]
+      description: |
+        The one-shot path. The agent's signer builds the venue request and
+        signs its half before the proposal leaves the agent's machine, so an
+        allowed order needs no round trip to the signer: the engine decodes
+        `message`, checks it against the proposal and the trading account's venue rules,
+        runs the rules, and only then adds its own half and forwards. It is
+        inside the signed proposal, so nobody can pair a proposal with a
+        message the agent did not mean. The engine spends the commitment named
+        here whatever the outcome: it signs with it when the order is allowed
+        and discards it on a block, a park or a refusal. A parked order is
+        signed again through the signer channel once a person decides, since
+        this message would be stale by then. Without this field the engine
+        asks the signer through the channel.
+      properties:
+        venueKeyId:
+          type: string
+          description: The agent's trading key on the trading account.
+        scheme:
+          $ref: '#/components/schemas/SigningScheme'
+          description: |
+            frost-ed25519 today; ecdsa-2p once two-party ECDSA ships, its half
+            from a presignature. Never proxy: an HMAC venue's signer holds the
+            whole key and forwards the request itself.
+        message:
+          type: string
+          description: |
+            Base64 of the venue request before its signature: Binance's
+            parameter string (with its timestamp and recvWindow), which is what
+            its signature covers; Hyperliquid's action and nonce as JSON, from
+            which the engine derives the EIP-712 digest itself.
+        engineCommitmentId:
+          type: string
+          description: The engine commitment (requestCommitments) this half was computed against. Single use.
+        commitment:
+          type: string
+          description: Base64. FROST only, the signer's own nonce commitment.
+        share:
+          type: string
+          description: Base64. The signer's half, its FROST signature share.
+    CommitmentRequest:
+      type: object
+      required: [venueKeyId]
+      properties:
+        venueKeyId: { type: string }
+        count:
+          type: integer
+          minimum: 1
+          description: How many the signer wants. Default and cap, the entitlement less what it already holds unused.
+    CommitmentBatch:
+      type: object
+      required: [venueKeyId, scheme, engineInstance, batchSize, outstanding, items]
+      properties:
+        venueKeyId: { type: string }
+        engineInstance:
+          type: string
+          description: |
+            The engine instance that issued the batch; it changes each time
+            the engine starts. The engine keeps the secret half of each
+            commitment in memory only (written down, a restored backup could
+            sign two messages with one nonce and give the engine's key share
+            away), so after a restart the batch is unknown to it and a
+            proposal using one is refused with 409. The signer poll names the
+            current instance, so a signer drops a stale batch before it
+            proposes with it.
+        scheme: { $ref: '#/components/schemas/SigningScheme' }
+        batchSize:
+          type: integer
+          description: The account's entitlement (Entitlements.commitmentBatch).
+        outstanding:
+          type: integer
+          description: Unused commitments the signer holds for this key, these included.
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/EngineCommitment' }
+    EngineCommitment:
+      type: object
+      required: [id, commitment, expiresAt]
+      properties:
+        id: { type: string }
+        commitment:
+          type: string
+          description: Base64. The engine's FROST nonce commitment.
+        expiresAt: { type: string, format: date-time }
+    SigningScheme:
+      type: string
+      enum: [frost-ed25519, ecdsa-2p, rsa-2p, proxy]
+      description: The protocol a sign request runs, decided by the venue key's scheme (VenueKeyScheme), never chosen by anyone.
+    SignerPoll:
+      type: object
+      properties:
+        waitSeconds:
+          type: integer
+          minimum: 0
+          maximum: 30
+          default: 25
+          description: How long the engine may hold the poll open waiting for something to sign.
+    SignRequest:
+      type: object
+      required: [id, sessionId, round, agentId, tradingAccountId, venueKeyId, venue, scheme, purpose, message, issuedAt, expiresAt, attempt]
+      properties:
+        id:
+          type: string
+          description: Unique per request; the answer names it.
+        sessionId:
+          type: string
+          description: Groups the rounds of one signature. A one-round scheme has one request per session.
+        round: { type: integer, minimum: 1 }
+        agentId: { type: string }
+        tradingAccountId: { type: string }
+        venueKeyId:
+          type: string
+          description: The agent's trading key on the trading account, so the signer picks the right share.
+        venue: { $ref: '#/components/schemas/Venue' }
+        scheme: { $ref: '#/components/schemas/SigningScheme' }
+        purpose:
+          type: string
+          enum: [order, cancel, verify]
+          description: |
+            What the signature is for. `order` and `cancel` carry the decision
+            and the agent's proposal; `verify` is the harmless read the engine
+            co-signs to prove the key (verifyVenueKey), and carries neither.
+            A signer refuses an `order` it did not propose; it may sign a
+            `verify` whose message decodes to no order at all.
+        decisionId: { type: string }
+        clientOrderId: { type: string }
+        order: { $ref: '#/components/schemas/SignRequestOrder' }
+        message:
+          type: string
+          description: |
+            Base64 of the exact bytes the venue will verify: Binance's parameter
+            string, Hyperliquid's EIP-712 digest. The signer decodes them itself
+            and checks them against the order it proposed; `order` is a courtesy,
+            never the thing checked.
+        proposal:
+          $ref: '#/components/schemas/ProposalSubmit'
+          description: |
+            The agent's own signed proposal this request serves (orders and
+            cancels), so a signer that is not the proposer (a standalone signer,
+            a proxy) can verify that the agent authorized the order before it
+            signs. Absent for `verify`.
+        engine: { $ref: '#/components/schemas/SignRequestEngine' }
+        venueRequest: { $ref: '#/components/schemas/VenueRequest' }
+        issuedAt: { type: string, format: date-time }
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            Seconds after `issuedAt` for a fresh proposal. For an order signed
+            again after a person approved it, the grace period, capped by the
+            proposal's own deadline.
+        attempt:
+          type: integer
+          minimum: 1
+          description: Increments each time the request is handed out again after a signer took it and did not answer.
+    SignRequestOrder:
+      type: object
+      required: [symbol, side, size, orderType, reduceOnly]
+      properties:
+        symbol: { type: string }
+        side: { $ref: '#/components/schemas/Side' }
+        size:
+          $ref: '#/components/schemas/Decimal'
+          description: As the venue will receive it, after rounding to its step.
+        price: { $ref: '#/components/schemas/Decimal' }
+        orderType: { type: string, enum: [market, limit] }
+        reduceOnly: { type: boolean }
+    SignRequestEngine:
+      type: object
+      description: The engine's part of the round.
+      properties:
+        commitment:
+          type: string
+          description: Base64. The engine's FROST nonce commitment for this signature.
+        signature:
+          type: string
+          description: |
+            Base64 Ed25519 signature by the engine's key (see getLedgerHead)
+            over `message`. Present for the proxy scheme: the proxy forwards
+            nothing that does not carry it.
+        payload:
+          type: string
+          description: Base64. Round data for the two-party ECDSA and RSA schemes.
+    VenueRequest:
+      type: object
+      required: [method, url]
+      description: |
+        The venue request the signature serves. For the proxy scheme it is the
+        request the proxy signs with the key it holds and sends to the venue;
+        for the others it is informational (an exchange signs its query string,
+        which does not name the endpoint, so this says what the engine will call).
+      properties:
+        method: { type: string }
+        url: { type: string }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+        body:
+          type: string
+          description: Base64.
+    SignerAnswer:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [share, signature, venue_response, refusal]
+          description: Must fit the request's scheme; `share` for FROST, ECDSA and RSA rounds, `venue_response` for the proxy.
+        commitment:
+          type: string
+          description: Base64. The signer's FROST nonce commitment.
+        share:
+          type: string
+          description: Base64. The signer's signature share (FROST), or its round data (two-party ECDSA, RSA).
+        signature:
+          type: string
+          description: Base64. A whole signature, for a scheme where the signer finishes one.
+        venueResponse: { $ref: '#/components/schemas/VenueResponse' }
+        refusal:
+          type: object
+          required: [reason]
+          properties:
+            reason:
+              type: string
+              description: Why the signer would not sign; recorded on the decision.
+    VenueResponse:
+      type: object
+      required: [status, body]
+      properties:
+        status: { type: integer }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+        body:
+          type: string
+          description: Base64.
+    SigningStatus:
+      type: object
+      required: [status]
+      description: Where an order stands with the agent's signer, on decisions through a trading account whose venue key needs the signer (every exchange and Hyperliquid trading account).
+      properties:
+        status:
+          type: string
+          enum: [waiting, signed, refused, unreachable]
+        requestedAt: { type: string, format: date-time }
+        answeredAt: { type: string, format: date-time }
+        attempts: { type: integer }
+        detail:
+          type: string
+          description: The signer's refusal reason, or why it could not be reached.
+    PositionInput:
+      type: object
+      required: [venue, symbol, side, size, entryPrice, markPrice, agentId, tradingAccountId]
+      properties:
+        venue: { $ref: '#/components/schemas/Venue' }
+        symbol: { type: string }
+        side: { type: string, enum: [long, short] }
+        size: { $ref: '#/components/schemas/Decimal' }
+        entryPrice: { $ref: '#/components/schemas/Decimal' }
+        markPrice: { $ref: '#/components/schemas/Decimal' }
+        agentId: { type: string }
+        tradingAccountId: { type: string }
+    MarkInput:
+      type: object
+      required: [venue, symbol, price]
+      properties:
+        venue: { $ref: '#/components/schemas/Venue' }
+        symbol: { type: string }
+        price: { $ref: '#/components/schemas/Decimal' }
+    StateImport:
+      type: object
+      required: [positions, marks, equityUsd, highWaterMarkUsd]
+      properties:
+        positions:
+          type: array
+          items: { $ref: '#/components/schemas/PositionInput' }
+        marks:
+          type: array
+          description: |
+            Last known prices per venue symbol. Market orders are priced at the
+            mark; a symbol without one is blocked. Nothing is assumed, not even
+            that a stablecoin is worth 1.
+          items: { $ref: '#/components/schemas/MarkInput' }
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Account equity, the denominator for account-scope leverage.
+        highWaterMarkUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Peak equity, the reference for account-scope drawdown.
+    PnlTotals:
+      type: object
+      description: |
+        PnL over a day or a range of days, for one scope. The engine books it
+        as positions move: a fill that closes part of a position realises
+        its PnL at the position's average entry, its fee goes to the book
+        whose order it was, and a funding payment is shared among the books
+        by each one's own position (the unassigned book takes what the books
+        do not explain). A day runs from the moment the engine opens it,
+        just after midnight UTC, to the next.
+      required: [realizedUsd, unrealizedUsd, feesUsd, fundingUsd, netUsd, realizedNetUsd]
+      properties:
+        realizedUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Closed trading PnL, before fees and funding.
+        unrealizedUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The change in the open positions' value at their marks; today's moves with the marks.
+        feesUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Trading fees paid, negative; a rebate is positive.
+        fundingUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Funding received, negative when paid.
+        netUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The PnL, realized + unrealized + fees + funding. daily_loss and the portfolio and agent drawdowns read it.
+        realizedNetUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The realized PnL, realized + fees + funding, without the open positions' moves. daily_realized_loss reads it.
+    PnlDay:
+      allOf:
+        - type: object
+          required: [date]
+          properties:
+            date: { type: string, format: date }
+        - $ref: '#/components/schemas/PnlTotals'
+    PnlSeries:
+      type: object
+      required: [scope, name, from, to, days, totals]
+      properties:
+        scope: { $ref: '#/components/schemas/Scope' }
+        name: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/PnlDay' }
+        totals: { $ref: '#/components/schemas/PnlTotals' }
+    PnlSummaryRow:
+      type: object
+      required: [scope, name, dayNetUsd, mtdNetUsd, realizedUsd, unrealizedUsd, grossExposureUsd]
+      properties:
+        scope: { $ref: '#/components/schemas/Scope' }
+        name: { type: string }
+        parentId:
+          type: string
+          description: The portfolio an agent belongs to. Lets the table nest rows.
+        dayNetUsd: { $ref: '#/components/schemas/Decimal' }
+        mtdNetUsd: { $ref: '#/components/schemas/Decimal' }
+        realizedUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Month to date.
+        unrealizedUsd: { $ref: '#/components/schemas/Decimal' }
+        grossExposureUsd: { $ref: '#/components/schemas/Decimal' }
+    PnlSummary:
+      type: object
+      required: [asOf, rows]
+      properties:
+        asOf: { type: string, format: date-time }
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/PnlSummaryRow' }
+    Position:
+      type: object
+      required: [id, venue, symbol, side, size, entryPrice, markPrice, notionalUsd, unrealizedUsd]
+      properties:
+        id: { type: string }
+        venue: { $ref: '#/components/schemas/Venue' }
+        symbol: { type: string }
+        side: { type: string, enum: [long, short] }
+        size: { $ref: '#/components/schemas/Decimal' }
+        entryPrice: { $ref: '#/components/schemas/Decimal' }
+        markPrice: { $ref: '#/components/schemas/Decimal' }
+        notionalUsd: { $ref: '#/components/schemas/Decimal' }
+        unrealizedUsd: { $ref: '#/components/schemas/Decimal' }
+        leverage: { $ref: '#/components/schemas/Decimal' }
+        agentId: { type: string }
+        portfolioId: { type: string }
+        tradingAccountId: { type: string }
+        book:
+          type: string
+          enum: [agent, unassigned]
+          description: |
+            unassigned: a holding no agent owns, such as a manual trade on a shared
+            trading account, an asset deposited in kind, or what a retired agent held;
+            agentId and portfolioId are then absent. Account and trading account rules see
+            the unassigned book; agent and portfolio rules do not. Absent means agent.
+    PositionReassign:
+      type: object
+      required: [symbol, size]
+      properties:
+        symbol: { type: string }
+        size:
+          $ref: '#/components/schemas/Decimal'
+          description: How much to move, positive, in the direction the giving book holds.
+        fromAgentId:
+          type: string
+          description: The agent giving the holding. Absent means the unassigned book.
+        toAgentId:
+          type: string
+          description: The agent receiving it. Absent means the unassigned book; the two must differ.
+        comment: { type: string }
+
+    DiscrepancyKind:
+      type: string
+      enum: [foreign_fill, unexplained_position, unexplained_balance, ambiguous_transfer, stream_gap]
+      description: |
+        foreign_fill: a fill the venue reported that Mishmar did not place;
+        restricts an agents-only trading account, and on a shared trading account is already in the
+        unassigned book and listed only for re-attribution. unexplained_position: a
+        venue position that disagrees with the books with nothing to explain
+        it; that asset on the trading account is degraded, and every agent holding it has
+        the difference added to its agent rules in whichever direction is
+        worse. unexplained_balance: a cash or collateral change with nothing to
+        explain it; nothing is degraded, a drop counts as a loss and a rise is
+        not counted until resolved. ambiguous_transfer: an asset several agents
+        hold was transferred out beyond what the unassigned book holds; that asset
+        is degraded until the owner names the agent it came from. stream_gap:
+        the venue's stream missed more than its history can fill; the whole
+        trading account is degraded until the engine has re-read the venue.
+    DiscrepancyStatus:
+      type: string
+      enum: [open, resolved]
+    Discrepancy:
+      type: object
+      required: [id, tradingAccountId, kind, status, restricts, detectedAt]
+      properties:
+        id: { type: string }
+        tradingAccountId: { type: string }
+        kind: { $ref: '#/components/schemas/DiscrepancyKind' }
+        status: { $ref: '#/components/schemas/DiscrepancyStatus' }
+        restricts:
+          type: string
+          enum: [trading_account, asset, none]
+          description: What it blocks for new risk while open. Exits always pass.
+        asset: { type: string, description: The asset concerned, when there is one. }
+        detectedAt: { type: string, format: date-time }
+        venueQuantity:
+          $ref: '#/components/schemas/Decimal'
+          description: The venue's position (signed, long positive) or balance when detected.
+        booksQuantity:
+          $ref: '#/components/schemas/Decimal'
+          description: What the books add up to, the unassigned book included.
+        difference:
+          $ref: '#/components/schemas/Decimal'
+          description: venueQuantity minus booksQuantity.
+        fill: { $ref: '#/components/schemas/DiscrepancyFill' }
+        duringMaintenance:
+          type: boolean
+          description: The fill fell in a maintenance window, so it restricts nothing.
+        suggestion:
+          type: object
+          required: [assignTo, reason]
+          description: The engine's guess, e.g. a fill that exactly offsets one agent's position.
+          properties:
+            assignTo: { $ref: '#/components/schemas/DiscrepancyAssignTo' }
+            agentId: { type: string }
+            reason: { type: string }
+        resolution:
+          type: object
+          required: [assignTo, decidedBy, decidedAt]
+          properties:
+            assignTo: { $ref: '#/components/schemas/DiscrepancyAssignTo' }
+            agentId: { type: string }
+            decidedBy: { type: string }
+            decidedAt: { type: string, format: date-time }
+            comment: { type: string }
+    DiscrepancyFill:
+      type: object
+      required: [venueFillId, symbol, side, size, price, at]
+      properties:
+        venueFillId: { type: string }
+        symbol: { type: string }
+        side: { $ref: '#/components/schemas/Side' }
+        size: { $ref: '#/components/schemas/Decimal' }
+        price: { $ref: '#/components/schemas/Decimal' }
+        at: { type: string, format: date-time }
+    DiscrepancyAssignTo:
+      type: string
+      enum: [unassigned, agent, capital]
+      description: |
+        unassigned: book it to the trading account's unassigned book. agent: book it to `agentId`'s
+        book, an agent on the trading account (for an ambiguous transfer, the agent it
+        came from). capital: it was a transfer in or out, recorded at the mark,
+        moving equity and the drawdown baseline together.
+    DiscrepancyResolve:
+      type: object
+      required: [assignTo]
+      properties:
+        assignTo: { $ref: '#/components/schemas/DiscrepancyAssignTo' }
+        agentId:
+          type: string
+          description: Required when assignTo is agent, refused otherwise.
+        comment: { type: string }

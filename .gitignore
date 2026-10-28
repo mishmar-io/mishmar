@@ -1,0 +1,14 @@
+/bin/
+/dist/
+python/dist/
+python/build/
+python/*.egg-info/
+python/src/*.egg-info/
+__pycache__/
+.pytest_cache/
+.venv/
+*.share
+*.key
+.DS_Store
+node_modules/
+typescript/dist/

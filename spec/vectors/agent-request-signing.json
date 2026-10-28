@@ -1,0 +1,50 @@
+{
+  "description": "The agentAuth scheme: Ed25519 over the canonical JSON of {bodySha256, keyId, method, nonce, path, query, signedAt}. method upper case; path without the server prefix; query the raw query string (absent when empty); bodySha256 the lower-case hex SHA-256 of the body (absent when none); signedAt as sent in X-Mishmar-Signed-At, RFC 3339 UTC with the fraction trimmed. For each case the bytes must equal signingBytes and the signature with secret must equal signature.",
+  "secret": "msk_vector_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "cases": [
+    {
+      "name": "GET without a query",
+      "method": "GET",
+      "path": "/agent/decisions",
+      "keyId": "key_a",
+      "nonce": "n1",
+      "signedAt": "2026-10-26T12:00:00Z",
+      "signingBytes": "{\"keyId\":\"key_a\",\"method\":\"GET\",\"nonce\":\"n1\",\"path\":\"/agent/decisions\",\"signedAt\":\"2026-10-26T12:00:00Z\"}",
+      "signature": "pQwehpAZuvkN2IGWrrvOa41zxQbTnEnq99TntJDOArovbDdSSHywjpcLeupPWWLetZ/SINysvRzRKL4JJHtrAA=="
+    },
+    {
+      "name": "GET with a query, lower-case method, non-UTC time",
+      "method": "get",
+      "path": "/agent/decisions",
+      "query": "verdict=require_approval\u0026limit=20",
+      "keyId": "key_a",
+      "nonce": "n2",
+      "signedAt": "2026-10-26T12:00:00.25Z",
+      "signingBytes": "{\"keyId\":\"key_a\",\"method\":\"GET\",\"nonce\":\"n2\",\"path\":\"/agent/decisions\",\"query\":\"verdict=require_approval\\u0026limit=20\",\"signedAt\":\"2026-10-26T12:00:00.25Z\"}",
+      "signature": "dDEACreW8/cYsRLj92Ch9sHiPUp/nxIhggf1xeuVbzDRxFs9Er1A6vNIoOPwirw2hUrVwySXMXWz7/dKedyfDw=="
+    },
+    {
+      "name": "POST with a body",
+      "method": "POST",
+      "path": "/agent/signer/poll",
+      "body": "{\"waitSeconds\":25}",
+      "keyId": "key_a",
+      "nonce": "n3",
+      "signedAt": "2026-10-26T12:00:00Z",
+      "signingBytes": "{\"bodySha256\":\"e532ea07d1818b405efe3b1f2aa4d415d45bc046e67e1593c7a6e16d55d8406c\",\"keyId\":\"key_a\",\"method\":\"POST\",\"nonce\":\"n3\",\"path\":\"/agent/signer/poll\",\"signedAt\":\"2026-10-26T12:00:00Z\"}",
+      "signature": "rGVEWDV1/mg3BOLfDt7vIhqPuCdU66eg3p/xwd5OgR9pFhANTGwhchNfZB1Qc3UnQnG9nytRQTxGrFj1HJQiAA=="
+    },
+    {
+      "name": "POST with a body, a second later",
+      "method": "POST",
+      "path": "/agent/signer/requests/sr_1/answer",
+      "body": "{\"kind\":\"refusal\",\"refusal\":{\"reason\":\"not my order\"}}",
+      "keyId": "key_a",
+      "nonce": "n4",
+      "signedAt": "2026-10-26T12:00:01Z",
+      "signingBytes": "{\"bodySha256\":\"e637559557be8bedc68692dc8d726e649b3675c5c93cccadc2cab34d271716ff\",\"keyId\":\"key_a\",\"method\":\"POST\",\"nonce\":\"n4\",\"path\":\"/agent/signer/requests/sr_1/answer\",\"signedAt\":\"2026-10-26T12:00:01Z\"}",
+      "signature": "oRyc21H8jeH+75b8v9HJYHre59RmCvGvQHXU3qfKIg53aGFdWfqmlKNaUgUIdcvPpBCVPkZ3z8B0CfIc3WAQAA=="
+    }
+  ]
+}
