@@ -208,6 +208,22 @@ func (c *Client) Commitments(ctx context.Context, venueKeyID string, count int) 
 	return out, err
 }
 
+// KeygenRound runs one round of two-party key generation for a venue key
+// the engine created without a share (signerKeygen).
+func (c *Client) KeygenRound(ctx context.Context, in api.KeygenRound) (api.KeygenRoundResult, error) {
+	var out api.KeygenRoundResult
+	err := c.agentCall(ctx, http.MethodPost, "/agent/signer/keygen", nil, in, &out, c.timeout())
+	return out, err
+}
+
+// PresignRound runs one round of presigning for a two-party ECDSA venue key
+// (signerPresign).
+func (c *Client) PresignRound(ctx context.Context, in api.PresignRound) (api.PresignRoundResult, error) {
+	var out api.PresignRoundResult
+	err := c.agentCall(ctx, http.MethodPost, "/agent/signer/presign", nil, in, &out, c.timeout())
+	return out, err
+}
+
 // agentCall signs the request with the agent's key and sends it. The path is
 // the contract's, without the server prefix; the query is signed exactly as
 // sent, and so is the body.

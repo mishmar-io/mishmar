@@ -243,6 +243,24 @@ func (e HyperliquidSetupNetwork) Valid() bool {
 	}
 }
 
+// Defines values for KeygenRoundRound.
+const (
+	KeygenRoundRoundN1 KeygenRoundRound = 1
+	KeygenRoundRoundN2 KeygenRoundRound = 2
+)
+
+// Valid indicates whether the value is a known member of the KeygenRoundRound enum.
+func (e KeygenRoundRound) Valid() bool {
+	switch e {
+	case KeygenRoundRoundN1:
+		return true
+	case KeygenRoundRoundN2:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LedgerEventKind.
 const (
 	LedgerEventKindApproval    LedgerEventKind = "approval"
@@ -360,6 +378,24 @@ func (e PositionInputSide) Valid() bool {
 	case PositionInputSideLong:
 		return true
 	case PositionInputSideShort:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresignRoundRound.
+const (
+	PresignRoundRoundN1 PresignRoundRound = 1
+	PresignRoundRoundN2 PresignRoundRound = 2
+)
+
+// Valid indicates whether the value is a known member of the PresignRoundRound enum.
+func (e PresignRoundRound) Valid() bool {
+	switch e {
+	case PresignRoundRoundN1:
+		return true
+	case PresignRoundRoundN2:
 		return true
 	default:
 		return false
@@ -879,6 +915,24 @@ func (e VenueKeyHyperliquidApprovalStatus) Valid() bool {
 	}
 }
 
+// Defines values for VenueKeyKeygen.
+const (
+	VenueKeyKeygenDone    VenueKeyKeygen = "done"
+	VenueKeyKeygenPending VenueKeyKeygen = "pending"
+)
+
+// Valid indicates whether the value is a known member of the VenueKeyKeygen enum.
+func (e VenueKeyKeygen) Valid() bool {
+	switch e {
+	case VenueKeyKeygenDone:
+		return true
+	case VenueKeyKeygenPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VenueKeyScheme.
 const (
 	VenueKeySchemeEcdsa   VenueKeyScheme = "ecdsa"
@@ -1341,10 +1395,11 @@ type DiscrepancyResolve struct {
 // DiscrepancyStatus defines model for DiscrepancyStatus.
 type DiscrepancyStatus string
 
-// EngineCommitment defines model for EngineCommitment.
+// EngineCommitment One single-use engine nonce: a FROST commitment the signer computes
+// against, or a presigned two-party ECDSA slot.
 type EngineCommitment struct {
-	// Commitment Base64. The engine's FROST nonce commitment.
-	Commitment string    `json:"commitment"`
+	// Commitment Base64. FROST only, the engine's nonce commitment; a two-party ECDSA slot carries nothing, since the signer's own presignature holds its side.
+	Commitment *string   `json:"commitment,omitempty"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 	Id         string    `json:"id"`
 }
@@ -1427,6 +1482,34 @@ type HyperliquidSetupKind string
 
 // HyperliquidSetupNetwork defines model for HyperliquidSetup.Network.
 type HyperliquidSetupNetwork string
+
+// KeygenRound One round of two-party key generation from the agent's signer (signerKeygen).
+type KeygenRound struct {
+	// Message Round 2. Base64, the signer's protocol message answering the engine's first.
+	Message *string          `json:"message,omitempty"`
+	Round   KeygenRoundRound `json:"round"`
+
+	// SessionId Round 2. The session round 1 opened.
+	SessionId  *string `json:"sessionId,omitempty"`
+	VenueKeyId string  `json:"venueKeyId"`
+}
+
+// KeygenRoundRound defines model for KeygenRound.Round.
+type KeygenRoundRound int
+
+// KeygenRoundResult Key generation agrees its own session id inside the protocol; only presigning takes the joint one.
+type KeygenRoundResult struct {
+	// Address Round 2. The joint key's EVM address, now recorded as VenueKey.publicKey.
+	Address *string `json:"address,omitempty"`
+
+	// Message Base64, the engine's protocol message for the round.
+	Message string `json:"message"`
+
+	// PublicKey Round 2. The joint public key, compressed SEC1 as base64, which the signer checks against its own.
+	PublicKey *string `json:"publicKey,omitempty"`
+	Round     int     `json:"round"`
+	SessionId string  `json:"sessionId"`
+}
 
 // LedgerEvent One append-only entry of the audit ledger. `hash` is SHA-256 over the previous
 // event's hash, a newline and the canonical JSON of `payload` (keys sorted, no
@@ -1783,6 +1866,54 @@ type PositionReassign struct {
 	ToAgentId *string `json:"toAgentId,omitempty"`
 }
 
+// PresignRound One round of presigning from the agent's signer (signerPresign).
+type PresignRound struct {
+	// Count Round 1. How many nonces the signer wants. Default and cap, the entitlement less what it already holds unused.
+	Count *int `json:"count,omitempty"`
+
+	// Message Round 2. Base64, the signer's protocol message answering the engine's first.
+	Message *string           `json:"message,omitempty"`
+	Round   PresignRoundRound `json:"round"`
+
+	// SessionId Round 2. The session round 1 opened.
+	SessionId *string `json:"sessionId,omitempty"`
+
+	// SignerSid Round 1. Base64 of 16 random bytes, the signer's half of the
+	// session id. The engine adds 16 of its own, and both sides run the
+	// protocol under SHA-256 of the signer's half then the engine's.
+	SignerSid  *string `json:"signerSid,omitempty"`
+	VenueKeyId string  `json:"venueKeyId"`
+}
+
+// PresignRoundRound defines model for PresignRound.Round.
+type PresignRoundRound int
+
+// PresignRoundResult defines model for PresignRoundResult.
+type PresignRoundResult struct {
+	// BatchSize Round 2. The account's entitlement (Entitlements.commitmentBatch).
+	BatchSize *int `json:"batchSize,omitempty"`
+
+	// Count Round 1. How many nonces the session makes, after the entitlement's cap.
+	Count *int `json:"count,omitempty"`
+
+	// EngineInstance As CommitmentBatch.engineInstance; it changes when the engine or the signer behind it restarts, and the slots are gone with it.
+	EngineInstance string `json:"engineInstance"`
+
+	// EngineSid Round 1. Base64 of the engine's 16 bytes of the session id.
+	EngineSid *string `json:"engineSid,omitempty"`
+
+	// Message Base64, the engine's protocol message for the round.
+	Message string `json:"message"`
+
+	// Outstanding Round 2. Unused slots the signer holds for this key, these included.
+	Outstanding *int   `json:"outstanding,omitempty"`
+	Round       int    `json:"round"`
+	SessionId   string `json:"sessionId"`
+
+	// Slots Round 2. One per nonce, in the order of the signer's own presignature.
+	Slots *[]EngineCommitment `json:"slots,omitempty"`
+}
+
 // Proposal The proposal as the engine priced it. For a cancel, the order fields
 // (side, size, price, orderType, reduceOnly) describe the order being
 // cancelled as its own decision recorded it, and notionalUsd is "0": a
@@ -1939,21 +2070,28 @@ type ProposalVenueMessage struct {
 	// Commitment Base64. FROST only, the signer's own nonce commitment.
 	Commitment *string `json:"commitment,omitempty"`
 
-	// EngineCommitmentId The engine commitment (requestCommitments) this half was computed against. Single use.
+	// EngineCommitmentId The engine commitment (requestCommitments) or presigned slot (signerPresign) this half was computed against. Single use.
 	EngineCommitmentId string `json:"engineCommitmentId"`
 
 	// Message Base64 of the venue request before its signature: Binance's
 	// parameter string (with its timestamp and recvWindow), which is what
-	// its signature covers; Hyperliquid's action and nonce as JSON, from
-	// which the engine derives the EIP-712 digest itself.
+	// its signature covers; Hyperliquid's action and nonce as the
+	// exchange endpoint takes them, plus the order's Mishmar client
+	// order id, which the cloid on the order is derived from and the
+	// venue never sees: `{"action": …, "nonce": …, "clientOrderId": …}`,
+	// no vault, built by the signer from the trading account's venue
+	// rules, from which the engine derives the EIP-712 digest itself.
 	Message string `json:"message"`
 
-	// Scheme frost-ed25519 today; ecdsa-2p once two-party ECDSA ships, its half
-	// from a presignature. Never proxy: an HMAC venue's signer holds the
-	// whole key and forwards the request itself.
+	// Scheme frost-ed25519 (Binance) or ecdsa-2p (Hyperliquid, its half from a
+	// presigned slot, signerPresign). Never proxy: an HMAC venue's signer
+	// holds the whole key and forwards the request itself.
 	Scheme SigningScheme `json:"scheme"`
 
-	// Share Base64. The signer's half, its FROST signature share.
+	// Share Base64. The signer's half: its FROST signature share, or for
+	// two-party ECDSA the protocol's last message, which proves itself
+	// against the slot and the message's digest, so it cannot be moved
+	// to another slot or another order.
 	Share string `json:"share"`
 
 	// VenueKeyId The agent's trading key on the trading account.
@@ -2140,7 +2278,10 @@ type SignRequest struct {
 	// Message Base64 of the exact bytes the venue will verify: Binance's parameter
 	// string, Hyperliquid's EIP-712 digest. The signer decodes them itself
 	// and checks them against the order it proposed; `order` is a courtesy,
-	// never the thing checked.
+	// never the thing checked. A digest cannot be decoded, so a
+	// two-party ECDSA request also carries the action and nonce it was
+	// computed from in `venueRequest.body`, and the signer recomputes
+	// the digest from them before it signs.
 	Message string            `json:"message"`
 	Order   *SignRequestOrder `json:"order,omitempty"`
 
@@ -2221,6 +2362,9 @@ type SignRequestOrderOrderType string
 type SignerAnswer struct {
 	// Commitment Base64. The signer's FROST nonce commitment.
 	Commitment *string `json:"commitment,omitempty"`
+
+	// EngineCommitmentId Two-party ECDSA only. The presigned slot (signerPresign) the share was made with; spent whatever the outcome.
+	EngineCommitmentId *string `json:"engineCommitmentId,omitempty"`
 
 	// Kind Must fit the request's scheme; `share` for FROST, ECDSA and RSA rounds, `venue_response` for the proxy.
 	Kind    SignerAnswerKind `json:"kind"`
@@ -2536,9 +2680,15 @@ type VenueKey struct {
 	Id            string `json:"id"`
 	IpAllowlisted *bool  `json:"ipAllowlisted,omitempty"`
 
+	// Keygen Two-party ECDSA keys, which are made by key generation: pending
+	// until the agent's signer has run signerKeygen, when `publicKey`
+	// appears. Absent for dealt keys and the other schemes.
+	Keygen *VenueKeyKeygen `json:"keygen,omitempty"`
+
 	// PublicKey What the venue needs to know the key: the public key to register at an
 	// exchange (SPKI PEM), or the API wallet's address for the master wallet
-	// to approve on Hyperliquid. Absent for HMAC keys.
+	// to approve on Hyperliquid. Absent for HMAC keys, and for an ECDSA
+	// key until its key generation is done.
 	PublicKey *string    `json:"publicKey,omitempty"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 
@@ -2560,10 +2710,17 @@ type VenueKey struct {
 // VenueKeyHyperliquidApprovalStatus defines model for VenueKey.Hyperliquid.ApprovalStatus.
 type VenueKeyHyperliquidApprovalStatus string
 
+// VenueKeyKeygen Two-party ECDSA keys, which are made by key generation: pending
+// until the agent's signer has run signerKeygen, when `publicKey`
+// appears. Absent for dealt keys and the other schemes.
+type VenueKeyKeygen string
+
 // VenueKeyCreate defines model for VenueKeyCreate.
 type VenueKeyCreate struct {
 	// EngineShare The engine's share as `mishmar keygen` printed it (JSON). Required for
-	// venues with Ed25519, ECDSA or RSA keys, refused for HMAC venues.
+	// venues with Ed25519 or RSA keys, refused for HMAC venues. For
+	// venues with ECDSA keys leave it out: the key is made by two-party
+	// key generation (signerKeygen) and a dealt share is refused.
 	// Write-only; the agent's share never passes through the engine, and
 	// the public key is derived from this share.
 	EngineShare      *string `json:"engineShare,omitempty"`
@@ -2759,8 +2916,14 @@ type ListRulesParams struct {
 // RequestCommitmentsJSONRequestBody defines body for RequestCommitments for application/json ContentType.
 type RequestCommitmentsJSONRequestBody = CommitmentRequest
 
+// SignerKeygenJSONRequestBody defines body for SignerKeygen for application/json ContentType.
+type SignerKeygenJSONRequestBody = KeygenRound
+
 // SignerPollJSONRequestBody defines body for SignerPoll for application/json ContentType.
 type SignerPollJSONRequestBody = SignerPoll
+
+// SignerPresignJSONRequestBody defines body for SignerPresign for application/json ContentType.
+type SignerPresignJSONRequestBody = PresignRound
 
 // SignerAnswerJSONRequestBody defines body for SignerAnswer for application/json ContentType.
 type SignerAnswerJSONRequestBody = SignerAnswer

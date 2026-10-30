@@ -1,0 +1,82 @@
+# The checks on every push and pull request: the Go packages with the cgo
+# library built (see release.yml for how), the Python and TypeScript SDKs
+# against the same vectors, and the contract regenerating cleanly.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: auto
+  CXXFLAGS: -DDY_NO_LOG
+  CBMPC_OPENSSL_ROOT: /usr/local/opt/openssl@3.6.1
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mishmar
+      - id: cbmpc
+        run: echo "ref=$(tr -d '[:space:]' < mishmar/cbmpc.ref)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: mishmar-io/cb-mpc-go
+          ref: ${{ steps.cbmpc.outputs.ref }}
+          path: cb-mpc-go
+          submodules: recursive
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mishmar/go.mod
+          cache-dependency-path: mishmar/go.sum
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential ca-certificates cmake curl perl pkg-config rsync
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/opt/openssl@3.6.1
+            cb-mpc-go/cb-mpc/build
+            cb-mpc-go/cb-mpc/lib
+          key: cbmpc-linux-amd64-${{ steps.cbmpc.outputs.ref }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo bash cb-mpc-go/scripts/openssl/build-static-openssl-linux.sh
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: bash cb-mpc-go/scripts/build_cpp.sh Release
+      - working-directory: mishmar
+        run: make lint
+      - working-directory: mishmar
+        run: make test
+      - name: The generated code is current
+        working-directory: mishmar
+        run: make gen && git diff --exit-code -- api signerapi
+
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - working-directory: python
+        run: uv run python -m pytest
+
+  typescript:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - working-directory: typescript
+        run: npm ci && npm test

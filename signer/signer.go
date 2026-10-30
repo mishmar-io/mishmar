@@ -11,6 +11,7 @@ import (
 
 	"github.com/mishmar-io/mishmar/agentkey"
 	"github.com/mishmar-io/mishmar/api"
+	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
 )
 
@@ -42,12 +43,13 @@ type Signer struct {
 	// takes one per proposal, which suits a process that sends one and exits.
 	CommitmentBatch int
 
-	key      *agentkey.Key
-	pub      string
-	mu       sync.Mutex
-	shares   map[string]*frost.Share
-	answered *idSet
-	os       *oneShotState
+	key       *agentkey.Key
+	pub       string
+	mu        sync.Mutex
+	shares    map[string]*frost.Share
+	ecdsaKeys map[string]*ecdsa2p.Key
+	answered  *idSet
+	os        *oneShotState
 }
 
 // New makes a signer for the config. A nil client is made from the config;
@@ -77,20 +79,27 @@ func New(cfg *Config, client *Client, log *slog.Logger) (*Signer, error) {
 
 // Policy is what the signer checks a request against.
 func (s *Signer) Policy() Policy {
-	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.Config.VenueKeys, Now: s.now, Answered: s.answered.has}
+	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.Config.VenueKeys, Now: s.now, Answered: s.answered.has, Rules: s.cachedHLRules}
 }
 
-// Handle answers one request: the checks, then the hook, then the FROST
-// round with the agent's share. A request is answered once in a session;
+// Handle answers one request: the checks, then the hook, then the agent's
+// half: the FROST round with its share, or for two-party ECDSA its last
+// message from a presigned slot. A request is answered once in a session;
 // the same id again is refused as a replay.
 func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnswer {
+	if req.Venue == api.VenueHyperliquid && req.Proposal != nil {
+		// The checks need the coin's rules; fetched here, read in Check.
+		if _, err := s.hlRules(ctx, req.TradingAccountId, req.Proposal.Symbol); err != nil {
+			s.Logger.Warn("signer: venue rules", "tradingAccount", req.TradingAccountId, "symbol", req.Proposal.Symbol, "err", err)
+		}
+	}
 	message, refusal := s.Policy().Check(req)
 	if refusal == nil && s.Config.Hook != "" {
 		refusal = RunHook(ctx, s.Config.Hook, req, s.hookTimeout())
 	}
 	var answer api.SignerAnswer
 	if refusal == nil {
-		answer, refusal = s.sign(req, message)
+		answer, refusal = s.sign(ctx, req, message)
 	}
 	s.answered.add(req.Id)
 	if refusal != nil {
@@ -106,9 +115,13 @@ func Refuse(r *Refusal) api.SignerAnswer {
 	}{Reason: r.Reason()}}
 }
 
-// sign runs the agent's side of the FROST round: parse the engine's
+// sign makes the agent's half: for two-party ECDSA its last message from a
+// presigned slot over the digest; for FROST, the round: parse the engine's
 // commitment, commit, make the share of the signature over the message.
-func (s *Signer) sign(req api.SignRequest, message []byte) (api.SignerAnswer, *Refusal) {
+func (s *Signer) sign(ctx context.Context, req api.SignRequest, message []byte) (api.SignerAnswer, *Refusal) {
+	if req.Scheme == api.SigningSchemeEcdsa2p {
+		return s.signECDSA(ctx, req, message)
+	}
 	if req.Engine == nil || req.Engine.Commitment == nil || *req.Engine.Commitment == "" {
 		return api.SignerAnswer{}, &Refusal{RefuseMalformed, "the request carries no engine commitment"}
 	}
@@ -140,6 +153,26 @@ func (s *Signer) sign(req api.SignRequest, message []byte) (api.SignerAnswer, *R
 		Kind:       api.SignerAnswerKindShare,
 		Commitment: ptr(base64.StdEncoding.EncodeToString(ac.Bytes())),
 		Share:      ptr(base64.StdEncoding.EncodeToString(as.Bytes())),
+	}, nil
+}
+
+// signECDSA spends a presigned slot on the digest: the slot is gone whatever
+// the engine does with the answer.
+func (s *Signer) signECDSA(ctx context.Context, req api.SignRequest, digest []byte) (api.SignerAnswer, *Refusal) {
+	key, err := s.ecdsaKey(req.VenueKeyId)
+	if err != nil {
+		return api.SignerAnswer{}, &Refusal{RefuseMalformed, err.Error()}
+	}
+	slotID, presig, index, err := s.takeSlot(ctx, req.VenueKeyId, s.now())
+	if err != nil {
+		return api.SignerAnswer{}, &Refusal{RefuseNoSlot, err.Error()}
+	}
+	m4, err := key.Complete(presig, index, digest)
+	if err != nil {
+		return api.SignerAnswer{}, &Refusal{RefuseMalformed, err.Error()}
+	}
+	return api.SignerAnswer{
+		Kind: api.SignerAnswerKindShare, Share: ptr(base64.StdEncoding.EncodeToString(m4)), EngineCommitmentId: &slotID,
 	}, nil
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mishmar-io/mishmar/api"
-	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
 	"github.com/mishmar-io/mishmar/signer"
 )
@@ -35,9 +33,12 @@ token (--token or MISHMAR_OPERATOR_TOKEN):
   2. the agent is created in the portfolio and a key is issued; its secret,
      shown once, goes straight into the signer's config, which is written
      (mode 0600) before anything else happens;
-  3. for every trading account a two-party venue key is dealt here, the engine's share
-     is sent to the engine (POST /agents/{id}/venue-keys), and the agent's
-     share is stored in the config under the venue key id the engine returns.
+  3. for every trading account a two-party venue key is made: on Hyperliquid by key
+     generation between this signer and the engine's (POST /agents/{id}/venue-keys
+     without a share, then two rounds of POST /agent/signer/keygen), so no machine
+     ever holds both shares; on an exchange dealt here, the engine's share sent to
+     the engine and the agent's share stored in the config under the venue key id
+     the engine returns.
 
 The command prints what the venue needs next for each key. It never prints
 a share or the secret. The config file must not exist yet: an agent's
@@ -121,17 +122,31 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 	fmt.Fprintf(out, "key %s issued; the secret is in %s (mode 0600)\n", issued.Id, path)
 
 	// 3. A venue key per trading account.
+	agentKey, err := cfg.Key()
+	if err != nil {
+		return err
+	}
 	for _, p := range plan {
-		agentShare, engineShare, public, err := deal(p.scheme)
+		// Every two-party key is made by key generation with the engine's
+		// signer: the venue key is created without a share, then the two
+		// signers run the rounds, and no machine ever holds the whole key.
+		vk, err := op.createVenueKey(ctx, agent.Id, api.VenueKeyCreate{TradingAccountId: p.tradingAccount.Id})
+		if err != nil {
+			return fmt.Errorf("trading account %s: %w (the agent and its key exist; add this trading account's key later in the console and with mishmar signer keygen)", p.tradingAccount.Id, err)
+		}
+		network, err := networkOf(p.tradingAccount)
 		if err != nil {
 			return err
 		}
-		engineShareText := string(engineShare)
-		vk, err := op.createVenueKey(ctx, agent.Id, api.VenueKeyCreate{TradingAccountId: p.tradingAccount.Id, EngineShare: &engineShareText})
+		key, err := signer.RunKeygen(ctx, signer.NewClient(o.engine, cfg.KeyID, agentKey), vk.Id, p.scheme)
 		if err != nil {
-			return fmt.Errorf("trading account %s: %w (the agent and its key exist; add this trading account's key later with mishmar keygen and the console)", p.tradingAccount.Id, err)
+			return fmt.Errorf("trading account %s: %w (venue key %s exists without a key; run \"mishmar signer keygen --venue-key %s --venue %s\" to try again)", p.tradingAccount.Id, err, vk.Id, vk.Id, p.tradingAccount.Venue)
 		}
-		if err := cfg.AddVenueKey(vk.Id, signer.VenueKey{TradingAccountID: p.tradingAccount.Id, Venue: string(p.tradingAccount.Venue), Scheme: p.scheme, Share: json.RawMessage(agentShare)}); err != nil {
+		public := key.Address
+		if key.Scheme == signer.SchemeFrostEd25519 {
+			public = frost.PublicKeyPEM(key.PublicKey)
+		}
+		if err := cfg.AddVenueKey(vk.Id, signer.VenueKey{TradingAccountID: p.tradingAccount.Id, Venue: string(p.tradingAccount.Venue), Scheme: key.Scheme, Share: key.Share, Network: network}); err != nil {
 			return err
 		}
 		if err := cfg.Save(path); err != nil {
@@ -147,45 +162,23 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 	return nil
 }
 
-// deal makes a venue key of the scheme and returns the agent's share, the
-// engine's share (both as JSON) and what the venue needs to know the key.
-func deal(scheme string) (agentShare, engineShare []byte, public string, err error) {
-	switch scheme {
-	case signer.SchemeFrostEd25519:
-		a, e, err := frost.Deal()
-		if err != nil {
-			return nil, nil, "", err
-		}
-		if agentShare, err = json.Marshal(a); err != nil {
-			return nil, nil, "", err
-		}
-		if engineShare, err = json.Marshal(e); err != nil {
-			return nil, nil, "", err
-		}
-		return agentShare, engineShare, "", nil
-	case signer.SchemeECDSA2p:
-		a, e, err := ecdsa2p.Deal()
-		if err != nil {
-			return nil, nil, "", err
-		}
-		if agentShare, err = json.Marshal(a); err != nil {
-			return nil, nil, "", err
-		}
-		if engineShare, err = json.Marshal(e); err != nil {
-			return nil, nil, "", err
-		}
-		return agentShare, engineShare, e.Address(), nil
+// networkOf is the Hyperliquid network a trading account trades on.
+func networkOf(tradingAccount api.TradingAccount) (string, error) {
+	if tradingAccount.Kind != api.TradingAccountKindHyperliquid {
+		return "", nil
 	}
-	return nil, nil, "", fmt.Errorf("no dealer for scheme %s", scheme)
+	s, err := tradingAccount.Setup.AsHyperliquidSetup()
+	if err != nil {
+		return "", fmt.Errorf("trading account %s: setup: %w", tradingAccount.Id, err)
+	}
+	return string(s.Network), nil
 }
 
 // nextStep says what the venue needs for the key.
 func nextStep(tradingAccount api.TradingAccount, vk api.VenueKey, public string) string {
 	switch tradingAccount.Kind {
 	case api.TradingAccountKindHyperliquid:
-		s := fmt.Sprintf("  approve the API wallet %s from the master wallet in the console (venue key → approval), then verify the key.\n", public)
-		s += "  note: two-party ECDSA signing is not built yet; the signer refuses this key's requests until it is.\n"
-		return s
+		return fmt.Sprintf("  approve the API wallet %s from the master wallet in the console (venue key → approval), then verify the key.\n", public)
 	default:
 		s := fmt.Sprintf("  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the engine):\n", tradingAccount.Venue)
 		s += indent(public)

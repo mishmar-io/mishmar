@@ -114,7 +114,7 @@ func (e *oneShotEngine) handler() http.Handler {
 			e.issued++
 			id := "cm_" + strconv.Itoa(e.next)
 			e.pool[id] = &poolEntry{party: party, c: c}
-			out.Items = append(out.Items, api.EngineCommitment{Id: id, Commitment: base64.StdEncoding.EncodeToString(c.Bytes()), ExpiresAt: now.Add(24 * time.Hour)})
+			out.Items = append(out.Items, api.EngineCommitment{Id: id, Commitment: ptr(base64.StdEncoding.EncodeToString(c.Bytes())), ExpiresAt: now.Add(24 * time.Hour)})
 		}
 		out.Outstanding = len(e.pool)
 		e.mu.Unlock()

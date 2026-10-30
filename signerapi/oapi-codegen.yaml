@@ -1,0 +1,15 @@
+# oapi-codegen configuration for the signer service's API (spec/signer-service.yaml):
+# the models, the strict server the service implements and the client the
+# engine calls. `make gen` runs it (go generate ./signerapi) from this
+# directory, so the paths here are relative to signerapi/.
+package: signerapi
+output: signerapi.gen.go
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  client: true
+compatibility:
+  always-prefix-enum-values: true
+output-options:
+  skip-prune: true

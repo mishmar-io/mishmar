@@ -1,0 +1,480 @@
+openapi: 3.1.0
+info:
+  title: Mishmar signer service
+  version: 0.13.0
+  summary: The engine's own signer, the one process on Mishmar's side that holds key material.
+  description: |
+    The signer service holds the engine's share of every venue key (FROST
+    for Ed25519 venues, two-party ECDSA for Hyperliquid and other ECDSA
+    venues), the Paillier key of each ECDSA key and the presigned nonces.
+    The engine holds no signing secret: it runs the sessions with the
+    agent's signer, relays the protocol messages, and verifies the results.
+
+    It is the same program as the agent's signer (`mishmar signer`), in the
+    engine's role, and it is reached only by the engine: over mTLS in the
+    engine's region (the service accepts the engine's client certificate and
+    nothing else), or over a Unix socket when the two share a machine. The
+    same topology runs on staging as in production.
+
+    It checks the kind of action, never the policy. A signature is made only
+    for an action it decoded itself, an order or a cancel, that matches the
+    decision the engine signed with its own key, and the venue digest is
+    rebuilt here from that action, never taken from the request. An engine
+    that was broken into can therefore at most trade, and only what its
+    own decisions say; it can never make the service sign a withdrawal, a
+    transfer or a change of keys.
+
+    Each venue key names the instance that holds the engine's share, and an
+    instance may be limited to the schemes it will hold, so a deployment
+    runs one instance, one per scheme, or one per cell, with no change of
+    code. Presigned nonces and FROST commitments live in memory only: a
+    restart forgets them and the `instance` changes. Every response carries
+    the header `Mishmar-Signer-Instance`, so the engine notices a change on
+    its next call and folds the instance into the `engineInstance` it
+    reports to the agents' signers, which then presign again before their
+    next order rather than after a refused one.
+
+    Message fields are base64 unless they say otherwise. Protocol messages are
+    opaque to the engine: it carries them between the two signers.
+servers:
+  - url: http://localhost:8091
+    description: Development, next to the engine, no TLS
+  - url: unix:///var/run/mishmar/signer.sock
+    description: Self-hosted, sharing the engine's machine
+security:
+  - engineTLS: []
+tags:
+  - name: service
+  - name: keys
+    description: The engine's shares, by venue key id.
+  - name: ecdsa
+    description: |
+      Two-party ECDSA (Hyperliquid API wallets, Coinbase): key generation,
+      presigning, the last step of a signature.
+  - name: frost
+    description: |
+      FROST over Ed25519 (Binance): commitments and the engine's share of a
+      signature.
+
+paths:
+  /health:
+    get:
+      tags: [service]
+      operationId: health
+      summary: The instance and what it holds
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /keys/{keyId}:
+    parameters:
+      - $ref: '#/components/parameters/keyId'
+    get:
+      tags: [keys]
+      operationId: getKey
+      summary: What the service holds for the key
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Key' }
+        '404': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+    put:
+      tags: [keys]
+      operationId: importKey
+      summary: Store a dealt engine share for the key
+      description: |
+        For keys still dealt on the owner's machine (FROST, until its own key
+        generation lands): the engine passes the share it was given at
+        createVenueKey straight here and keeps none of it. A key the service
+        holds already answers 409; a share that is not the engine's half, or
+        of another scheme than the key's, 422.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KeyImport' }
+      responses:
+        '201':
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Key' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [keys]
+      operationId: forgetKey
+      summary: Forget the engine's share, its nonces and sessions (the key was revoked)
+      responses:
+        '204':
+          description: Gone, or never held.
+        default: { $ref: '#/components/responses/Error' }
+
+  /keys/{keyId}/keygen:
+    parameters:
+      - $ref: '#/components/parameters/keyId'
+    post:
+      tags: [ecdsa]
+      operationId: keygenStep
+      summary: One step of two-party key generation, the service as party 1
+      description: |
+        The engine relays signerKeygen (the agent's rounds) here. Step 1 opens
+        a session for a key the service does not hold yet (the protocol
+        agrees its own session id) and returns the service's first
+        message. Step 2 takes the agent's answer and returns the service's
+        last message with the joint public key; the service now holds the
+        engine's key blob under `keyId`. A session not finished within a
+        minute is dropped. A key the service holds already answers 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KeygenStep' }
+      responses:
+        '200':
+          description: The service's message for the step.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KeygenStepResult' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /keys/{keyId}/presign:
+    parameters:
+      - $ref: '#/components/parameters/keyId'
+    post:
+      tags: [ecdsa]
+      operationId: presignStep
+      summary: One step of presigning a batch of nonces, the service as party 1
+      description: |
+        The engine relays signerPresign here. Step 1 opens a session for
+        `count` nonces under the joint session id and returns the service's
+        first message; step 2 takes the agent's answer and returns the
+        service's last message with one slot per nonce. The slots are held
+        in memory, each usable once by `finish`, until they expire; the
+        engine applies the account's entitlement before it asks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PresignStep' }
+      responses:
+        '200':
+          description: The service's message for the step.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PresignStepResult' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /keys/{keyId}/finish:
+    parameters:
+      - $ref: '#/components/parameters/keyId'
+    post:
+      tags: [ecdsa]
+      operationId: finish
+      summary: Finish one signature from a presigned slot and the agent's last message
+      description: |
+        The one call on an order's path. The slot is spent whatever the
+        outcome: a nonce used twice would reveal the key. The service decodes
+        the action, refuses anything but an order or a cancel, verifies the
+        decision's engine signature with the engine key it was configured
+        with, checks that the action is the decision's (asset, side, size,
+        price, reduce-only and the client order id for an order; the target
+        for a cancel), rebuilds the EIP-712 digest from the action and the
+        nonce, verifies the agent's message against it, and only then
+        decrypts and outputs the signature, after checking it itself. A
+        message that fails its proof, a decision that does not verify, or
+        an action the decision does not describe leave no signature (422),
+        and the engine records why.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FinishRequest' }
+      responses:
+        '200':
+          description: The signature the venue verifies.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FinishResult' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /keys/{keyId}/commitments:
+    parameters:
+      - $ref: '#/components/parameters/keyId'
+    post:
+      tags: [frost]
+      operationId: issueCommitments
+      summary: Make single-use FROST commitments with the engine's share
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count: { type: integer, minimum: 1, maximum: 1024 }
+      responses:
+        '200':
+          description: The commitments, held in memory until used or expired.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Commitment' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /keys/{keyId}/frost-sign:
+    parameters:
+      - $ref: '#/components/parameters/keyId'
+    post:
+      tags: [frost]
+      operationId: frostSign
+      summary: The engine's share of a FROST signature, aggregated with the agent's into the Ed25519 signature
+      description: |
+        Spends the named commitment, verifies the agent's share over the
+        message against both commitments, adds the engine's share and
+        returns the whole signature. The same checks as `finish` apply to the
+        message and the decision; a `verify` purpose (a harmless read the
+        engine co-signs to prove a key) carries no decision and must decode
+        to no order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FrostSignRequest' }
+      responses:
+        '200':
+          description: The Ed25519 signature.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signature]
+                properties:
+                  signature: { type: string, description: Base64, 64 bytes. }
+        default: { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    engineTLS:
+      type: mutualTLS
+      description: The engine's client certificate; over a Unix socket the socket's permissions stand in.
+  parameters:
+    keyId:
+      name: keyId
+      in: path
+      required: true
+      schema: { type: string }
+      description: The venue key id the engine uses (vk_…).
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [not_found, conflict, validation, refused, internal]
+          description: refused is the service's own no, with the reason in `message`.
+        message: { type: string }
+    Scheme:
+      type: string
+      enum: [frost-ed25519, ecdsa-2p]
+    Health:
+      type: object
+      required: [instance, schemes, keys, startedAt]
+      properties:
+        instance:
+          type: string
+          description: Changes each time the service starts; everything held in memory is gone with the old one.
+        schemes:
+          type: array
+          items: { $ref: '#/components/schemas/Scheme' }
+          description: The schemes this instance will hold keys of.
+        keys: { type: integer }
+        startedAt: { type: string, format: date-time }
+    Key:
+      type: object
+      required: [keyId, scheme, publicKey]
+      properties:
+        keyId: { type: string }
+        scheme: { $ref: '#/components/schemas/Scheme' }
+        publicKey:
+          type: string
+          description: |
+            Base64. The joint public key: 32 bytes of Ed25519, or 33 bytes of
+            compressed SEC1 secp256k1.
+        address:
+          type: string
+          description: ECDSA keys. The EVM address.
+        unusedNonces:
+          type: integer
+          description: Presigned slots or commitments held and unexpired.
+    KeyImport:
+      type: object
+      required: [scheme, share]
+      properties:
+        scheme: { $ref: '#/components/schemas/Scheme' }
+        share:
+          type: string
+          description: The engine's share as `mishmar keygen` printed it (JSON), write-only.
+    KeygenStep:
+      type: object
+      required: [step, sessionId]
+      properties:
+        step:
+          type: integer
+          enum: [1, 2]
+        sessionId: { type: string }
+        curve:
+          type: string
+          enum: [secp256k1, ed25519]
+          default: secp256k1
+          description: |
+            Step 1. secp256k1 makes a two-party ECDSA key (Hyperliquid and
+            other ECDSA venues); ed25519 a two-party FROST key (Binance and
+            other Ed25519 venues), by FROST's distributed key generation, so
+            no machine ever holds the whole key.
+        agentMessage:
+          type: string
+          description: Step 2. Base64, the agent's protocol message.
+    KeygenStepResult:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Base64, the service's protocol message.
+        publicKey:
+          type: string
+          description: Step 2. Base64, the key's public key, compressed SEC1 for secp256k1 and the 32-byte key for ed25519.
+        address:
+          type: string
+          description: Step 2, secp256k1 only. The EVM address of the key.
+    PresignStep:
+      type: object
+      required: [step, sessionId]
+      properties:
+        step:
+          type: integer
+          enum: [1, 2]
+        sessionId: { type: string }
+        sid:
+          type: string
+          description: Step 1. Base64, the joint 32-byte session id.
+        count:
+          type: integer
+          minimum: 1
+          maximum: 1024
+          description: Step 1.
+        agentMessage:
+          type: string
+          description: Step 2. Base64, the agent's protocol message.
+    PresignStepResult:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Base64, the service's protocol message.
+        slots:
+          type: array
+          description: Step 2. One per nonce, in order.
+          items: { $ref: '#/components/schemas/Slot' }
+    Slot:
+      type: object
+      required: [id, expiresAt]
+      properties:
+        id: { type: string }
+        expiresAt: { type: string, format: date-time }
+    Commitment:
+      type: object
+      required: [id, commitment, expiresAt]
+      properties:
+        id: { type: string }
+        commitment: { type: string, description: Base64. }
+        expiresAt: { type: string, format: date-time }
+    Decision:
+      type: object
+      required: [record, signature]
+      description: The engine's decision as it signed it, so the service can verify it and compare the action with it.
+      properties:
+        record:
+          type: string
+          description: Base64 of the canonical decision bytes the engine signed (DecisionSigningBytes in the engine, docs/ledger.md), which decode to the contract's Decision.
+        signature:
+          type: string
+          description: Base64, the engine key's Ed25519 signature over `record`.
+    VenueAction:
+      type: object
+      required: [venue, action]
+      properties:
+        venue:
+          type: string
+          enum: [hyperliquid, binance, coinbase]
+        network:
+          type: string
+          description: |
+            Hyperliquid: mainnet or testnet, which the EIP-712 source byte
+            depends on.
+        action:
+          type: string
+          description: |
+            Base64. Hyperliquid: the exchange request before its signature,
+            `{"action": …, "nonce": …, "clientOrderId": …}` as the agent's
+            signer built it (ProposalVenueMessage.message), the client order
+            id being Mishmar's. Binance: the parameter string the signature
+            covers.
+    FinishRequest:
+      type: object
+      required: [slotId, venueAction, agentMessage]
+      properties:
+        slotId: { type: string }
+        venueAction: { $ref: '#/components/schemas/VenueAction' }
+        decision: { $ref: '#/components/schemas/Decision' }
+        purpose:
+          type: string
+          enum: [order, cancel, verify]
+          default: order
+        agentMessage:
+          type: string
+          description: Base64, the agent's last protocol message for this slot and this action's digest.
+    FinishResult:
+      type: object
+      required: [signature]
+      properties:
+        signature:
+          type: object
+          required: [r, s, v]
+          description: |
+            As the venue takes it: r and s as 0x hex without leading zeros, v
+            as 27 or 28.
+          properties:
+            r: { type: string }
+            s: { type: string }
+            v: { type: integer }
+    FrostSignRequest:
+      type: object
+      required: [commitmentId, venueAction, agentCommitment, agentShare]
+      properties:
+        commitmentId: { type: string }
+        venueAction: { $ref: '#/components/schemas/VenueAction' }
+        decision: { $ref: '#/components/schemas/Decision' }
+        purpose:
+          type: string
+          enum: [order, cancel, verify]
+          default: order
+        agentCommitment: { type: string, description: Base64. }
+        agentShare: { type: string, description: Base64. }

@@ -11,7 +11,6 @@
 package binance
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	"github.com/mishmar-io/mishmar/proposal"
+	"github.com/mishmar-io/mishmar/venues/clientorder"
 )
 
 const (
@@ -347,45 +347,11 @@ func CheckRead(message []byte) error {
 
 // ClientOrderID is a fresh client order id for an agent, in the shape the
 // engine assigns and checks: msh-<agent id without its prefix>-<6 random
-// base32 characters>.
-func ClientOrderID(agentID string) string {
-	return clientOrderPrefix(agentID) + randomBase32(6)
-}
+// base32 characters> (venues/clientorder).
+func ClientOrderID(agentID string) string { return clientorder.New(agentID) }
 
 // IsClientOrderIDOf reports whether id is in the shape ClientOrderID makes for agentID.
-func IsClientOrderIDOf(id, agentID string) bool {
-	rest, ok := strings.CutPrefix(id, clientOrderPrefix(agentID))
-	if !ok || len(rest) != 6 || len(id) > 36 {
-		return false
-	}
-	for _, r := range rest {
-		if !strings.ContainsRune(base32, r) {
-			return false
-		}
-	}
-	return true
-}
-
-func clientOrderPrefix(agentID string) string {
-	short := agentID
-	if i := strings.IndexByte(short, '_'); i >= 0 {
-		short = short[i+1:]
-	}
-	return "msh-" + short + "-"
-}
-
-const base32 = "abcdefghijklmnopqrstuvwxyz234567"
-
-func randomBase32(n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		panic("binance: no randomness: " + err.Error())
-	}
-	for i := range b {
-		b[i] = base32[int(b[i])%len(base32)]
-	}
-	return string(b)
-}
+func IsClientOrderIDOf(id, agentID string) bool { return clientorder.IsOf(id, agentID) }
 
 // params decodes a parameter string as net/url does: a parameter given twice,
 // or one outside allowed (when allowed is not nil), is a Mismatch.

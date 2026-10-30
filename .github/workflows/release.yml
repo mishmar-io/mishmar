@@ -1,0 +1,144 @@
+# On a version tag, build `mishmar` (the agent's signer, the engine's signer
+# service and the CLI, one binary) on every platform it ships for and attach
+# the binaries and their checksums to the GitHub release. The binary links
+# Coinbase's cb-mpc (C++, cgo) through the mishmar-io fork of cb-mpc-go, so
+# each platform builds natively: cgo does not cross-compile cheaply.
+#
+# The fork is checked out next to this repo at the ref in cbmpc.ref (go.mod
+# replaces github.com/mishmar-io/cb-mpc-go with ../cb-mpc-go). Its C++ build
+# and the static OpenSSL it needs are cached by that ref.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: auto
+  # cb-mpc prints a stack trace on every protocol failure unless built with
+  # DY_NO_LOG; a refused message is an expected failure, not a crash.
+  CXXFLAGS: -DDY_NO_LOG
+  # The deployment target of the C++ library and OpenSSL must be what Go
+  # links for, or the macOS linker warns on every build.
+  MACOSX_DEPLOYMENT_TARGET: "12.0"
+  CBMPC_OPENSSL_ROOT: /usr/local/opt/openssl@3.6.1
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest, os: linux, arch: amd64, openssl: build-static-openssl-linux.sh }
+          - { runner: ubuntu-24.04-arm, os: linux, arch: arm64, openssl: build-static-openssl-linux.sh }
+          - { runner: macos-15, os: darwin, arch: arm64, openssl: build-static-openssl-macos-m1.sh }
+          - { runner: macos-15-intel, os: darwin, arch: amd64, openssl: build-static-openssl-macos.sh }
+    steps:
+      - name: Check out mishmar
+        uses: actions/checkout@v4
+        with:
+          path: mishmar
+
+      - name: Read the cb-mpc-go ref
+        id: cbmpc
+        run: echo "ref=$(tr -d '[:space:]' < mishmar/cbmpc.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the cb-mpc-go fork (with the cb-mpc submodule)
+        uses: actions/checkout@v4
+        with:
+          repository: mishmar-io/cb-mpc-go
+          ref: ${{ steps.cbmpc.outputs.ref }}
+          path: cb-mpc-go
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: mishmar/go.mod
+          cache-dependency-path: mishmar/go.sum
+
+      - name: Install build dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential ca-certificates cmake curl perl pkg-config rsync
+
+      - name: Install build dependencies (macOS)
+        if: matrix.os == 'darwin'
+        run: brew install cmake
+
+      - name: Restore the C++ builds
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/opt/openssl@3.6.1
+            cb-mpc-go/cb-mpc/build
+            cb-mpc-go/cb-mpc/lib
+          key: cbmpc-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.cbmpc.outputs.ref }}-${{ env.MACOSX_DEPLOYMENT_TARGET }}
+
+      - name: Build the static OpenSSL
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo --preserve-env=MACOSX_DEPLOYMENT_TARGET bash cb-mpc-go/scripts/openssl/${{ matrix.openssl }}
+
+      - name: Build cb-mpc
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash cb-mpc-go/scripts/build_cpp.sh Release
+
+      - name: Test
+        working-directory: mishmar
+        run: make test
+
+      - name: Build the binary
+        working-directory: mishmar
+        run: |
+          mkdir -p dist
+          bash ../cb-mpc-go/scripts/go_with_cpp.sh go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/mishmar ./cmd/mishmar
+          ./dist/mishmar version
+          name="mishmar_${GITHUB_REF_NAME}_${{ matrix.os }}_${{ matrix.arch }}"
+          tar -C dist -czf "dist/${name}.tar.gz" mishmar
+          (cd dist && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
+
+      - name: Keep the binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mishmar-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            mishmar/dist/*.tar.gz
+            mishmar/dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    name: Attach to the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out mishmar
+        uses: actions/checkout@v4
+
+      - name: Collect the binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: cat *.sha256 > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create the release (draft)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          flags=(--draft --generate-notes)
+          case "${GITHUB_REF_NAME}" in *-*) flags+=(--prerelease) ;; esac
+          gh release create "${GITHUB_REF_NAME}" --title "mishmar ${GITHUB_REF_NAME}" "${flags[@]}" -R "${GITHUB_REPOSITORY}" dist/*.tar.gz dist/SHA256SUMS

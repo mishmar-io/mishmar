@@ -110,6 +110,48 @@ the YAML before the engine implements it.
   so resting orders that fill after a restart, and the fills snapshot at
   reconnect, attribute correctly.
 
+## Decided on 2026-10-30 (0.13.0)
+
+Two-party ECDSA, single-hop, on Hyperliquid, and the signer leaves the
+engine.
+
+- Keys by key generation. A venue key on an ECDSA venue (Hyperliquid,
+  Coinbase) is created without `engineShare` and carries `keygen: pending`;
+  the agent's signer runs `signerKeygen` (two rounds over the agent API,
+  the engine relaying between the two signers), after which `publicKey` is
+  the API wallet's address and the key is approved and verified as before.
+  A dealt ECDSA share is refused. Ed25519 (FROST) keys are made the same
+  way (`curve: ed25519` at the service, FROST's distributed key generation),
+  and a share the owner dealt with `mishmar keygen` is still accepted:
+  the engine imports it into the signer service and keeps nothing.
+- Presigning. `signerPresign` runs the three order-independent messages of
+  the protocol for a batch of nonces (two rounds); each nonce is a slot,
+  returned as an `EngineCommitment` without `commitment` bytes (now
+  optional), under the same entitlement cap and 24-hour expiry as FROST
+  commitments. `requestCommitments` answers 409 for ECDSA keys.
+- One-shot Hyperliquid orders. `ProposalSubmit.venueMessage` with scheme
+  `ecdsa-2p`: `message` is the exchange request's `{"action", "nonce"}`
+  JSON built by the signer from the venue rules, `engineCommitmentId` the
+  slot, `share` the protocol's last message, which proves itself against
+  the slot and the digest. The engine rebuilds the digest, checks the
+  action against the proposal, decides, and finishes the signature through
+  its signer service. Parked orders go through the channel like Binance:
+  the request carries the digest as `message` and the action in
+  `venueRequest.body`; the answer names the slot in
+  `SignerAnswer.engineCommitmentId`.
+- The signer service (`signer-service.yaml`, a second document). The
+  engine's shares, Paillier keys and presigned nonces live in one process
+  on Mishmar's side, the public `mishmar signer` in the engine's role,
+  reached by the engine alone over mTLS or a Unix socket. It signs only an
+  order or a cancel it decoded itself and that matches an engine-signed
+  decision, rebuilding the venue digest from the action. The engine
+  relays key generation and presigning steps to it and calls `finish`
+  once per order. FROST moves behind the same API (`importKey` for dealt
+  shares, `issueCommitments`, `frostSign`).
+- The session id of every protocol run is joint: SHA-256 of 16 random
+  bytes from the agent's signer (sent in round 1) and 16 from the engine
+  (returned with its first message), so no round is spent agreeing one.
+
 ## Renamed on 2026-10-28 (still 0.12.0, before it was published)
 
 Routes are **trading accounts**: the schemas, paths, operation ids, the
@@ -269,9 +311,19 @@ vectors and every decision already in a ledger still verify.
 - An ambiguous transfer resolves to one agent; a withdrawal that came from
   several agents' holdings needs `reassignPosition` first. Allow a split on the
   resolution if that turns out to be common.
-- Two-party ECDSA presignatures will be made over the signer channel (a
-  `presign` purpose on `SignRequest`), not handed out like FROST commitments;
-  `requestCommitments` answers 409 for those keys until then.
+- Two-party ECDSA (0.13.0) runs in the engine as of 30 Oct 2026: key
+  generation, presigning, one-shot Hyperliquid limit orders and cancels,
+  and market orders over the channel, all through the signer service
+  (`mishmar signer serve`, MISHMAR_SIGNER_URL). Without a signer service
+  configured these answer 503. FROST is behind the same service
+  (`importKey` for a dealt share, `issueCommitments`, `frostSign`, key
+  generation with `curve: ed25519`): the engine process holds no signing
+  secret of any scheme, and `mishmar-engine migrate-shares` moves the
+  shares an older engine kept in its keystore.
+- A signer service restart without an engine restart leaves the agents'
+  signers holding slots the service no longer knows: their next one-shot
+  proposal is refused 409, they drop the key's slots and presign again.
+  `engineInstance` does not yet fold the service's instance in.
 
 - Exchange trading accounts on mainnet: withdrawal permission and the IP allowlist are
   readable only through Binance's main-site `sapi`

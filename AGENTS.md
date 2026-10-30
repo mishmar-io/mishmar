@@ -49,10 +49,12 @@ api/         the contract as Go types, generated (oapi-codegen.yaml, doc.go's go
 canon/       canonical JSON (Go's encoding/json rules, nulls dropped)
 agentkey/    the agent's Ed25519 key: msk_ secret, base64 signatures, agentAuth request signing
 proposal/    Submit (mirrors ProposalSubmit), Validate, SigningBytes, Sign, Verify, NewNonce
-frost/       two-party FROST over Ed25519 (RFC 9591): Deal, Share, Party, Aggregate; one global lock
+frost/       two-party FROST over Ed25519 (RFC 9591): Keygen (FROST's DKG on bytemare/dkg, two rounds), Deal (the
+             older dealer), Share, Party, Aggregate, PublicKeyPEM; one global lock
              because the library hashes through package-level state. The engine's Binance adapter and
              the signer run this round; the share file format is what the engine stores and the config holds
-ecdsa2p/     two-party ECDSA over secp256k1: Deal, Share, Address; signing is not built (ErrNotImplemented)
+ecdsa2p/     two-party ECDSA over secp256k1 on the mishmar-io fork of Coinbase's cb-mpc-go (cgo, see the README's
+             cgo section): Keygen, Presign (slots, single use), Complete/Finish, Key, Address
 venues/      per-venue request building and decoding, shared by the signer and the engine:
              binance/ (an order's and a cancel's parameter string; BuildOrder, DecodeOrder, CheckOrder,
              CheckRules, CheckFresh, BuildCancel, DecodeCancel, CheckRead, the client order id shape)

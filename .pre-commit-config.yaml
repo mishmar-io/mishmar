@@ -45,16 +45,16 @@ repos:
         pass_filenames: false
         files: ^(go\.mod|go\.sum|.*\.go)$
 
-      - id: go-vet
-        name: go vet ./...
-        entry: go vet ./...
+      - id: go-lint
+        name: go vet + gofmt (through the cgo wrapper)
+        entry: make lint
         language: system
         pass_filenames: false
         types: [go]
 
       - id: go-test
-        name: go test ./... (includes the signing vectors)
-        entry: go test ./...
+        name: go test ./... (includes the signing vectors; through the cgo wrapper)
+        entry: make test
         language: system
         pass_filenames: false
         files: ^(.*\.go|spec/vectors/.*)$

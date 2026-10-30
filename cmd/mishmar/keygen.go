@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
 )
 
@@ -33,17 +32,20 @@ signer's config ("mishmar signer add-key"), and the public key goes to the
 venue. Neither share alone can sign.
 
   --scheme ed25519   a FROST key over Ed25519: Binance
-  --scheme ecdsa     a two-party ECDSA key over secp256k1: Hyperliquid (an API
-                     wallet), Coinbase; signing with it is not built yet
 
-RSA (Bybit) and HMAC (OKX) keys are not supported yet.`,
+Two-party ECDSA keys (Hyperliquid API wallets, Coinbase) are not dealt:
+they are made by key generation between the agent's signer and the engine's,
+so no machine ever holds both shares. "mishmar add-agent" runs it for each
+Hyperliquid trading account of a new agent, and "mishmar signer keygen" for a
+venue key the console created without a share. RSA (Bybit) and HMAC (OKX)
+keys are not supported yet.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return keygen(o, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&o.scheme, "scheme", "", "ed25519 | ecdsa")
+	f.StringVar(&o.scheme, "scheme", "", "ed25519")
 	f.StringVar(&o.engineOut, "engine-share-out", "", "write the engine's share here (mode 0600) instead of printing it")
 	f.StringVar(&o.agentOut, "agent-share-out", "agent.share", "write the agent's share here (mode 0600)")
 	_ = cmd.MarkFlagRequired("scheme")
@@ -70,19 +72,13 @@ func keygen(o keygenOptions, out, errOut io.Writer) error {
 		public = string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
 		publicLabel = "public key (SPKI PEM): register it at the exchange as the agent's Ed25519 API key"
 	case "ecdsa":
-		a, e, err := ecdsa2p.Deal()
-		if err != nil {
-			return err
-		}
-		agent, engine = a, e
-		public = e.Address() + "\n"
-		publicLabel = "API wallet address: approve it from the master wallet"
+		return errors.New("two-party ECDSA keys are not dealt: run \"mishmar add-agent\", or \"mishmar signer keygen\" for a venue key the console created without a share")
 	case "rsa", "hmac":
 		return fmt.Errorf("scheme %s is not supported yet", o.scheme)
 	case "":
-		return errors.New("--scheme is required: ed25519 or ecdsa")
+		return errors.New("--scheme is required: ed25519")
 	default:
-		return fmt.Errorf("scheme %q: use ed25519 or ecdsa", o.scheme)
+		return fmt.Errorf("scheme %q: use ed25519", o.scheme)
 	}
 	agentJSON, err := json.Marshal(agent)
 	if err != nil {

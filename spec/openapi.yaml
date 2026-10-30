@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.12.0
+  version: 0.13.0
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -327,17 +327,21 @@ paths:
       operationId: createVenueKey
       summary: Give the agent a trading key on a trading account
       description: |
-        The agent may then propose through the trading account. For venues with Ed25519,
-        ECDSA or RSA keys the key is a two-party key dealt on the owner's
-        machine (`mishmar keygen`, or `mishmar add-agent`, which does all of
-        this): `engineShare` is the engine's share, the agent's share goes to
-        the agent's signer, and the engine never holds the key whole. The
-        response carries what the venue needs: a public key to register at an
-        exchange (then `register` with the key id the venue issues), or an API
-        wallet address for the master wallet to approve (`approval`). For HMAC
-        venues there is no share: the signer the customer runs holds the whole
-        key, and the engine records only that the key exists. Verify the key
-        afterwards; it becomes `active` when the venue accepts a co-signed read.
+        The agent may then propose through the trading account. The key is a
+        two-party key and the engine never holds it whole. For venues with
+        ECDSA keys (Hyperliquid, Coinbase) it is made by two-party key
+        generation: send no `engineShare`, and the agent's signer runs
+        signerKeygen, after which the key carries the API wallet's address
+        for the master wallet to approve (`approval`). For venues with
+        Ed25519 or RSA keys it is dealt on the owner's machine for now
+        (`mishmar keygen`, or `mishmar add-agent`, which does all of this):
+        `engineShare` is the engine's share, the agent's share goes to the
+        agent's signer, and the response carries the public key to register
+        at the exchange (then `register` with the key id the venue issues).
+        For HMAC venues there is no share: the signer the customer runs holds
+        the whole key, and the engine records only that the key exists.
+        Verify the key afterwards; it becomes `active` when the venue accepts
+        a co-signed read.
       requestBody:
         required: true
         content:
@@ -1208,8 +1212,8 @@ paths:
         entitlements cap how many unused ones a signer may hold per venue key
         (`commitmentBatch`): a request returns at most the difference, possibly
         none, and a burst that outruns the batch falls back to the signer
-        channel. Two-party ECDSA keys will use presignatures made over the
-        channel instead; until then they answer 409.
+        channel. Two-party ECDSA keys presign through signerPresign instead
+        and answer 409 here.
       requestBody:
         required: true
         content:
@@ -1221,6 +1225,77 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CommitmentBatch' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/signer/keygen:
+    post:
+      tags: [agent]
+      operationId: signerKeygen
+      security: [{ agentAuth: [] }]
+      summary: Run a round of two-party key generation for one of the agent's venue keys
+      description: |
+        Two-party ECDSA keys (Hyperliquid API wallets, Coinbase) are made by
+        the protocol's own key generation between the agent's signer and the
+        engine's signer, so no machine ever holds both shares: nothing is
+        dealt and nothing is pasted. The operator creates the venue key
+        without `engineShare` (createVenueKey), and the agent's signer then
+        runs two rounds here. Round 1 names the key and gets the engine's
+        first message; round 2 carries the signer's answer and gets the
+        engine's last message with the joint public key, which the signer
+        checks against its own. The engine records the
+        public key and the address on the venue key, which is then approved
+        at the venue like any other (`approval`, `verify`). Only the key's own
+        agent may run it, and once: a key that has a public key already
+        answers 409. A session expires a minute after round 1.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KeygenRound' }
+      responses:
+        '200':
+          description: The engine's message for the round.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KeygenRoundResult' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/signer/presign:
+    post:
+      tags: [agent]
+      operationId: signerPresign
+      security: [{ agentAuth: [] }]
+      summary: Run a round of presigning for one of the agent's two-party ECDSA keys
+      description: |
+        Two-party ECDSA exchanges three messages between the signers before a
+        signature's last step, and none of them depends on the order. The
+        signer runs them here ahead of time for a batch of nonces, and an
+        order then carries only the last step (ProposalSubmit.venueMessage,
+        naming its slot as `engineCommitmentId` and carrying the signer's
+        message as `share`), so an allowed Hyperliquid order needs no round
+        trip back to the signer, as a Binance order with FROST commitments
+        does not. Round 1 names the key, how many nonces the signer wants and
+        its half of the session id, and gets the engine's first message;
+        round 2 carries the signer's answer and gets the engine's last
+        message with the slots. Each slot is used once, whatever the
+        decision, and expires 24 hours after it was made. The account's
+        entitlement caps the unused slots a signer may hold per key
+        (`commitmentBatch`): round 1 may grant fewer than asked, and answers
+        409 when none is left. A nonce used twice reveals the key, so a signer
+        that fails round 2 discards its half, and the engine keeps its halves
+        in memory only, as it keeps FROST commitments
+        (CommitmentBatch.engineInstance).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PresignRound' }
+      responses:
+        '200':
+          description: The engine's message for the round.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PresignRoundResult' }
         '401': { $ref: '#/components/responses/AgentUnauthorized' }
         default: { $ref: '#/components/responses/Error' }
   /agent/signer/poll:
@@ -1733,8 +1808,16 @@ components:
           description: |
             What the venue needs to know the key: the public key to register at an
             exchange (SPKI PEM), or the API wallet's address for the master wallet
-            to approve on Hyperliquid. Absent for HMAC keys.
+            to approve on Hyperliquid. Absent for HMAC keys, and for an ECDSA
+            key until its key generation is done.
         fingerprint: { type: string }
+        keygen:
+          type: string
+          enum: [pending, done]
+          description: |
+            Two-party ECDSA keys, which are made by key generation: pending
+            until the agent's signer has run signerKeygen, when `publicKey`
+            appears. Absent for dealt keys and the other schemes.
         apiKeyRegistered:
           type: boolean
           description: Whether the engine holds the key id the exchange issued (`register`). True from creation for HMAC keys, whose id the signer carries, and for Hyperliquid, which has none.
@@ -1766,7 +1849,9 @@ components:
           type: string
           description: |
             The engine's share as `mishmar keygen` printed it (JSON). Required for
-            venues with Ed25519, ECDSA or RSA keys, refused for HMAC venues.
+            venues with Ed25519 or RSA keys, refused for HMAC venues. For
+            venues with ECDSA keys leave it out: the key is made by two-party
+            key generation (signerKeygen) and a dealt share is refused.
             Write-only; the agent's share never passes through the engine, and
             the public key is derived from this share.
     VenueKeyRegistration:
@@ -2437,25 +2522,33 @@ components:
         scheme:
           $ref: '#/components/schemas/SigningScheme'
           description: |
-            frost-ed25519 today; ecdsa-2p once two-party ECDSA ships, its half
-            from a presignature. Never proxy: an HMAC venue's signer holds the
-            whole key and forwards the request itself.
+            frost-ed25519 (Binance) or ecdsa-2p (Hyperliquid, its half from a
+            presigned slot, signerPresign). Never proxy: an HMAC venue's signer
+            holds the whole key and forwards the request itself.
         message:
           type: string
           description: |
             Base64 of the venue request before its signature: Binance's
             parameter string (with its timestamp and recvWindow), which is what
-            its signature covers; Hyperliquid's action and nonce as JSON, from
-            which the engine derives the EIP-712 digest itself.
+            its signature covers; Hyperliquid's action and nonce as the
+            exchange endpoint takes them, plus the order's Mishmar client
+            order id, which the cloid on the order is derived from and the
+            venue never sees: `{"action": …, "nonce": …, "clientOrderId": …}`,
+            no vault, built by the signer from the trading account's venue
+            rules, from which the engine derives the EIP-712 digest itself.
         engineCommitmentId:
           type: string
-          description: The engine commitment (requestCommitments) this half was computed against. Single use.
+          description: The engine commitment (requestCommitments) or presigned slot (signerPresign) this half was computed against. Single use.
         commitment:
           type: string
           description: Base64. FROST only, the signer's own nonce commitment.
         share:
           type: string
-          description: Base64. The signer's half, its FROST signature share.
+          description: |
+            Base64. The signer's half: its FROST signature share, or for
+            two-party ECDSA the protocol's last message, which proves itself
+            against the slot and the message's digest, so it cannot be moved
+            to another slot or another order.
     CommitmentRequest:
       type: object
       required: [venueKeyId]
@@ -2493,13 +2586,100 @@ components:
           items: { $ref: '#/components/schemas/EngineCommitment' }
     EngineCommitment:
       type: object
-      required: [id, commitment, expiresAt]
+      required: [id, expiresAt]
+      description: |
+        One single-use engine nonce: a FROST commitment the signer computes
+        against, or a presigned two-party ECDSA slot.
       properties:
         id: { type: string }
         commitment:
           type: string
-          description: Base64. The engine's FROST nonce commitment.
+          description: Base64. FROST only, the engine's nonce commitment; a two-party ECDSA slot carries nothing, since the signer's own presignature holds its side.
         expiresAt: { type: string, format: date-time }
+    KeygenRound:
+      type: object
+      required: [venueKeyId, round]
+      description: One round of two-party key generation from the agent's signer (signerKeygen).
+      properties:
+        venueKeyId: { type: string }
+        round:
+          type: integer
+          enum: [1, 2]
+        sessionId:
+          type: string
+          description: Round 2. The session round 1 opened.
+        message:
+          type: string
+          description: Round 2. Base64, the signer's protocol message answering the engine's first.
+    KeygenRoundResult:
+      type: object
+      required: [sessionId, round, message]
+      description: Key generation agrees its own session id inside the protocol; only presigning takes the joint one.
+      properties:
+        sessionId: { type: string }
+        round: { type: integer }
+        message:
+          type: string
+          description: Base64, the engine's protocol message for the round.
+        publicKey:
+          type: string
+          description: Round 2. The joint public key, compressed SEC1 as base64, which the signer checks against its own.
+        address:
+          type: string
+          description: Round 2. The joint key's EVM address, now recorded as VenueKey.publicKey.
+    PresignRound:
+      type: object
+      required: [venueKeyId, round]
+      description: One round of presigning from the agent's signer (signerPresign).
+      properties:
+        venueKeyId: { type: string }
+        round:
+          type: integer
+          enum: [1, 2]
+        sessionId:
+          type: string
+          description: Round 2. The session round 1 opened.
+        count:
+          type: integer
+          minimum: 1
+          description: Round 1. How many nonces the signer wants. Default and cap, the entitlement less what it already holds unused.
+        signerSid:
+          type: string
+          description: |
+            Round 1. Base64 of 16 random bytes, the signer's half of the
+            session id. The engine adds 16 of its own, and both sides run the
+            protocol under SHA-256 of the signer's half then the engine's.
+        message:
+          type: string
+          description: Round 2. Base64, the signer's protocol message answering the engine's first.
+    PresignRoundResult:
+      type: object
+      required: [sessionId, round, message, engineInstance]
+      properties:
+        sessionId: { type: string }
+        round: { type: integer }
+        engineSid:
+          type: string
+          description: Round 1. Base64 of the engine's 16 bytes of the session id.
+        count:
+          type: integer
+          description: Round 1. How many nonces the session makes, after the entitlement's cap.
+        message:
+          type: string
+          description: Base64, the engine's protocol message for the round.
+        engineInstance:
+          type: string
+          description: As CommitmentBatch.engineInstance; it changes when the engine or the signer behind it restarts, and the slots are gone with it.
+        batchSize:
+          type: integer
+          description: Round 2. The account's entitlement (Entitlements.commitmentBatch).
+        outstanding:
+          type: integer
+          description: Round 2. Unused slots the signer holds for this key, these included.
+        slots:
+          type: array
+          description: Round 2. One per nonce, in the order of the signer's own presignature.
+          items: { $ref: '#/components/schemas/EngineCommitment' }
     SigningScheme:
       type: string
       enum: [frost-ed25519, ecdsa-2p, rsa-2p, proxy]
@@ -2549,7 +2729,10 @@ components:
             Base64 of the exact bytes the venue will verify: Binance's parameter
             string, Hyperliquid's EIP-712 digest. The signer decodes them itself
             and checks them against the order it proposed; `order` is a courtesy,
-            never the thing checked.
+            never the thing checked. A digest cannot be decoded, so a
+            two-party ECDSA request also carries the action and nonce it was
+            computed from in `venueRequest.body`, and the signer recomputes
+            the digest from them before it signs.
         proposal:
           $ref: '#/components/schemas/ProposalSubmit'
           description: |
@@ -2633,6 +2816,9 @@ components:
         signature:
           type: string
           description: Base64. A whole signature, for a scheme where the signer finishes one.
+        engineCommitmentId:
+          type: string
+          description: Two-party ECDSA only. The presigned slot (signerPresign) the share was made with; spent whatever the outcome.
         venueResponse: { $ref: '#/components/schemas/VenueResponse' }
         refusal:
           type: object

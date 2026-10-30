@@ -28,13 +28,28 @@ typescript/           the TypeScript SDK (`mishmar` on npm, when released); no r
 
 ## Run the checks
 
+Two-party ECDSA (`ecdsa2p`, Hyperliquid API wallets) is Coinbase's cb-mpc, C++
+behind cgo, through the [mishmar-io fork of cb-mpc-go](https://github.com/mishmar-io/cb-mpc-go)
+checked out next to this repo at the ref in `cbmpc.ref` (`go.mod` replaces
+the module with `../cb-mpc-go`). Its `scripts/build_cpp.sh` builds the
+library once (CMake, a static OpenSSL 3.6.1 from its `scripts/openssl`), and
+`make` runs every Go command through its `scripts/go_with_cpp.sh`, which sets
+the cgo flags. Linux and macOS; Windows through WSL or Docker.
+
 ```
-go test ./...                                   # Go packages, including the vectors and the signer
+make test                                       # Go packages, including the vectors and both signers
+make lint
+cd python && python -m pytest                   # the Python SDK against the same vectors
 cd python && python -m pytest                   # the Python SDK against the same vectors
 cd typescript && npm test                       # the TypeScript SDK against the same vectors (Node 22+)
 go test ./proposal -update                      # rewrite spec/vectors after changing the cases
-make gen                                        # regenerate api/ from spec/openapi.yaml
+make gen                                        # regenerate api/ and signerapi/ from spec/
 ```
+
+A tag `vX.Y.Z` builds the binary on Linux and macOS, both architectures,
+and attaches it to the release (`.github/workflows/release.yml`); the
+`Dockerfile` builds the same binary for Linux, running the signer service
+by default.
 
 ## How an agent talks to the engine
 
@@ -63,13 +78,13 @@ it. The signer is the `signer` package as a library and `mishmar signer run`
 as a process. It long-polls `POST /v1/agent/signer/poll` with the agent's
 key and, for each request, refuses unless, in this order:
 
-- the scheme is `frost-ed25519` (two-party ECDSA, RSA and the proxy are not
-  built yet);
+- the scheme is `frost-ed25519` (Binance) or `ecdsa-2p` (Hyperliquid); RSA
+  and the proxy are not built yet;
 - the venue key is in its config, on the request's trading account and venue;
 - the request has not expired and was not answered already in this session
   (a request handed out again after it was answered is a replay, not a
   second signature);
-- the purpose is `order` or `verify` (`cancel` is not produced yet);
+- the purpose is `order`, `cancel` or `verify`;
 - an `order` carries the agent's own proposal: signed by this signer's key,
   verifying with it, for this trading account, not yet expired;
 - the message, decoded, is that order and nothing more. On Binance the
@@ -82,13 +97,30 @@ key and, for each request, refuses unless, in this order:
   proposal's price and on its passive side (at most the price for a buy, at
   least for a sell), and a market order carries none; `reduceOnly` is the
   proposal's. A `verify` message must decode to a read and not an order: no
-  symbol, side, type, quantity, price or client order id;
+  symbol, side, type, quantity, price or client order id. On Hyperliquid the
+  message is the EIP-712 digest, which cannot be read, so the request's body
+  carries the action and nonce it came from: the signer decodes them with
+  `venues/hyperliquid`, recomputes the digest for the key's network and
+  compares, checks the nonce is fresh, and checks the action is the
+  proposal's order (asset, side, size, a limit price on the tick rules within
+  1 % on the passive side, reduce-only, the cloid of the request's client
+  order id) or the cancel of its target;
 - the hook, when the config names one, exits 0 (it gets the request's JSON
   on stdin and two seconds; its first line of output is the refusal reason).
 
-Then it runs its half of the FROST round: parses the engine's commitment,
-commits, makes its share of the signature over the exact bytes it checked,
-and answers `{"kind":"share","commitment":…,"share":…}`. A refusal is
+Then it makes its half. FROST: it parses the engine's commitment, commits,
+makes its share of the signature over the exact bytes it checked, and
+answers `{"kind":"share","commitment":…,"share":…}`. Two-party ECDSA: it
+spends one of its presigned slots (a batch of nonces it ran the protocol's
+first three messages for with the engine's signer ahead of time, through
+`POST /v1/agent/signer/presign`), computes its last message over the digest,
+and answers `{"kind":"share","share":…,"engineCommitmentId":<the slot>}`;
+the engine's signer verifies that message and finishes the signature alone.
+On both venues an order the signer can build itself goes one-shot instead:
+the venue request and the signer's half travel inside the proposal
+(`venueMessage`), so an allowed order needs no round trip back. On
+Hyperliquid that is limit orders and cancels; a market order is priced by
+the engine at its mark and signed over the channel. A refusal is
 `{"kind":"refusal","refusal":{"reason":…}}` with a stable code first
 (`message_mismatch: side "SELL" is not the proposed BUY`), which the engine
 records on the decision's `signing`. Decimals are compared exactly; no float
@@ -116,9 +148,9 @@ with mode 0600:
 }
 ```
 
-`share` is the agent's share exactly as `mishmar keygen` wrote it. The file
-holds the identity secret and the agent's shares only; an engine share in it
-is refused on load.
+`share` is the agent's share as key generation left it (or as `mishmar
+keygen` wrote it). The file holds the identity secret and the agent's shares
+only; an engine share in it is refused on load.
 
 ### The commands
 
@@ -126,13 +158,24 @@ is refused on load.
 go build ./cmd/mishmar
 
 # Everything for a new agent in one go, with an operator token: create the
-# agent, issue its key, deal a venue key per trading account, send the engine its
-# share, write the config. It prints what to register or approve at the venue.
+# agent, issue its key, make a venue key per trading account by two-party
+# key generation with the engine's signer (FROST for Binance, ECDSA for
+# Hyperliquid; no machine ever holds the whole key), write the config. It
+# prints what to register or approve at the venue.
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
   --name momentum-1 --portfolio pf_… --trading-account ta_…
 
-# Or by hand: deal a key, paste the engine share when adding the venue key
-# to the agent in the console, store the agent share under the id it returns.
+# Or by hand: add the venue key in the console without a share, then run
+# the key generation from this signer. Binance prints the public key to
+# register at the exchange, Hyperliquid the API wallet address to approve
+# from the master wallet.
+mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance
+mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network testnet
+
+# The older way for Binance, which makes the whole key exist on this machine
+# for the length of the call: deal a FROST key, paste the engine share when
+# adding the venue key in the console, store the agent share under the id it
+# returns.
 mishmar keygen --scheme ed25519 --agent-share-out agent.share > engine.share
 mishmar signer add-key --venue-key vk_… --trading-account ta_… --venue binance --share agent.share
 
@@ -142,4 +185,39 @@ mishmar signer run
 
 # Drive one order end to end with the signer running.
 mishmar propose --config ~/.mishmar/agent.json --trading-account ta_… --symbol BTCUSDT --size 0.01 --price 60000
+```
+
+## The engine's signer
+
+`mishmar signer serve` is the same program in the engine's role
+(`spec/signer-service.yaml`, the `signer/service` package): the one process
+on Mishmar's side that holds the engine's share of every two-party ECDSA
+key, the Paillier keys and the presigned nonces. The engine holds no signing
+secret; it relays key generation and presigning between the agent's signer
+and this service, and asks it to finish one signature per order. The service
+signs only an order or a cancel it decoded itself and that matches a
+decision the engine signed with its own key (`--engine-key`, the public key
+`GET /v1/ledger/head` shows), rebuilding the venue digest from the action.
+Reach it from the engine alone: a Unix socket when the two share a machine,
+else mTLS; plain HTTP is for localhost. The shares are sealed at rest
+(AES-256-GCM, the key id bound as associated data) under the master key in
+`MISHMAR_SIGNER_KEY`, which must not live next to the store; `--store` is
+where the sealed shares are kept, a file by default (mode 0600, replaced
+atomically) and object storage on the hosted tier. Every share is opened
+into memory at startup, so no order waits on the store, and a wrong master
+key fails there rather than on the first order; replicas sharing a backend
+reconcile on `--sync`, and a key not yet in memory is fetched from the
+backend on first use, so a cell that takes on an account finds its shares
+at once. Slots and sessions live in memory and go with a restart; never
+snapshot, clone or live-migrate a running signer, since two copies of one
+presigned nonce would sign two messages and give the key away. Back up
+the store and the master key separately: losing either
+means every agent generates its key again and every owner approves again,
+nothing more, since the agent's half is useless alone and these keys hold
+no funds.
+
+```
+export MISHMAR_SIGNER_KEY=$(openssl rand -hex 32)   # keep it: it seals the shares
+mishmar signer serve --listen unix:/var/run/mishmar/signer.sock --store /var/lib/mishmar/signer-keys.json --engine-key <base64>
+# and on the engine: MISHMAR_SIGNER_URL=unix:/var/run/mishmar/signer.sock
 ```

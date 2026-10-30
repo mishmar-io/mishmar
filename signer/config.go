@@ -23,6 +23,7 @@ import (
 	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
+	"github.com/mishmar-io/mishmar/venues/hyperliquid"
 )
 
 // EnvConfig names the environment variable that overrides the default
@@ -66,8 +67,11 @@ type VenueKey struct {
 	// Scheme is the signing scheme the key runs (SchemeFrostEd25519, …).
 	Scheme string `json:"scheme"`
 	// Share is the agent's share as the scheme's package marshals it
-	// (frost.Share.MarshalJSON, ecdsa2p.Share.MarshalJSON).
+	// (frost.Share.MarshalJSON, ecdsa2p.Key.MarshalJSON).
 	Share json.RawMessage `json:"share"`
+	// Network is the Hyperliquid network the key signs for, mainnet or
+	// testnet, which the digest depends on. Hyperliquid keys only.
+	Network string `json:"network,omitempty"`
 }
 
 // DefaultPath is where the signer looks for its config: $MISHMAR_AGENT_CONFIG,
@@ -209,6 +213,14 @@ func (k VenueKey) validate() error {
 	if want, ok := SchemeForVenue(k.Venue); ok && want != k.Scheme {
 		return fmt.Errorf("scheme %s does not fit venue %s, which takes %s", k.Scheme, k.Venue, want)
 	}
+	if k.Network != "" {
+		if api.Venue(k.Venue) != api.VenueHyperliquid {
+			return fmt.Errorf("network is for Hyperliquid keys, not %s", k.Venue)
+		}
+		if _, err := hyperliquid.ParseNetwork(k.Network); err != nil {
+			return fmt.Errorf("network %q is not mainnet or testnet", k.Network)
+		}
+	}
 	switch k.Scheme {
 	case SchemeFrostEd25519:
 		s, err := frost.ParseShare(k.Share)
@@ -219,12 +231,12 @@ func (k VenueKey) validate() error {
 			return errors.New("share is the engine's share, not the agent's; the engine share goes to the engine only")
 		}
 	case SchemeECDSA2p:
-		s, err := ecdsa2p.ParseShare(k.Share)
+		s, err := ecdsa2p.ParseKey(k.Share)
 		if err != nil {
 			return fmt.Errorf("share: %w", err)
 		}
-		if s.ID() != ecdsa2p.AgentID {
-			return errors.New("share is the engine's share, not the agent's; the engine share goes to the engine only")
+		if s.Role() != ecdsa2p.RoleAgent {
+			return errors.New("share is the engine's key, not the agent's; the engine's goes to the engine's signer only")
 		}
 	default:
 		return fmt.Errorf("scheme %q is not one this signer knows (%s, %s)", k.Scheme, SchemeFrostEd25519, SchemeECDSA2p)

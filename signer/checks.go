@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/proposal"
 	"github.com/mishmar-io/mishmar/venues/binance"
+	"github.com/mishmar-io/mishmar/venues/hyperliquid"
 )
 
 // Refusal is why the signer would not sign: a stable code (one of the
@@ -48,6 +50,7 @@ const (
 	RefuseHook                   = "hook_refused"
 	RefuseHookTimeout            = "hook_timeout"
 	RefuseMalformed              = "malformed_request"
+	RefuseNoSlot                 = "no_presigned_slot"
 )
 
 // Policy is what the signer refuses before it signs, from what it knows
@@ -64,13 +67,17 @@ type Policy struct {
 	// in this session; nil means never. A request handed out again after it
 	// was answered is refused as a replay rather than signed twice.
 	Answered func(id string) bool
+	// Rules is the coin's Hyperliquid rules on a trading account, as the
+	// signer cached them (Signer.Handle fetches them first); false when
+	// unknown. Nil refuses every Hyperliquid order.
+	Rules func(tradingAccountID, symbol string) (hyperliquid.Rules, bool)
 }
 
 // Check runs the checks in order and returns the first refusal, or nil with
 // the decoded message when the request may be signed, so the caller signs
 // exactly the bytes that were checked:
 //
-//  1. the scheme is frost-ed25519 (the others are not built yet);
+//  1. the scheme is frost-ed25519 or ecdsa-2p (the others are not built yet);
 //  2. the venue key is in the config, with that scheme, on the request's trading account;
 //  3. the request has not expired and was not answered already;
 //  4. the purpose is order, cancel or verify;
@@ -78,14 +85,16 @@ type Policy struct {
 //     key, verifying with it, for this trading account, not yet expired;
 //  6. the message, decoded, is the order the proposal describes (Binance:
 //     checkBinanceOrder), the cancel it names (checkBinanceCancel) or, for
-//     verify, no order at all.
+//     verify, no order at all; a Hyperliquid digest is recomputed from the
+//     action in the request's body, which must be the proposal's order or
+//     cancel (checkHyperliquid).
 func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
 	now := time.Now()
 	if p.Now != nil {
 		now = p.Now()
 	}
-	if req.Scheme != api.SigningSchemeFrostEd25519 {
-		return nil, &Refusal{RefuseScheme, fmt.Sprintf("%s is not built yet; this signer signs %s only", req.Scheme, api.SigningSchemeFrostEd25519)}
+	if req.Scheme != api.SigningSchemeFrostEd25519 && req.Scheme != api.SigningSchemeEcdsa2p {
+		return nil, &Refusal{RefuseScheme, fmt.Sprintf("%s is not built yet; this signer signs %s and %s", req.Scheme, api.SigningSchemeFrostEd25519, api.SigningSchemeEcdsa2p)}
 	}
 	key, ok := p.VenueKeys[req.VenueKeyId]
 	switch {
@@ -131,10 +140,101 @@ func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
 		if r != nil {
 			return nil, r
 		}
+	case api.VenueHyperliquid:
+		if r := checkHyperliquid(p, req, key, message, now); r != nil {
+			return nil, r
+		}
 	default:
 		return nil, &Refusal{RefuseVenue, fmt.Sprintf("%s is not supported by this signer", req.Venue)}
 	}
 	return message, nil
+}
+
+// hlIntentOf is the order a proposal describes, as the Hyperliquid package reads it.
+func hlIntentOf(p api.ProposalSubmit) hyperliquid.Intent {
+	in := hyperliquid.Intent{
+		Symbol: p.Symbol, Side: string(p.Side), OrderType: string(p.OrderType), Size: p.Size,
+		ReduceOnly: p.ReduceOnly != nil && *p.ReduceOnly,
+	}
+	if p.Price != nil {
+		in.Price = *p.Price
+	}
+	return in
+}
+
+// checkHyperliquid checks a two-party ECDSA request: the message is a
+// 32-byte digest that cannot be read, so the request's body carries the
+// action and nonce it came from; the signer decodes them, recomputes the
+// digest for the key's network and compares, checks the nonce is fresh,
+// and checks the action is the proposal's order (hyperliquid.CheckOrder,
+// under the coin's rules) or the cancel of its target. A verify request has
+// nothing to sign: a Hyperliquid key is verified by its approval.
+func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte, now time.Time) *Refusal {
+	if req.Purpose == api.SignRequestPurposeVerify {
+		return &Refusal{RefusePurpose, "a Hyperliquid key is verified by the master wallet's approval; there is nothing to sign"}
+	}
+	if req.Scheme != api.SigningSchemeEcdsa2p {
+		return &Refusal{RefuseScheme, fmt.Sprintf("a Hyperliquid key signs %s, not %s", api.SigningSchemeEcdsa2p, req.Scheme)}
+	}
+	network, err := hyperliquid.ParseNetwork(key.Network)
+	if err != nil {
+		return &Refusal{RefuseMalformed, fmt.Sprintf("the config names no network for %s", req.VenueKeyId)}
+	}
+	if req.VenueRequest == nil || req.VenueRequest.Body == nil {
+		return &Refusal{RefuseMalformed, "the request carries no venue request body with the action"}
+	}
+	body, err := base64.StdEncoding.DecodeString(*req.VenueRequest.Body)
+	if err != nil {
+		return &Refusal{RefuseMalformed, "the venue request body is not base64"}
+	}
+	m, action, err := hyperliquid.Decode(body)
+	if err != nil {
+		return refusalOf(err)
+	}
+	want, err := hyperliquid.Digest(action, m.Nonce, network)
+	if err != nil {
+		return &Refusal{RefuseMalformed, err.Error()}
+	}
+	if !bytes.Equal(want, digest) {
+		return &Refusal{RefuseMessage, "the message is not the digest of the action in the request"}
+	}
+	if err := hyperliquid.CheckFresh(m.Nonce, now); err != nil {
+		return refusalOf(err)
+	}
+	prop := req.Proposal
+	if prop == nil {
+		return &Refusal{RefuseNoProposal, "an order request must carry the agent's signed proposal"}
+	}
+	if p.Rules == nil {
+		return &Refusal{RefuseMalformed, "this signer has no venue rules to check Hyperliquid orders against"}
+	}
+	rules, ok := p.Rules(req.TradingAccountId, prop.Symbol)
+	if !ok {
+		return &Refusal{RefuseMalformed, fmt.Sprintf("no venue rules for %s on %s", prop.Symbol, req.TradingAccountId)}
+	}
+	switch req.Purpose {
+	case api.SignRequestPurposeCancel:
+		if prop.Kind != api.ProposalKindCancel || prop.TargetClientOrderId == nil {
+			return &Refusal{RefuseMessage, fmt.Sprintf("a cancel request carries a proposal of kind %s, not a cancel", prop.Kind)}
+		}
+		c, err := hyperliquid.DecodeCancel(action)
+		if err != nil {
+			return refusalOf(err)
+		}
+		return refusalOf(hyperliquid.CheckCancel(c, *prop.TargetClientOrderId, rules.AssetIndex))
+	default:
+		if req.ClientOrderId == nil || *req.ClientOrderId == "" {
+			return &Refusal{RefuseMalformed, "the request names no clientOrderId"}
+		}
+		if m.ClientOrderID != *req.ClientOrderId {
+			return &Refusal{RefuseMessage, fmt.Sprintf("the action is for client order id %q, the request names %q", m.ClientOrderID, *req.ClientOrderId)}
+		}
+		o, err := hyperliquid.DecodeOrder(action)
+		if err != nil {
+			return refusalOf(err)
+		}
+		return refusalOf(hyperliquid.CheckOrder(o, hlIntentOf(*prop), rules, m.ClientOrderID))
+	}
 }
 
 // checkProposal checks that an order request carries the agent's own
@@ -234,13 +334,17 @@ func checkBinanceRead(req api.SignRequest, message []byte) *Refusal {
 // refusalOf turns the venues package's verdict into a refusal: a message
 // that is not what it should be is message_mismatch, anything else (a bad
 // proposal, a request without what it needs) malformed_request.
+func trimVenue(err error) string {
+	return strings.TrimPrefix(strings.TrimPrefix(err.Error(), "binance: "), "hyperliquid: ")
+}
+
 func refusalOf(err error) *Refusal {
 	switch {
 	case err == nil:
 		return nil
-	case binance.IsMismatch(err):
-		return &Refusal{RefuseMessage, strings.TrimPrefix(err.Error(), "binance: ")}
+	case binance.IsMismatch(err), hyperliquid.IsMismatch(err):
+		return &Refusal{RefuseMessage, trimVenue(err)}
 	default:
-		return &Refusal{RefuseMalformed, strings.TrimPrefix(err.Error(), "binance: ")}
+		return &Refusal{RefuseMalformed, trimVenue(err)}
 	}
 }

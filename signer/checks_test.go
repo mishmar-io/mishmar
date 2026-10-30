@@ -232,7 +232,7 @@ func TestPolicyCheck(t *testing.T) {
 		}(), RefuseKeyMismatch},
 		{"wrong scheme", func() api.SignRequest {
 			r := orderRequest(limit, binanceOrder(limit, cid, nil))
-			r.Scheme = api.SigningSchemeEcdsa2p
+			r.Scheme = api.SigningSchemeRsa2p
 			return r
 		}(), RefuseScheme},
 		{"cancel accepted", cancelRequest(pull, cancelMessage), ""},

@@ -14,6 +14,7 @@ import (
 	"github.com/mishmar-io/mishmar/frost"
 	"github.com/mishmar-io/mishmar/proposal"
 	"github.com/mishmar-io/mishmar/venues/binance"
+	"github.com/mishmar-io/mishmar/venues/hyperliquid"
 )
 
 // One-shot signing: the signer builds the venue request itself and signs its
@@ -45,13 +46,20 @@ func noOneShot(format string, a ...any) error { return &NoOneShot{fmt.Sprintf(fo
 type oneShotState struct {
 	mu          sync.Mutex
 	rules       map[string]cachedRules
+	hl          map[string]cachedHLRules
 	commitments map[string][]api.EngineCommitment
+	presigs     map[string][]*presigBatch
 	instance    string
 	refilling   map[string]bool
 }
 
 type cachedRules struct {
 	rules   binance.Rules
+	fetched time.Time
+}
+
+type cachedHLRules struct {
+	rules   hyperliquid.Rules
 	fetched time.Time
 }
 
@@ -78,8 +86,11 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	if !ok {
 		return noOneShot("no venue key on %s in the config", p.TradingAccountId)
 	}
-	if api.Venue(vk.Venue) != api.VenueBinance || vk.Scheme != SchemeFrostEd25519 {
-		return noOneShot("%s is a %s key; one-shot builds Binance FROST orders only", vkID, vk.Venue)
+	switch {
+	case api.Venue(vk.Venue) == api.VenueHyperliquid && vk.Scheme == SchemeECDSA2p:
+		return s.prepareHyperliquid(ctx, p, vkID, vk)
+	case api.Venue(vk.Venue) != api.VenueBinance || vk.Scheme != SchemeFrostEd25519:
+		return noOneShot("%s is a %s key; one-shot builds Binance FROST and Hyperliquid ECDSA orders only", vkID, vk.Venue)
 	}
 	now := s.now()
 	var message []byte
@@ -133,7 +144,10 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	if err != nil {
 		return err
 	}
-	raw, err := base64.StdEncoding.DecodeString(ec.Commitment)
+	if ec.Commitment == nil {
+		return noOneShot("the engine's commitment %s carries no FROST commitment", ec.Id)
+	}
+	raw, err := base64.StdEncoding.DecodeString(*ec.Commitment)
 	if err != nil {
 		return noOneShot("the engine's commitment %s is not base64", ec.Id)
 	}
@@ -157,6 +171,94 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	p.VenueMessage = &api.ProposalVenueMessage{
 		VenueKeyId: vkID, Scheme: api.SigningSchemeFrostEd25519, Message: req.Message, EngineCommitmentId: ec.Id,
 		Commitment: ptr(base64.StdEncoding.EncodeToString(ac.Bytes())), Share: base64.StdEncoding.EncodeToString(as.Bytes()),
+	}
+	return nil
+}
+
+// prepareHyperliquid builds the venue message for a Hyperliquid limit order
+// or cancel: the action from the coin's rules with a cloid derived from a
+// fresh client order id and the clock as the nonce, the agent's last
+// protocol message over its digest from a presigned slot. A market order is
+// left to the channel: the venue has none, and the engine prices one at its
+// mark.
+func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, vkID string, vk VenueKey) error {
+	network, err := hyperliquid.ParseNetwork(vk.Network)
+	if err != nil {
+		return noOneShot("the config names no network for %s", vkID)
+	}
+	now := s.now()
+	nonce := hyperliquid.Nonce(now)
+	rules, err := s.hlRules(ctx, p.TradingAccountId, p.Symbol)
+	if err != nil {
+		return noOneShot("venue rules for %s: %v", p.Symbol, err)
+	}
+	req := api.SignRequest{
+		AgentId: s.Config.AgentID, TradingAccountId: p.TradingAccountId, VenueKeyId: vkID, Venue: api.VenueHyperliquid,
+		Scheme: api.SigningSchemeEcdsa2p, Proposal: p, IssuedAt: now, ExpiresAt: now.Add(hyperliquid.NonceWindow),
+	}
+	var message []byte
+	if p.Kind == api.ProposalKindCancel {
+		if p.TargetClientOrderId == nil {
+			return noOneShot("the cancel names no targetClientOrderId")
+		}
+		if message, err = hyperliquid.BuildCancel(rules.AssetIndex, *p.TargetClientOrderId, nonce); err != nil {
+			return noOneShot("%v", err)
+		}
+		req.Purpose = api.SignRequestPurposeCancel
+	} else {
+		if p.OrderType != api.ProposalSubmitOrderTypeLimit {
+			return noOneShot("a %s order is priced by the engine at its mark and signed through the channel", p.OrderType)
+		}
+		clientOrderID := hyperliquid.ClientOrderID(s.Config.AgentID)
+		if message, err = hyperliquid.BuildOrder(hlIntentOf(*p), rules, clientOrderID, nonce); err != nil {
+			return noOneShot("%v", err)
+		}
+		_, action, err := hyperliquid.Decode(message)
+		if err == nil {
+			var o hyperliquid.Order
+			if o, err = hyperliquid.DecodeOrder(action); err == nil {
+				err = hyperliquid.CheckOrder(o, hlIntentOf(*p), rules, clientOrderID)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("signer: the order built for the proposal fails its own check: %w", err)
+		}
+		req.Purpose, req.ClientOrderId = api.SignRequestPurposeOrder, &clientOrderID
+		req.Order = &api.SignRequestOrder{Symbol: p.Symbol, Side: p.Side, Size: p.Size, OrderType: api.SignRequestOrderOrderType(p.OrderType), ReduceOnly: p.ReduceOnly != nil && *p.ReduceOnly}
+		if p.Price != nil {
+			req.Order.Price = p.Price
+		}
+	}
+	_, action, err := hyperliquid.Decode(message)
+	if err != nil {
+		return fmt.Errorf("signer: the message built for the proposal does not decode: %w", err)
+	}
+	digest, err := hyperliquid.Digest(action, nonce, network)
+	if err != nil {
+		return err
+	}
+	req.Message = base64.StdEncoding.EncodeToString(digest)
+	req.VenueRequest = &api.VenueRequest{Method: http.MethodPost, Url: "/exchange", Body: ptr(base64.StdEncoding.EncodeToString(message))}
+	if s.Config.Hook != "" {
+		if r := RunHook(ctx, s.Config.Hook, req, s.hookTimeout()); r != nil {
+			return r
+		}
+	}
+	key, err := s.ecdsaKey(vkID)
+	if err != nil {
+		return err
+	}
+	slotID, presig, index, err := s.takeSlot(ctx, vkID, now)
+	if err != nil {
+		return err
+	}
+	m4, err := key.Complete(presig, index, digest)
+	if err != nil {
+		return err
+	}
+	p.VenueMessage = &api.ProposalVenueMessage{
+		VenueKeyId: vkID, Scheme: api.SigningSchemeEcdsa2p, Message: base64.StdEncoding.EncodeToString(message),
+		EngineCommitmentId: slotID, Share: base64.StdEncoding.EncodeToString(m4),
 	}
 	return nil
 }
@@ -230,6 +332,43 @@ func (s *Signer) symbolRules(ctx context.Context, tradingAccountID, symbol strin
 		return r, nil
 	}
 	return binance.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, tradingAccountID)
+}
+
+// hlRules returns a coin's Hyperliquid rules on a trading account, from the
+// engine once per rulesTTL.
+func (s *Signer) hlRules(ctx context.Context, tradingAccountID, symbol string) (hyperliquid.Rules, error) {
+	key := tradingAccountID + "/" + strings.ToUpper(symbol)
+	st := s.oneShot()
+	st.mu.Lock()
+	c, ok := st.hl[key]
+	st.mu.Unlock()
+	if ok && s.now().Sub(c.fetched) < rulesTTL {
+		return c.rules, nil
+	}
+	vr, err := s.Client.VenueRules(ctx, tradingAccountID, strings.ToUpper(symbol))
+	if err != nil {
+		return hyperliquid.Rules{}, err
+	}
+	for _, sr := range vr.Symbols {
+		if !strings.EqualFold(sr.Symbol, symbol) || sr.AssetIndex == nil || sr.SizeDecimals == nil {
+			continue
+		}
+		r := hyperliquid.Rules{AssetIndex: *sr.AssetIndex, SizeDecimals: *sr.SizeDecimals}
+		st.mu.Lock()
+		st.hl[key] = cachedHLRules{rules: r, fetched: s.now()}
+		st.mu.Unlock()
+		return r, nil
+	}
+	return hyperliquid.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, tradingAccountID)
+}
+
+// cachedHLRules is what Policy.Rules reads: the rules hlRules fetched.
+func (s *Signer) cachedHLRules(tradingAccountID, symbol string) (hyperliquid.Rules, bool) {
+	st := s.oneShot()
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	c, ok := st.hl[tradingAccountID+"/"+strings.ToUpper(symbol)]
+	return c.rules, ok
 }
 
 // takeCommitment pops an unused engine commitment for the venue key, taking
@@ -309,13 +448,21 @@ func (s *Signer) engineSeen(instance string) {
 	for id := range st.commitments {
 		keys = append(keys, id)
 	}
+	ecdsa := make([]string, 0, len(st.presigs))
+	for id := range st.presigs {
+		ecdsa = append(ecdsa, id)
+	}
 	clear(st.commitments)
+	clear(st.presigs)
 	st.instance = instance
 	st.mu.Unlock()
-	s.Logger.Info("signer: the engine restarted; dropped its commitments", "instance", instance, "venueKeys", len(keys))
+	s.Logger.Info("signer: the engine restarted; dropped its commitments and presigned slots", "instance", instance, "venueKeys", len(keys)+len(ecdsa))
 	if s.CommitmentBatch > 1 {
 		for _, id := range keys {
 			s.refill(id)
+		}
+		for _, id := range ecdsa {
+			s.refillPresigs(id)
 		}
 	}
 }
@@ -344,12 +491,13 @@ func (s *Signer) refill(venueKeyID string) {
 	}()
 }
 
-// forgetCommitments drops a venue key's cached commitments, which the engine
-// no longer knows (after its restart).
+// forgetCommitments drops a venue key's cached commitments and presigned
+// slots, which the engine no longer knows (after its restart).
 func (s *Signer) forgetCommitments(venueKeyID string) {
 	st := s.oneShot()
 	st.mu.Lock()
 	delete(st.commitments, venueKeyID)
+	delete(st.presigs, venueKeyID)
 	st.mu.Unlock()
 }
 
@@ -357,7 +505,7 @@ func (s *Signer) oneShot() *oneShotState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.os == nil {
-		s.os = &oneShotState{rules: map[string]cachedRules{}, commitments: map[string][]api.EngineCommitment{}, refilling: map[string]bool{}}
+		s.os = &oneShotState{rules: map[string]cachedRules{}, hl: map[string]cachedHLRules{}, commitments: map[string][]api.EngineCommitment{}, presigs: map[string][]*presigBatch{}, refilling: map[string]bool{}}
 	}
 	return s.os
 }

@@ -1,0 +1,1083 @@
+{
+ "privateKey": "0x0123456789012345678901234567890123456789012345678901234567890123",
+ "address": "0x14791697260E4c9A71f18484C9f997B308e59325",
+ "l1": [
+  {
+   "name": "sdk-phantom-agent",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 4,
+      "b": true,
+      "p": "1670.1",
+      "s": "0.0147",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Ioc"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739186a16104a162c3a170a6313637302e31a173a6302e30313437a172c2a17481a56c696d697481a3746966a3496f63a867726f7570696e67a26e61",
+   "nonce": 1677777606040,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x0fcbeda5ae3c4950a548021552a4fea2226858c4453571bf3f24ba017eac2908",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x51879477d208da1c3b26a95198d451e5ccf916f0c5591bf8f74828fa52e8a6f4",
+    "digest": "0xbe5eb0697b77c2acfeaa07a3d4913ae5d06489c63bfd143c5d3d66540a196c43",
+    "signature": {
+     "r": "0xe302c107c0048633293299b066317048f69f685aa4f536fe56c050efaf04996c",
+     "s": "0x70e01d4d26e3d724fb8f8ab54b3f2544a37ea1b092f83532349405274f3f3962",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x11d6c132e8653dee329929d1d7fdf0cc77b01dfad3d8aed51481f28d49f3b089",
+    "digest": "0xeb995f6f09994a13de522ce0cc454871e81500e01de770e09d9fa6f5d2742601",
+    "signature": {
+     "r": "0x54d5cc489d4fa822a2788ecbdfe19d8dd478b9373cf0024b19aeb8452dc15474",
+     "s": "0xeef26897cba04c5670c683b27c3601deb3189295a5670dda0b7cb97efe1b860",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "sdk-order-gtc",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 1,
+      "b": true,
+      "p": "100",
+      "s": "100",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Gtc"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739186a16101a162c3a170a3313030a173a3313030a172c2a17481a56c696d697481a3746966a3477463a867726f7570696e67a26e61",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x884f2c32bb6dbdd65f6033e32fb28c0cb6f5b345db0f6471fd3366d85c9252c1",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x56a652ccec8b12829fce3495c42fc8428b58e3ad04d124c8f46d1955a4da1fbc",
+    "digest": "0xa5cfed1f2d7948de30aecacc7fea3c5e05c1e759020e96239847879b906f801e",
+    "signature": {
+     "r": "0xd65369825a9df5d80099e513cce430311d7d26ddf477f5b3a33d2806b100d78e",
+     "s": "0x2b54116ff64054968aa237c20ca9ff68000f977c93289157748a3162b6ea940e",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xd0eb023fe47eea33b30ddfee82a932d7089b31c36d8e52fd0b8284f9d90bd08c",
+    "digest": "0x606be2d25f68768f876dc04a2c3c86ceafd2d6a3c3cbb963454462d6734ebfa6",
+    "signature": {
+     "r": "0x82b2ba28e76b3d761093aaded1b1cdad4960b3af30212b343fb2e6cdfa4e3d54",
+     "s": "0x6b53878fc99d26047f4d7e8c90eb98955a109f44209163f52d8dc4278cbbd9f5",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "sdk-order-gtc-cloid",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 1,
+      "b": true,
+      "p": "100",
+      "s": "100",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Gtc"
+       }
+      },
+      "c": "0x00000000000000000000000000000001"
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739187a16101a162c3a170a3313030a173a3313030a172c2a17481a56c696d697481a3746966a3477463a163d92230783030303030303030303030303030303030303030303030303030303030303031a867726f7570696e67a26e61",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x0ba500cedd8f4ba6ded620a0b1cd04f124d9ba745e2e2893fcc763bcc1444af5",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x54bba731728703dc3c467405572ee1fccce2835d2c27c23ac402ca0ae98e3a01",
+    "digest": "0x54a60f6e5107c3ebbd5600ce51c5c208b66c4acdaddf159d34f380f4985f4a3f",
+    "signature": {
+     "r": "0x41ae18e8239a56cacbc5dad94d45d0b747e5da11ad564077fcac71277a946e3",
+     "s": "0x3c61f667e747404fe7eea8f90ab0e76cc12ce60270438b2058324681a00116da",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x63c7f4323482629cc64ec4856e24329eb3d8e13e786f63588a5788bd1b50ef73",
+    "digest": "0x40529778f312dd898fe2e3b86a6f8ad38db2e4fb6e2d8012349b6021407c5328",
+    "signature": {
+     "r": "0xeba0664bed2676fc4e5a743bf89e5c7501aa6d870bdb9446e122c9466c5cd16d",
+     "s": "0x7f3e74825c9114bc59086f1eebea2928c190fdfbfde144827cb02b85bbe90988",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "sdk-dummy",
+   "action": {
+    "type": "dummy",
+    "num": 100000000000
+   },
+   "msgpackHex": "82a474797065a564756d6d79a36e756dcf000000174876e800",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0xf528daee6a0bd11407b483cfcd9a48c56884180b70ee86f124053e5fc1bf4d57",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xebb2abb9a58ab060d1a028aad1b3d535e98109e64aafc8bc604c38779ab0a175",
+    "digest": "0xe0aabfac88a47d3e7028b6ba6a94b30c8afcfffac26cbce788cf362b1312eafa",
+    "signature": {
+     "r": "0x53749d5b30552aeb2fca34b530185976545bb22d0b3ce6f62e31be961a59298",
+     "s": "0x755c40ba9bf05223521753995abb2f73ab3229be8ec921f350cb447e384d8ed8",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x3a4bd52376052a3ca2843ae21a77ce01817e5027fedf850890619609d92b5261",
+    "digest": "0xc05ce2df9d9d18fab3570746cc27e1136a4020a28561171a24f60c2258989224",
+    "signature": {
+     "r": "0x542af61ef1f429707e3c76c5293c80d01f74ef853e34b76efffcb57e574f9510",
+     "s": "0x17b8b32f086e8cdede991f1e2c529f5dd5297cbe8128500e00cbaf766204a613",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "sdk-dummy-vault",
+   "action": {
+    "type": "dummy",
+    "num": 100000000000
+   },
+   "msgpackHex": "82a474797065a564756d6d79a36e756dcf000000174876e800",
+   "nonce": 0,
+   "vaultAddress": "0x1719884eb866cb12b2287399b15f7db5e7d775ea",
+   "expiresAfter": null,
+   "connectionId": "0xde9e09a7a3da45cc694096d4bfdcd89bc1b892d05497c5ecc1f56c335945184c",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x00a823bddd6d1f3310e67bee6174c3968f33c595e3f42dad9d83d978b2a5dd06",
+    "digest": "0xfc2d745b97fc2d89fbca951d3665f56f14e8b2fa19d21dbd137ab115fcd5b4f1",
+    "signature": {
+     "r": "0x3c548db75e479f8012acf3000ca3a6b05606bc2ec0c29c50c515066a326239",
+     "s": "0x4d402be7396ce74fbba3795769cda45aec00dc3125a984f2a9f23177b190da2c",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x0b3fe238994e17f950351b4d9a302bee836a788585796b628d5ff61dc0094fff",
+    "digest": "0xae91fb8ce73153ef15612f60dea044c325a342b9a8b0cbd0df8d3c8c66bef395",
+    "signature": {
+     "r": "0xe281d2fb5c6e25ca01601f878e4d69c965bb598b88fac58e475dd1f5e56c362b",
+     "s": "0x7ddad27e9a238d045c035bc606349d075d5c5cd00a6cd1da23ab5c39d4ef0f60",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "sdk-tpsl",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 1,
+      "b": true,
+      "p": "100",
+      "s": "100",
+      "r": false,
+      "t": {
+       "trigger": {
+        "isMarket": true,
+        "triggerPx": "103",
+        "tpsl": "sl"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739186a16101a162c3a170a3313030a173a3313030a172c2a17481a77472696767657283a869734d61726b6574c3a9747269676765725078a3313033a47470736ca2736ca867726f7570696e67a26e61",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x430a86fb9876e901920d931f5bb20c9d011f6389bd179f39a73c09e6219adcad",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xb8e6b772aeca9d171f8cb226392c2a99f91c1f00a51ee31375d373c49189a4dd",
+    "digest": "0x012ce9a26d8326e9de0e2e76709c076b94cec6b137031928ec7334c8f3c4028f",
+    "signature": {
+     "r": "0x98343f2b5ae8e26bb2587daad3863bc70d8792b09af1841b6fdd530a2065a3f9",
+     "s": "0x6b5bb6bb0633b710aa22b721dd9dee6d083646a5f8e581a20b545be6c1feb405",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xe9fb7182d896cd2a4a9be6e6805689e8c2e088be8591cfcf5e7730fddf60a84b",
+    "digest": "0x28f89042e8188e26f18fb164d9c705db8dcfd6a7e74e793d4917a318dd45f799",
+    "signature": {
+     "r": "0x971c554d917c44e0e1b6cc45d8f9404f32172a9d3b3566262347d0302896a2e4",
+     "s": "0x206257b104788f80450f8e786c329daa589aa0b32ba96948201ae556d5637eac",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "sdk-schedule-cancel",
+   "action": {
+    "type": "scheduleCancel"
+   },
+   "msgpackHex": "81a474797065ae7363686564756c6543616e63656c",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0xa2887a3147b6542306b61d311a056fd1753913d63cc904f30cba61712a98f4ae",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x017e2787cdfdce7b0fcd7f75015e2e804810d01a6394c6042654e43296f061b7",
+    "digest": "0xb2501a589d58456ff3fcb01a4b5e82f70745856837c35dc88c9dc8eb0262cd4f",
+    "signature": {
+     "r": "0x6cdfb286702f5917e76cd9b3b8bf678fcc49aec194c02a73e6d4f16891195df9",
+     "s": "0x6557ac307fa05d25b8d61f21fb8a938e703b3d9bf575f6717ba21ec61261b2a0",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x67a364bf703a1f720f239f8009f7d71c247c82095c2d2bc4ce203fd22a659001",
+    "digest": "0x7ed5032a58c1a14bffb06942a63f6ea3cbc688352cb7cf0b76c26ec80c6a16ee",
+    "signature": {
+     "r": "0xc75bb195c3f6a4e06b7d395acc20bbb224f6d23ccff7c6a26d327304e6efaeed",
+     "s": "0x342f8ede109a29f2c0723bd5efb9e9100e3bbb493f8fb5164ee3d385908233df",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "sdk-schedule-cancel-time",
+   "action": {
+    "type": "scheduleCancel",
+    "time": 123456789
+   },
+   "msgpackHex": "82a474797065ae7363686564756c6543616e63656ca474696d65ce075bcd15",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x4be18e445114437c5d1d9dd35a09f5601a3cc34ed4ac94a0281251b9bd8f6832",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x110bda42e406d289b8248d87b2a973792ca4cae948bcc0f5531e4c31cec27297",
+    "digest": "0x9393b4b91056b0153438d4e16380db88f41a0e56d8d9e508084748b19e475598",
+    "signature": {
+     "r": "0x609cb20c737945d070716dcc696ba030e9976fcf5edad87afa7d877493109d55",
+     "s": "0x16c685d63b5c7a04512d73f183b3d7a00da5406ff1f8aad33f8ae2163bab758b",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x1c93868c4c2bc5edb7b99b679b7ca7c2f569b2948d939009bd7793d9681fccbe",
+    "digest": "0x40daefeaa4ffca7e11aa99be35f1afc0a15ec5137f3240f778284d8bd6d42639",
+    "signature": {
+     "r": "0x4e4f2dbd4107c69783e251b7e1057d9f2b9d11cee213441ccfa2be63516dc5bc",
+     "s": "0x706c656b23428c8ba356d68db207e11139ede1670481a9e01ae2dfcdb0e1a678",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "sdk-create-sub-account",
+   "action": {
+    "type": "createSubAccount",
+    "name": "example"
+   },
+   "msgpackHex": "82a474797065b06372656174655375624163636f756e74a46e616d65a76578616d706c65",
+   "nonce": 0,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x9a7b5272baf65d28b0589bd50863a42ac35897553a6beb274e625b6faf7d6bb1",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x16e61d0a62eca9cbb31c8c2612f714b8ca7d9f1bb464d82e54fec2976bd57e13",
+    "digest": "0x4423e9ec1018e626f959974e00f3715aa1d91ad58815ae8f11f8c7283e70973c",
+    "signature": {
+     "r": "0x51096fe3239421d16b671e192f574ae24ae14329099b6db28e479b86cdd6caa7",
+     "s": "0xb71f7d293af92d3772572afb8b102d167a7cef7473388286bc01f52a5c5b423",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x8cc34f3f547d07aafe13f46031cc7c38326d790f90d6ae91fbfedac38e750330",
+    "digest": "0x1467a6a95a4a57ea2b1cb7af29b52aa9922df169c5ee945f641d10ccee9d6c21",
+    "signature": {
+     "r": "0xa699e3ed5c2b89628c746d3298b5dc1cca604694c2c855da8bb8250ec8014a5b",
+     "s": "0x53f1b8153a301c72ecc655b1c315d64e1dcea3ee58921fd7507e35818fcc1584",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "two-orders",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 0,
+      "b": true,
+      "p": "65000",
+      "s": "0.001",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Gtc"
+       }
+      },
+      "c": "0x1234567890abcdef1234567890abcdef"
+     },
+     {
+      "a": 1,
+      "b": false,
+      "p": "3500.5",
+      "s": "1.5",
+      "r": true,
+      "t": {
+       "limit": {
+        "tif": "Ioc"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739287a16100a162c3a170a53635303030a173a5302e303031a172c2a17481a56c696d697481a3746966a3477463a163d9223078313233343536373839306162636465663132333435363738393061626364656686a16101a162c2a170a6333530302e35a173a3312e35a172c3a17481a56c696d697481a3746966a3496f63a867726f7570696e67a26e61",
+   "nonce": 1700000000000,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x461d159065d2f9144150f9bbcb87bbfb5761748197553c55e069b6cc11a0be55",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x449798b7a85ad61e0d1977dd775f718e42d65144e6c3b2106e00ff78f5c62623",
+    "digest": "0xe249ab3898afd899babb62e2becc029734609e8290a3f78d73d31315299d928b",
+    "signature": {
+     "r": "0x1da1b3274c2f60aa23f132a4336cfb96c0afc2fa8127b95860638282b0b91501",
+     "s": "0x6e3f85ae69f6236e668b0f0384e90cb283713abe0848e11460c428bfff31631b",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x472f01a53b9d107ef3e8e68c3718f3522dae3b86b834ed318eccfe43b50c188f",
+    "digest": "0xc6336506a8f6959da2fd940797160f0ae82aa0749c7714e743d517c38d8ad741",
+    "signature": {
+     "r": "0x765ee016e10e1f521222ff0df40dabc88a9e24e4370bf63553bab1e2aa602d06",
+     "s": "0x205875a61871ca310aa67c42b69ac907bb7fc4e1ca4aa175ee435cdc7c60fe10",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "two-orders-expires",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 0,
+      "b": true,
+      "p": "65000",
+      "s": "0.001",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Gtc"
+       }
+      },
+      "c": "0x1234567890abcdef1234567890abcdef"
+     },
+     {
+      "a": 1,
+      "b": false,
+      "p": "3500.5",
+      "s": "1.5",
+      "r": true,
+      "t": {
+       "limit": {
+        "tif": "Ioc"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739287a16100a162c3a170a53635303030a173a5302e303031a172c2a17481a56c696d697481a3746966a3477463a163d9223078313233343536373839306162636465663132333435363738393061626364656686a16101a162c2a170a6333530302e35a173a3312e35a172c3a17481a56c696d697481a3746966a3496f63a867726f7570696e67a26e61",
+   "nonce": 1700000000000,
+   "vaultAddress": null,
+   "expiresAfter": 1700000060000,
+   "connectionId": "0x936aa366cdf8b07a2ed50ac51d4214b4363c4f73949919ae50f15c5c7d68f91b",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x7c9a0563d28185fc187398fa1f403d3d6ffced859b2a07873d7b22cd07d36811",
+    "digest": "0x265094c8ae80ea64e8d409e16d002a9b0c9196ac18b04cbb423aac40cdef848a",
+    "signature": {
+     "r": "0x41ea95cfdc38d9810b6850d31594b993dacaf56b2befda44f040bf14e0993db3",
+     "s": "0x790ac3e1731c0bd26fe164a8d711893514bdab08d82ed79d8c317c0628558876",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xb4af155c56d51e5877908337412f4f697871ed3c48091a7e057e430992a622d5",
+    "digest": "0x0e23d5e52cef0e18935463e26277937e3dfd708891fd501043c2e9c89b9366cc",
+    "signature": {
+     "r": "0x272bd57a4485992ace8d8e51fc5b3eb423ffb7912c6904e656caf1fe29c11f9b",
+     "s": "0x2a1ff686134f39b633aea4c44fa7bedad03d979b05cc9f25bb9398c6df4299c4",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "two-orders-vault-expires",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 0,
+      "b": true,
+      "p": "65000",
+      "s": "0.001",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Gtc"
+       }
+      },
+      "c": "0x1234567890abcdef1234567890abcdef"
+     },
+     {
+      "a": 1,
+      "b": false,
+      "p": "3500.5",
+      "s": "1.5",
+      "r": true,
+      "t": {
+       "limit": {
+        "tif": "Ioc"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739287a16100a162c3a170a53635303030a173a5302e303031a172c2a17481a56c696d697481a3746966a3477463a163d9223078313233343536373839306162636465663132333435363738393061626364656686a16101a162c2a170a6333530302e35a173a3312e35a172c3a17481a56c696d697481a3746966a3496f63a867726f7570696e67a26e61",
+   "nonce": 1700000000000,
+   "vaultAddress": "0x1719884eb866cb12b2287399b15f7db5e7d775ea",
+   "expiresAfter": 1700000060000,
+   "connectionId": "0xe79841371324d3289940675b7eb77d9b5c4750e28777aac158a556d7108666ff",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x7d88ba94e801ce153aba4e3044106702ebaacec1f328159a91bdc3c09fdbd693",
+    "digest": "0x4ff7799cafbee54fe560c73d0cb0143ddb556074821b1d3c7ffa948108bfce0b",
+    "signature": {
+     "r": "0x425c87bc5f4f552e32d6ef6c21efd57c0a51b0b152021dddcb2416be137209ab",
+     "s": "0x64f59e5dfaac34687002d0996a54f2fcd4ab7e93b16db3095b28b7238ae9482",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x4689653fedd90f7a42f5e618d1ffd5d05998a21b0e4afa07319b271352b8096c",
+    "digest": "0x02a11ba314e402475d78a52ab2be8f29b1cefe851f29dd16bc9b3ea47137d138",
+    "signature": {
+     "r": "0x2cba0ca1dd6757ca9f939620740807b069802332c66c677b691aba74413b676c",
+     "s": "0x5558ebebda1c0d1f3c082a0e902511aed7d7b00cde0edd12185830f015399e6f",
+     "v": 28
+    }
+   }
+  },
+  {
+   "name": "cancel",
+   "action": {
+    "type": "cancel",
+    "cancels": [
+     {
+      "a": 0,
+      "o": 123456789
+     },
+     {
+      "a": 1,
+      "o": 42
+     }
+    ]
+   },
+   "msgpackHex": "82a474797065a663616e63656ca763616e63656c739282a16100a16fce075bcd1582a16101a16f2a",
+   "nonce": 1700000000000,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x2fd9ed6029ef87fef161ed1aa68dea4dce80fbfc1d907e88916a0a651ba00097",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x456071a7a63a38ec48d94d71c96b0c3b60f1fea213469048aac5cc957f44f1e6",
+    "digest": "0xca0a24d97c60d5ed31ff3085cfcafb62a7096a7662ac1eda93563c8c706cd567",
+    "signature": {
+     "r": "0xd5ae4e3e59dc50597d488fe0f23bc714380188ac9faef4e143c6854e41d0187d",
+     "s": "0x3e4cc4b184256d49b222785e989ca529f9e216705d032d11bd7227e03b8fc141",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xd5f9ffdea83ede2017abb49fd05d3c9be93ea0d52b014c24fd19c322faddff75",
+    "digest": "0xbb51eb2f2538f645fdcb7e3c48cc3402d8b6fd563496fcf4a63d2c7130061708",
+    "signature": {
+     "r": "0x14ed3c94c90923d009929f6f208f712360c2c14f3b701ef49b000f25c1d4c25",
+     "s": "0x3f1cab2369192b12fe8b7ab40de9e3e15da5f60d0c551e90efec73ce8463d8ba",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "cancel-by-cloid",
+   "action": {
+    "type": "cancelByCloid",
+    "cancels": [
+     {
+      "asset": 0,
+      "cloid": "0x1234567890abcdef1234567890abcdef"
+     }
+    ]
+   },
+   "msgpackHex": "82a474797065ad63616e63656c4279436c6f6964a763616e63656c739182a5617373657400a5636c6f6964d92230783132333435363738393061626364656631323334353637383930616263646566",
+   "nonce": 1700000000000,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x435c79a1720d068d43b842b0e6b5386afe432bf4d9eb2950dd4c07b67cef7322",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x097a7f2bf26175806ad7625b2bd9b0629f77aa2a662cac138a97fb50ca5e0b2c",
+    "digest": "0xae1645a334e7c872cafb1d36bdd8a173b7a128f618836b07cbbb4b4753e62ef5",
+    "signature": {
+     "r": "0xc5ac1e8dc3a3c66432051ad60209f7bbefa3a51c978f01d757cb44f4c40a4e06",
+     "s": "0x6d8b89b44dabde547fd12c571b247e4d08c548c79af5217a4e043c5f4d150f85",
+     "v": 28
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x0ce0987309bf26c12c982b2e7f4233c60abac6f0fceae9a806eef84886e5f480",
+    "digest": "0x5962b4beaafdad4e2f384e714825e0ae41d5facac531e1393376b78a124e1756",
+    "signature": {
+     "r": "0x4d4f645f3c7c9d8294fc06eccca87ace4b4409e29a915e74ebcb33527e4a1f29",
+     "s": "0x1032151c4cf283b2aba8d282eb107dd4c0949ffe8e8c4a758e8b6ecc8891dad4",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "int-widths",
+   "action": {
+    "type": "dummy",
+    "a": 0,
+    "b": 127,
+    "c": 128,
+    "d": 255,
+    "e": 256,
+    "f": 65535,
+    "g": 65536,
+    "h": 4294967295,
+    "i": 4294967296,
+    "j": 18446744073709551615
+   },
+   "msgpackHex": "8ba474797065a564756d6d79a16100a1627fa163cc80a164ccffa165cd0100a166cdffffa167ce00010000a168ceffffffffa169cf0000000100000000a16acfffffffffffffffff",
+   "nonce": 18446744073709551615,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x0a3af76445bd910549a0842bd2af155f8e044faa5a34f9f6ce1cb1f023bf0665",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xbc9bce089e29a03057cfb16038edaf2c9bd2994b1b6077f297b23e69e95491db",
+    "digest": "0xb2c36debc8b1dd626c806ab3defcfe5f68c24c4a5a74c3ab453e69acf0a96f5a",
+    "signature": {
+     "r": "0x41bd2c3d0b397d1e92ab4e5247b2c62e8950c8083d18ca0406abb2b8eb9fcbd7",
+     "s": "0x78cf51b526ebbeb71ede3697c88cc03fb622b4b433b88b0f92742a9a6f2f1cdf",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x6b3539882117fa4405fd1e3e42ad41f8f3183cc42e0145776521d522722d6cae",
+    "digest": "0xf0a86ea284427c4c05f50ff5687346f83b10b0f079b3573bb92a446806941dae",
+    "signature": {
+     "r": "0x473b941dcacab2952211bd77fd8bef850f74c72255e6152eb0bc59cb036b618d",
+     "s": "0x62d60dbf9fd8466c6d6a681fcb8a8d69581c56036c49adef26768ef854284bd",
+     "v": 27
+    }
+   }
+  },
+  {
+   "name": "alo-order",
+   "action": {
+    "type": "order",
+    "orders": [
+     {
+      "a": 0,
+      "b": false,
+      "p": "70000",
+      "s": "0.01",
+      "r": false,
+      "t": {
+       "limit": {
+        "tif": "Alo"
+       }
+      }
+     }
+    ],
+    "grouping": "na"
+   },
+   "msgpackHex": "83a474797065a56f72646572a66f72646572739186a16100a162c2a170a53730303030a173a4302e3031a172c2a17481a56c696d697481a3746966a3416c6fa867726f7570696e67a26e61",
+   "nonce": 1700000000000,
+   "vaultAddress": null,
+   "expiresAfter": null,
+   "connectionId": "0x96e139af42c6fda339ac57d154a2322925978cb9467d2896b8798497f559518a",
+   "mainnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0x6b61f4c75313aeb37a781b726ec6846e0d12451805c712c635625a755ad0d7a6",
+    "digest": "0x5c16bc9063e9d38a81cee8c641794aaa1f4bb396f79d41b500047469d0b3ab2f",
+    "signature": {
+     "r": "0x964c0d3f625acc4973d6caabf33e92ac34421d86496f34da247fa86dab2d5533",
+     "s": "0x4640b2fa177df15491a312b6d3cc2b9e9d1d933ac59064f379557d8760a9459b",
+     "v": 27
+    }
+   },
+   "testnet": {
+    "domainSeparator": "0xd79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040",
+    "structHash": "0xca038cd18238a173fe39305b78ecab3e5debc6075c53aab135ea0e4e2fbad0ff",
+    "digest": "0x4da5cd9c5b894bba52d865a78d5afa05efe9731be8098e72a22d03304ce3317d",
+    "signature": {
+     "r": "0xd590e574f8f7ebf6d6ec518e7b85627e634040b96cf70565b911c43e99b38b88",
+     "s": "0x5483889530ea7478a1120548a473572aa5f20abb0e1bcdb21621bd946d52b896",
+     "v": 28
+    }
+   }
+  }
+ ],
+ "approveAgent": [
+  {
+   "agentName": "mishmar",
+   "network": "mainnet",
+   "action": {
+    "type": "approveAgent",
+    "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "agentName": "mishmar",
+    "nonce": 1700000000000,
+    "signatureChainId": "0x66eee",
+    "hyperliquidChain": "Mainnet"
+   },
+   "typedData": {
+    "domain": {
+     "name": "HyperliquidSignTransaction",
+     "version": "1",
+     "chainId": 421614,
+     "verifyingContract": "0x0000000000000000000000000000000000000000"
+    },
+    "types": {
+     "HyperliquidTransaction:ApproveAgent": [
+      {
+       "name": "hyperliquidChain",
+       "type": "string"
+      },
+      {
+       "name": "agentAddress",
+       "type": "address"
+      },
+      {
+       "name": "agentName",
+       "type": "string"
+      },
+      {
+       "name": "nonce",
+       "type": "uint64"
+      }
+     ],
+     "EIP712Domain": [
+      {
+       "name": "name",
+       "type": "string"
+      },
+      {
+       "name": "version",
+       "type": "string"
+      },
+      {
+       "name": "chainId",
+       "type": "uint256"
+      },
+      {
+       "name": "verifyingContract",
+       "type": "address"
+      }
+     ]
+    },
+    "primaryType": "HyperliquidTransaction:ApproveAgent",
+    "message": {
+     "type": "approveAgent",
+     "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+     "agentName": "mishmar",
+     "nonce": 1700000000000,
+     "signatureChainId": "0x66eee",
+     "hyperliquidChain": "Mainnet"
+    }
+   },
+   "domainSeparator": "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "structHash": "0xeee04ab2ca0433b0b4b0a2da8f652918fd14869af4c849b98f2dc989a6c1e346",
+   "digest": "0x00199fda5cae0f4a375e10cfcda66e710c5e31803b88dedeae71fd4706f99b78",
+   "signature": {
+    "r": "0xdbe0faa1567552cda039db800a03b5220c909a260ffd918c0e10037bdb21cedf",
+    "s": "0x20b6f94e00a2d80ad2c42255758d208625f7239b6ba7572d1361b13b36637933",
+    "v": 28
+   }
+  },
+  {
+   "agentName": "mishmar",
+   "network": "testnet",
+   "action": {
+    "type": "approveAgent",
+    "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "agentName": "mishmar",
+    "nonce": 1700000000000,
+    "signatureChainId": "0x66eee",
+    "hyperliquidChain": "Testnet"
+   },
+   "typedData": {
+    "domain": {
+     "name": "HyperliquidSignTransaction",
+     "version": "1",
+     "chainId": 421614,
+     "verifyingContract": "0x0000000000000000000000000000000000000000"
+    },
+    "types": {
+     "HyperliquidTransaction:ApproveAgent": [
+      {
+       "name": "hyperliquidChain",
+       "type": "string"
+      },
+      {
+       "name": "agentAddress",
+       "type": "address"
+      },
+      {
+       "name": "agentName",
+       "type": "string"
+      },
+      {
+       "name": "nonce",
+       "type": "uint64"
+      }
+     ],
+     "EIP712Domain": [
+      {
+       "name": "name",
+       "type": "string"
+      },
+      {
+       "name": "version",
+       "type": "string"
+      },
+      {
+       "name": "chainId",
+       "type": "uint256"
+      },
+      {
+       "name": "verifyingContract",
+       "type": "address"
+      }
+     ]
+    },
+    "primaryType": "HyperliquidTransaction:ApproveAgent",
+    "message": {
+     "type": "approveAgent",
+     "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+     "agentName": "mishmar",
+     "nonce": 1700000000000,
+     "signatureChainId": "0x66eee",
+     "hyperliquidChain": "Testnet"
+    }
+   },
+   "domainSeparator": "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "structHash": "0x8af1c2612c0c6e6e695676e09c3530dab4f64962b12626fc95c0eb2e6da57c47",
+   "digest": "0x7458b54e50c747090e006563d635993436502ee537592de075a6867fbdbfb978",
+   "signature": {
+    "r": "0x465fd9e0a5eecc2ce16a963ba5cbe0e0d86b14012c35c39e5946bb1385085a51",
+    "s": "0x39728a77e2038f0f6673d16d6ca3c45805250644785581213c97f8a156abd14",
+    "v": 27
+   }
+  },
+  {
+   "agentName": "",
+   "network": "mainnet",
+   "action": {
+    "type": "approveAgent",
+    "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "agentName": "",
+    "nonce": 1700000000000,
+    "signatureChainId": "0x66eee",
+    "hyperliquidChain": "Mainnet"
+   },
+   "typedData": {
+    "domain": {
+     "name": "HyperliquidSignTransaction",
+     "version": "1",
+     "chainId": 421614,
+     "verifyingContract": "0x0000000000000000000000000000000000000000"
+    },
+    "types": {
+     "HyperliquidTransaction:ApproveAgent": [
+      {
+       "name": "hyperliquidChain",
+       "type": "string"
+      },
+      {
+       "name": "agentAddress",
+       "type": "address"
+      },
+      {
+       "name": "agentName",
+       "type": "string"
+      },
+      {
+       "name": "nonce",
+       "type": "uint64"
+      }
+     ],
+     "EIP712Domain": [
+      {
+       "name": "name",
+       "type": "string"
+      },
+      {
+       "name": "version",
+       "type": "string"
+      },
+      {
+       "name": "chainId",
+       "type": "uint256"
+      },
+      {
+       "name": "verifyingContract",
+       "type": "address"
+      }
+     ]
+    },
+    "primaryType": "HyperliquidTransaction:ApproveAgent",
+    "message": {
+     "type": "approveAgent",
+     "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+     "agentName": "",
+     "nonce": 1700000000000,
+     "signatureChainId": "0x66eee",
+     "hyperliquidChain": "Mainnet"
+    }
+   },
+   "domainSeparator": "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "structHash": "0x6d2b46f957d3d1bc311af0a01f91250063ff37ff742131f9795554ccc26931ac",
+   "digest": "0x60acb73e98ebd331e706e2e4455b7b7fa7f87c9f2257ab1621eb06f0a3dd6714",
+   "signature": {
+    "r": "0x85922834eaa80012ef57fb5d8983eea8f59ff6d8dd5cd7db6df9f7fcb5724e95",
+    "s": "0x398d9fa294cd8e375351f3ccafcf7463ca97a8586c38d412586027e16962df4a",
+    "v": 27
+   }
+  },
+  {
+   "agentName": "",
+   "network": "testnet",
+   "action": {
+    "type": "approveAgent",
+    "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "agentName": "",
+    "nonce": 1700000000000,
+    "signatureChainId": "0x66eee",
+    "hyperliquidChain": "Testnet"
+   },
+   "typedData": {
+    "domain": {
+     "name": "HyperliquidSignTransaction",
+     "version": "1",
+     "chainId": 421614,
+     "verifyingContract": "0x0000000000000000000000000000000000000000"
+    },
+    "types": {
+     "HyperliquidTransaction:ApproveAgent": [
+      {
+       "name": "hyperliquidChain",
+       "type": "string"
+      },
+      {
+       "name": "agentAddress",
+       "type": "address"
+      },
+      {
+       "name": "agentName",
+       "type": "string"
+      },
+      {
+       "name": "nonce",
+       "type": "uint64"
+      }
+     ],
+     "EIP712Domain": [
+      {
+       "name": "name",
+       "type": "string"
+      },
+      {
+       "name": "version",
+       "type": "string"
+      },
+      {
+       "name": "chainId",
+       "type": "uint256"
+      },
+      {
+       "name": "verifyingContract",
+       "type": "address"
+      }
+     ]
+    },
+    "primaryType": "HyperliquidTransaction:ApproveAgent",
+    "message": {
+     "type": "approveAgent",
+     "agentAddress": "0x1234567890abcdef1234567890abcdef12345678",
+     "agentName": "",
+     "nonce": 1700000000000,
+     "signatureChainId": "0x66eee",
+     "hyperliquidChain": "Testnet"
+    }
+   },
+   "domainSeparator": "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+   "structHash": "0x7d88fc52bada46107aa62e4ac552d9562b20cdefbd28ecfe9c1cf9226a3a33e7",
+   "digest": "0x3a0d36a8a8d1081afcf6f87cba3b4512a6938caf9426e0b7a11c01b2de159488",
+   "signature": {
+    "r": "0x9a6772bb552346e5a0c0759a0516e3b261fca8892b2e490bd5216655a318de3b",
+    "s": "0x91eb43c485ce62cb80d2c1a4de4ca6d408a1540cb3517f1545926a4748b4983",
+    "v": 27
+   }
+  }
+ ],
+ "usdSend": {
+  "action": {
+   "destination": "0x5e9ee1089755c3435139848e47e6635505d5a13a",
+   "amount": "1",
+   "time": 1687816341423,
+   "signatureChainId": "0x66eee",
+   "hyperliquidChain": "Testnet"
+  },
+  "typedData": {
+   "domain": {
+    "name": "HyperliquidSignTransaction",
+    "version": "1",
+    "chainId": 421614,
+    "verifyingContract": "0x0000000000000000000000000000000000000000"
+   },
+   "types": {
+    "HyperliquidTransaction:UsdSend": [
+     {
+      "name": "hyperliquidChain",
+      "type": "string"
+     },
+     {
+      "name": "destination",
+      "type": "string"
+     },
+     {
+      "name": "amount",
+      "type": "string"
+     },
+     {
+      "name": "time",
+      "type": "uint64"
+     }
+    ],
+    "EIP712Domain": [
+     {
+      "name": "name",
+      "type": "string"
+     },
+     {
+      "name": "version",
+      "type": "string"
+     },
+     {
+      "name": "chainId",
+      "type": "uint256"
+     },
+     {
+      "name": "verifyingContract",
+      "type": "address"
+     }
+    ]
+   },
+   "primaryType": "HyperliquidTransaction:UsdSend",
+   "message": {
+    "destination": "0x5e9ee1089755c3435139848e47e6635505d5a13a",
+    "amount": "1",
+    "time": 1687816341423,
+    "signatureChainId": "0x66eee",
+    "hyperliquidChain": "Testnet"
+   }
+  },
+  "domainSeparator": "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+  "structHash": "0xe81f1691f350bb9a59d2b40b3d16c9526a8f93407dd72bcb9ea95e291a5de6da",
+  "digest": "0xcacf7585cc49ca60c6c5fb3001e226c0ca03c46252c893eea574c78907b7cebe",
+  "signature": {
+   "r": "0x637b37dd731507cdd24f46532ca8ba6eec616952c56218baeff04144e4a77073",
+   "s": "0x11a6a24900e6e314136d2592e2f8d502cd89b7c15b198e1bee043c9589f9fad7",
+   "v": 27
+  }
+ },
+ "floatToWire": {
+  "100": "100",
+  "100.0": "100",
+  "1670.1": "1670.1",
+  "0.0147": "0.0147",
+  "1e-08": "0.00000001",
+  "1234.5": "1234.5",
+  "0.001234": "0.001234",
+  "65000": "65000",
+  "3500.5": "3500.5",
+  "1.5": "1.5",
+  "0.001": "0.001",
+  "70000": "70000",
+  "0.01": "0.01",
+  "123456.0": "123456"
+ }
+}

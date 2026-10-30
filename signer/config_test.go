@@ -93,11 +93,7 @@ func TestConfigValidate(t *testing.T) {
 	cfg, agent, engine := testConfig(t)
 	agentShare := mustJSON(t, agent)
 	engineShare := mustJSON(t, engine)
-	ecdsaAgent, _, err := ecdsa2p.Deal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ecdsaShare := mustJSON(t, ecdsaAgent)
+	ecdsaShare := mustJSON(t, testECDSAAgentKey(t))
 	good := func() Config {
 		c := *cfg
 		c.VenueKeys = map[string]VenueKey{"vk_1": cfg.VenueKeys["vk_1"]}
@@ -166,8 +162,7 @@ func TestSchemeOfShare(t *testing.T) {
 	if s, err := SchemeOfShare(mustJSON(t, agent)); err != nil || s != SchemeFrostEd25519 {
 		t.Fatalf("frost share: %q, %v", s, err)
 	}
-	ecdsaAgent, _, _ := ecdsa2p.Deal()
-	if s, err := SchemeOfShare(mustJSON(t, ecdsaAgent)); err != nil || s != SchemeECDSA2p {
+	if s, err := SchemeOfShare(mustJSON(t, testECDSAAgentKey(t))); err != nil || s != SchemeECDSA2p {
 		t.Fatalf("ecdsa share: %q, %v", s, err)
 	}
 	if _, err := SchemeOfShare([]byte(`{"scheme":"rsa-2p"}`)); err == nil {
@@ -182,4 +177,35 @@ func TestSchemeOfShare(t *testing.T) {
 	if _, ok := SchemeForVenue("okx"); ok {
 		t.Fatal("okx has a scheme")
 	}
+}
+
+// testECDSAAgentKey runs two-party key generation by hand and returns the
+// agent's key.
+func testECDSAAgentKey(t *testing.T) *ecdsa2p.Key {
+	t.Helper()
+	e, err := ecdsa2p.NewKeygen(ecdsa2p.RoleEngine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := ecdsa2p.NewKeygen(ecdsa2p.RoleAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m1, err := e.First()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m2, err := a.Reply(m1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m3, _, err := e.Last(m2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := a.Finish(m3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
 }
