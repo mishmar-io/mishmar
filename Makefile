@@ -1,4 +1,4 @@
-.PHONY: gen build test lint
+.PHONY: gen build test lint install
 
 # Two-party ECDSA (ecdsa2p) is Coinbase's cb-mpc, C++ behind cgo, through the
 # mishmar-io fork of cb-mpc-go checked out next to this repo (CBMPC_DIR). Its
@@ -23,6 +23,12 @@ gen: ## Regenerate api/types.gen.go from the contract and signerapi from the sig
 
 build:
 	$(GO) build ./...
+
+# The dev binaries live next to the repos (.mishmar-dev/bin is on PATH once env.sh is sourced).
+BIN ?= ../.mishmar-dev/bin
+
+install: ## Build the mishmar binary (CLI, agent signer, signer service) into BIN
+	mkdir -p $(BIN) && $(GO) build -o $(BIN)/mishmar ./cmd/mishmar
 
 test:
 	$(GO) test ./...

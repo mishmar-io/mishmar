@@ -2913,6 +2913,9 @@ type ListRulesParams struct {
 	Enabled   *bool      `form:"enabled,omitempty" json:"enabled,omitempty"`
 }
 
+// SetAccountEntitlementsJSONRequestBody defines body for SetAccountEntitlements for application/json ContentType.
+type SetAccountEntitlementsJSONRequestBody = Entitlements
+
 // RequestCommitmentsJSONRequestBody defines body for RequestCommitments for application/json ContentType.
 type RequestCommitmentsJSONRequestBody = CommitmentRequest
 

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ._time import parse_time as _parse_time
@@ -189,9 +189,7 @@ class Proposal:
     def times(self) -> tuple[datetime, datetime]:
         """The proposal's times, defaulting to now and now plus valid_for."""
         proposed = (
-            _parse_time(self.proposed_at)
-            if self.proposed_at
-            else datetime.now(timezone.utc)
+            _parse_time(self.proposed_at) if self.proposed_at else datetime.now(UTC)
         )
         expires = (
             _parse_time(self.expires_at)

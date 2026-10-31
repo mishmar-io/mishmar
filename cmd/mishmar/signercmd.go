@@ -34,7 +34,7 @@ each one against the order the agent proposed, and answers with its share
 of the signature or a refusal. Its config is ~/.mishmar/agent.json (or
 MISHMAR_AGENT_CONFIG), written by "mishmar add-agent" or by hand.`,
 	}
-	cmd.AddCommand(newSignerAddKeyCmd(), newSignerKeygenCmd(), newSignerRunCmd(), newSignerServeCmd())
+	cmd.AddCommand(newSignerInitCmd(), newSignerAddKeyCmd(), newSignerKeygenCmd(), newSignerRunCmd(), newSignerServeCmd())
 	return cmd
 }
 
@@ -65,8 +65,11 @@ either, it listens in plain HTTP on localhost for development.
 The shares are sealed at rest (AES-256-GCM) under the master key in
 MISHMAR_SIGNER_KEY, 64 hex characters (openssl rand -hex 32), which must not
 live next to the store. --store is where the sealed shares are kept: a file
-(the default, mode 0600, replaced atomically) or, on the hosted tier, object
-storage (s3://, gs://). Every share is opened into memory at startup, so no
+(the default, mode 0600, replaced atomically) or object storage,
+s3://bucket/prefix on AWS S3 or any S3-compatible store (MISHMAR_S3_ENDPOINT,
+MISHMAR_S3_REGION, MISHMAR_S3_ACCESS_KEY and MISHMAR_S3_SECRET_KEY, or the
+AWS SDK's own variables and roles) and gs://bucket/prefix on Google Cloud
+Storage with HMAC keys. Every share is opened into memory at startup, so no
 order waits on the store; --sync is how often a replica reconciles with a
 shared backend.
 
@@ -355,7 +358,7 @@ refused: it never belongs in this file.`,
 }
 
 func newSignerRunCmd() *cobra.Command {
-	var config, level string
+	var config, level, local string
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the signer until SIGINT or SIGTERM",
@@ -364,7 +367,14 @@ order is signed only when it is the one the agent proposed (the proposal in
 the request is signed by this agent's key, for this trading account, and the venue
 request decodes to that order and nothing more); a verify request is signed
 when it decodes to a read and not an order. Everything else is refused with
-a reason the engine records on the decision. One line is logged per request.`,
+a reason the engine records on the decision. One line is logged per request.
+
+With --local the signer also serves its local API, which the SDKs use when
+they run the signer as a child process: POST /propose turns an order or a
+cancel into a proposal signed with this agent's key (one-shot where it can),
+and the agent's reads pass through. unix:/path makes a socket only this user
+can reach; host:port must be a loopback address and needs a token in
+` + signer.EnvLocalToken + `, sent as a bearer token.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(config)
@@ -384,10 +394,22 @@ a reason the engine records on the decision. One line is logged per request.`,
 				return err
 			}
 			log.Info("signer: config loaded", "path", path, "hook", cfg.Hook != "")
-			return s.Run(cmd.Context())
+			if local == "" {
+				return s.Run(cmd.Context())
+			}
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+			errc := make(chan error, 2)
+			go func() { errc <- s.ServeLocal(ctx, local, os.Getenv(signer.EnvLocalToken)) }()
+			go func() { errc <- s.Run(ctx) }()
+			err = <-errc
+			cancel()
+			<-errc
+			return err
 		},
 	}
 	configFlag(cmd, &config)
 	cmd.Flags().StringVar(&level, "log-level", "info", "debug | info | warn | error")
+	cmd.Flags().StringVar(&local, "local", "", "also serve the local API at unix:/path or 127.0.0.1:port (the latter with a token in "+signer.EnvLocalToken+")")
 	return cmd
 }

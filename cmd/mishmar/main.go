@@ -58,6 +58,8 @@ This binary is the agent's side:
                per trading account, and write the signer's config
   signer       add a share to the signer's config, or run the signer
   propose      sign one proposal with the agent's key and submit it
+  mcp          serve the agent's tools to a language model over MCP, the
+               signer built in
 
 The signer's config (the agent's secret and its shares) lives in
 ~/.mishmar/agent.json, or the file MISHMAR_AGENT_CONFIG names, mode 0600.`,
@@ -77,6 +79,7 @@ The signer's config (the agent's secret and its shares) lives in
 		newAddAgentCmd(),
 		newSignerCmd(),
 		newProposeCmd(),
+		newMCPCmd(),
 		newVersionCmd(),
 	)
 	return root

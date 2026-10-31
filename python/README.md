@@ -34,3 +34,20 @@ Run the tests, which include the cross-language vectors in `../spec/vectors`:
 pip install -e ".[test]"
 python -m pytest
 ```
+
+## The signer as a child process
+
+With the `mishmar` binary installed (or fetched with `download_binary`),
+`Signer` runs it as a child process and the bot holds no secret: the child
+has the agent's key and shares, signs each proposal, and sends it one-shot
+where it can. Reads go through the child too.
+
+```python
+from mishmar import Signer
+
+with Signer() as s:                                   # ~/.mishmar/agent.json
+    d = s.order("ta_…", "BTC", "buy", "0.001", price="79500")
+    if d["verdict"] == "require_approval":
+        d = s.wait(d["id"])
+    s.cancel("ta_…", "BTC", d["proposal"]["clientOrderId"])
+```

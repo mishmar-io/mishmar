@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -49,7 +49,7 @@ def test_rfc3339():
         ({"order_type": "market"}, "market order"),
         ({"side": "long"}, "side"),
         ({"leverage": "2x"}, "leverage"),
-        ({"expires_at": datetime(2020, 1, 1, tzinfo=timezone.utc)}, "expires_at"),
+        ({"expires_at": datetime(2020, 1, 1, tzinfo=UTC)}, "expires_at"),
     ],
 )
 def test_validate_names_the_field(change, message):

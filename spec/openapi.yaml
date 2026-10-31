@@ -100,6 +100,29 @@ paths:
               schema: { $ref: '#/components/schemas/Account' }
         default: { $ref: '#/components/responses/Error' }
 
+  /account/entitlements:
+    put:
+      tags: [account]
+      operationId: setAccountEntitlements
+      summary: Write the account's entitlements. The hosted control plane does this when the plan changes; any other caller is refused.
+      description: |
+        What the tier includes, which the engine then reads from its
+        configuration cache on every proposal (the commitment batch, the
+        signer transports). Only a request the hosted control plane makes with
+        its own token may write it; an operator's token is refused with 403,
+        and a self-hosted engine reads a signed licence instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Entitlements' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        default: { $ref: '#/components/responses/Error' }
   /whoami:
     get:
       tags: [account]

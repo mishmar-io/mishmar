@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -280,8 +281,8 @@ func aad(id string, scheme signerapi.Scheme) []byte {
 }
 
 // OpenBackend picks the backend from the --store spec: a path, or
-// file:<path>, is the key file; s3:// and gs:// are the hosted tier's object
-// storage, which this build does not include yet.
+// file:<path>, is the key file; s3://bucket/prefix and gs://bucket/prefix
+// are object storage (OpenS3, options from the MISHMAR_S3_* variables).
 func OpenBackend(spec string) (Backend, error) {
 	switch {
 	case spec == "":
@@ -289,7 +290,7 @@ func OpenBackend(spec string) (Backend, error) {
 	case strings.HasPrefix(spec, "file:"):
 		return OpenFile(strings.TrimPrefix(spec, "file:"))
 	case strings.HasPrefix(spec, "s3://"), strings.HasPrefix(spec, "gs://"):
-		return nil, fmt.Errorf("signer service: --store %s: object storage comes with the hosted tier; this build keeps the keys in a file", spec)
+		return OpenS3(context.Background(), spec, S3OptionsFromEnv())
 	case strings.Contains(spec, "://"):
 		return nil, fmt.Errorf("signer service: --store %s: not a file path, file:<path>, s3:// or gs://", spec)
 	}

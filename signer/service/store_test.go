@@ -262,10 +262,8 @@ func TestOpenBackend(t *testing.T) {
 			t.Fatalf("%s: %T, want a file", spec, b)
 		}
 	}
-	for _, spec := range []string{"s3://bucket/prefix", "gs://bucket/prefix"} {
-		if _, err := OpenBackend(spec); err == nil || !strings.Contains(err.Error(), "hosted") {
-			t.Fatalf("%s: %v", spec, err)
-		}
+	if _, err := OpenBackend("ftp://bucket/prefix"); err == nil {
+		t.Fatal("an unknown scheme was accepted")
 	}
 	if _, err := OpenBackend(""); err == nil {
 		t.Fatal("an empty spec was accepted")

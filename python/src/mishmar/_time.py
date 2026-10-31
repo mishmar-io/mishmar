@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -10,7 +10,7 @@ def rfc3339(dt: datetime) -> str:
     """Format a time as the contract wants it: UTC, Z suffix, fraction trimmed."""
     if dt.tzinfo is None:
         raise ValueError("times must be timezone-aware")
-    dt = dt.astimezone(timezone.utc)
+    dt = dt.astimezone(UTC)
     text = dt.strftime("%Y-%m-%dT%H:%M:%S")
     if dt.microsecond:
         text += "." + f"{dt.microsecond:06d}".rstrip("0")

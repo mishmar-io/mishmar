@@ -354,3 +354,26 @@ func submitOf(p api.ProposalSubmit) proposal.Submit {
 	}
 	return s
 }
+
+// Pnl is this agent's daily PnL; from and to are dates (YYYY-MM-DD) and
+// may be empty.
+func (c *Client) Pnl(ctx context.Context, from, to string) (api.PnlSeries, error) {
+	v := url.Values{}
+	if from != "" {
+		v.Set("from", from)
+	}
+	if to != "" {
+		v.Set("to", to)
+	}
+	var out api.PnlSeries
+	err := c.agentCall(ctx, http.MethodGet, "/agent/pnl", v, nil, &out, c.timeout())
+	return out, err
+}
+
+// TradingAccount is a trading account as this agent may see it: its setup
+// without any secret.
+func (c *Client) TradingAccount(ctx context.Context, tradingAccountID string) (api.TradingAccount, error) {
+	var out api.TradingAccount
+	err := c.agentCall(ctx, http.MethodGet, "/agent/trading-accounts/"+url.PathEscape(tradingAccountID), nil, nil, &out, c.timeout())
+	return out, err
+}

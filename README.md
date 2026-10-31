@@ -165,10 +165,13 @@ go build ./cmd/mishmar
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
   --name momentum-1 --portfolio pf_… --trading-account ta_…
 
-# Or by hand: add the venue key in the console without a share, then run
-# the key generation from this signer. Binance prints the public key to
-# register at the exchange, Hyperliquid the API wallet address to approve
-# from the master wallet.
+# Or by hand, for an agent and key issued in the console: write the config
+# from the key (the secret from MISHMAR_AGENT_SECRET or piped in), then add
+# the venue key in the console without a share and run the key generation
+# from this signer. Binance prints the public key to register at the
+# exchange, Hyperliquid the API wallet address to approve from the master
+# wallet.
+echo "$MSK_SECRET" | mishmar signer init --engine http://localhost:8080/v1 --key-id key_… --agent agt_… --secret-stdin
 mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance
 mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network testnet
 
@@ -187,6 +190,47 @@ mishmar signer run
 mishmar propose --config ~/.mishmar/agent.json --trading-account ta_… --symbol BTCUSDT --size 0.01 --price 60000
 ```
 
+### From an SDK, or from a model
+
+The Python and TypeScript SDKs can run the signer as a child process, so the
+bot holds no secret at all: `Signer` starts `mishmar signer run --local …`
+with the config and talks to it over a private Unix socket (localhost with
+a token on Windows). An order is an intent; the child turns it into a
+proposal signed with the agent's key, sends it one-shot where it can and
+through the channel otherwise, and hands back the decision. Reads pass
+through the child the same way. The binary is found on the PATH, in
+`MISHMAR_BIN` or under `~/.mishmar/bin`, or fetched from a release with
+`download_binary` / `downloadBinary`, checked against the release's
+checksums.
+
+```python
+from mishmar import Signer
+
+with Signer() as s:                                   # ~/.mishmar/agent.json
+    d = s.order("ta_…", "BTC", "buy", "0.001", price="79500")
+    if d["verdict"] == "require_approval":
+        d = s.wait(d["id"])
+```
+
+```ts
+import { Signer } from "mishmar";
+
+const s = await new Signer().start();
+const d = await s.order({ tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
+await s.stop();
+```
+
+`mishmar mcp` is the same signer behind an MCP server on stdio: a language
+model gets tools to propose orders and cancels, follow a decision parked
+for a person, and read positions, PnL, approvals, the trading account and
+its venue rules. It never sees a key, and every order it proposes passes
+the engine's rules before anything reaches a venue. Point an MCP client at
+the command, with `--config` when the config is not at the default path:
+
+```json
+{ "mcpServers": { "mishmar": { "command": "mishmar", "args": ["mcp"] } } }
+```
+
 ## The engine's signer
 
 `mishmar signer serve` is the same program in the engine's role
@@ -203,7 +247,12 @@ else mTLS; plain HTTP is for localhost. The shares are sealed at rest
 (AES-256-GCM, the key id bound as associated data) under the master key in
 `MISHMAR_SIGNER_KEY`, which must not live next to the store; `--store` is
 where the sealed shares are kept, a file by default (mode 0600, replaced
-atomically) and object storage on the hosted tier. Every share is opened
+atomically) or object storage: `s3://bucket/prefix` on AWS S3 or any
+S3-compatible store (`MISHMAR_S3_ENDPOINT`, `MISHMAR_S3_REGION`,
+`MISHMAR_S3_ACCESS_KEY`, `MISHMAR_S3_SECRET_KEY`, or the AWS SDK's own
+variables and roles), `gs://bucket/prefix` on Google Cloud Storage with
+HMAC keys. Each key is one object, created conditionally so two replicas
+can never both create it; turn bucket versioning on for the history. Every share is opened
 into memory at startup, so no order waits on the store, and a wrong master
 key fails there rather than on the first order; replicas sharing a backend
 reconcile on `--sync`, and a key not yet in memory is fetched from the

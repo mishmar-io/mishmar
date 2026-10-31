@@ -16,7 +16,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -118,7 +118,7 @@ class AgentKey:
         """The four agentAuth headers for a request; a nonce and the time are
         made here when not given."""
         nonce = nonce or new_nonce()
-        signed_at_text = rfc3339(signed_at or datetime.now(timezone.utc))
+        signed_at_text = rfc3339(signed_at or datetime.now(UTC))
         message = request_signing_bytes(
             key_id=key_id,
             method=method,

@@ -14,6 +14,10 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "The names of Mishmar's environment variables, MISHMAR_S3_SECRET_KEY and the like; the values never appear in source"
+regexes = ['''^MISHMAR_[A-Z0-9_]+$''']
+
+[[allowlists]]
 description = "The conformance vectors' Ed25519 test key, published with its public key so every SDK can check its signatures"
 condition = "AND"
 paths = ['''^spec/vectors/[^/]+\.json$''']
