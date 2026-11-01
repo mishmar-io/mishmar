@@ -245,7 +245,13 @@ decision the engine signed with its own key (`--engine-key`, the public key
 Reach it from the engine alone: a Unix socket when the two share a machine,
 else mTLS; plain HTTP is for localhost. The shares are sealed at rest
 (AES-256-GCM, the key id bound as associated data) under the master key in
-`MISHMAR_SIGNER_KEY`, which must not live next to the store; `--store` is
+`MISHMAR_SIGNER_KEY`, which must not live next to the store. On Google Cloud it
+can be wrapped by a KMS key instead: `MISHMAR_KMS_KEY` names the key and
+`MISHMAR_SIGNER_KEY_WRAPPED` holds the wrapped form (`mishmar signer wrap-key`
+makes it, from the raw key or anew). It is unwrapped at startup with the
+workload's identity, each time in the KMS audit log, and if KMS cannot unwrap,
+the service does not start: there is no fallback, and a raw key left beside it
+is refused. `--store` is
 where the sealed shares are kept, a file by default (mode 0600, replaced
 atomically) or object storage: `s3://bucket/prefix` on AWS S3 or any
 S3-compatible store (`MISHMAR_S3_ENDPOINT`, `MISHMAR_S3_REGION`,

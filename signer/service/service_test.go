@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,11 +62,71 @@ func (h *harness) decision(p api.Proposal) *signerapi.Decision {
 }
 
 func (h *harness) signedDecision(v api.Verdict, p api.Proposal) *signerapi.Decision {
-	record, err := json.Marshal(map[string]any{"verdict": v, "proposal": p})
+	record, err := json.Marshal(map[string]any{"id": "dec_1", "verdict": v, "proposal": p})
 	if err != nil {
 		h.t.Fatal(err)
 	}
 	return &signerapi.Decision{Record: b64(record), Signature: b64(ed25519.Sign(h.engine, record))}
+}
+
+// approval is the engine's signed statement about a decision, in the shape
+// the engine writes it.
+func (h *harness) approval(decisionID, status string, key ed25519.PrivateKey) *signerapi.ApprovalProof {
+	record, err := json.Marshal(map[string]any{"kind": "approval", "decisionId": decisionID, "approvalId": "apr_1", "status": status, "decidedBy": "ishai", "decidedAt": h.now})
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return &signerapi.ApprovalProof{Record: b64(record), Signature: b64(ed25519.Sign(key, record))}
+}
+
+// A decision that waited for a person keeps its verdict, so what lets it
+// through is the engine's signed statement that this decision was approved.
+func TestDecisionsThatWaitedForAPerson(t *testing.T) {
+	h := newHarness(t)
+	p := api.Proposal{Kind: api.ProposalKindOrder, Venue: api.VenueHyperliquid, Symbol: "BTC", Size: "0.001", ClientOrderId: "msh-a"}
+	_, stranger, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notApproval := h.approval("dec_1", "approved", h.engine)
+	raw, _ := json.Marshal(map[string]any{"kind": "decision", "decisionId": "dec_1", "status": "approved"})
+	notApproval.Record, notApproval.Signature = b64(raw), b64(ed25519.Sign(h.engine, raw))
+
+	for _, c := range []struct {
+		name  string
+		proof *signerapi.ApprovalProof
+		want  string // the refusal, "" when it passes
+	}{
+		{"no proof", nil, "carries none"},
+		{"rejected", h.approval("dec_1", "rejected", h.engine), "not an approval"},
+		{"another decision", h.approval("dec_2", "approved", h.engine), "another decision"},
+		{"not the engine's", h.approval("dec_1", "approved", stranger), "does not verify"},
+		{"some other record the engine signed", notApproval, "not an approval"},
+		{"approved", h.approval("dec_1", "approved", h.engine), ""},
+	} {
+		d := h.signedDecision(api.VerdictRequireApproval, p)
+		d.Approval = c.proof
+		rec, err := h.svc.decision(d)
+		if c.want == "" {
+			if err != nil || rec == nil || rec.Proposal.ClientOrderId != "msh-a" {
+				t.Fatalf("%s: %v %+v", c.name, err, rec)
+			}
+			continue
+		}
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("%s: got %v, want a refusal with %q", c.name, err, c.want)
+		}
+	}
+
+	// A proof does nothing for a decision that was blocked, and an allowed one needs none.
+	blocked := h.signedDecision(api.VerdictBlock, p)
+	blocked.Approval = h.approval("dec_1", "approved", h.engine)
+	if _, err := h.svc.decision(blocked); err == nil {
+		t.Fatal("a blocked decision passed on an approval")
+	}
+	if _, err := h.svc.decision(h.decision(p)); err != nil {
+		t.Fatalf("an allowed decision: %v", err)
+	}
 }
 
 func decode(t *testing.T, s string) []byte {

@@ -72,6 +72,8 @@ python/      the Python SDK: src/mishmar/{canon,agentkey,proposal,client,signer}
              child process and speaks its local API), tests against spec/vectors and a fake binary
 typescript/  the TypeScript SDK: src/{canon,agentkey,proposal,client,signer,index}.ts on node:crypto and fetch,
              tests/*.test.ts on node:test against spec/vectors; `.ts` imports, erasable syntax only
+kms/         Cloud KMS encrypt and decrypt over REST with the workload's metadata-server token, no client
+             library and no proxy; kmstest/ is a stand-in server for tests, used by the engine's too
 spec/        openapi.yaml, README.md (open questions), vectors/
 ```
 

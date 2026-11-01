@@ -181,6 +181,20 @@ func (e VenueActionVenue) Valid() bool {
 	}
 }
 
+// ApprovalProof The engine's word that a person approved a decision that needed one.
+// A decision is signed as it is written, so one that waited for a person
+// keeps the verdict `require_approval` for good; this separate statement
+// is what lets the service sign it. Without it, or for another decision,
+// the service refuses.
+type ApprovalProof struct {
+	// Record Base64 of canonical JSON: `kind` (always "approval"), `decisionId`,
+	// `approvalId`, `status` (always "approved"), `decidedBy`, `decidedAt`.
+	Record string `json:"record"`
+
+	// Signature Base64, the engine key's Ed25519 signature over `record`.
+	Signature string `json:"signature"`
+}
+
 // Commitment defines model for Commitment.
 type Commitment struct {
 	// Commitment Base64.
@@ -191,6 +205,13 @@ type Commitment struct {
 
 // Decision The engine's decision as it signed it, so the service can verify it and compare the action with it.
 type Decision struct {
+	// Approval The engine's word that a person approved a decision that needed one.
+	// A decision is signed as it is written, so one that waited for a person
+	// keeps the verdict `require_approval` for good; this separate statement
+	// is what lets the service sign it. Without it, or for another decision,
+	// the service refuses.
+	Approval *ApprovalProof `json:"approval,omitempty"`
+
 	// Record Base64 of the canonical decision bytes the engine signed (DecisionSigningBytes in the engine, docs/ledger.md), which decode to the contract's Decision.
 	Record string `json:"record"`
 
@@ -535,7 +556,9 @@ type ClientInterface interface {
 	// outcome: a nonce used twice would reveal the key. The service decodes
 	// the action, refuses anything but an order or a cancel, verifies the
 	// decision's engine signature with the engine key it was configured
-	// with, checks that the action is the decision's (asset, side, size,
+	// with, requires the verdict to be `allow`, or `require_approval` with
+	// the engine's signed proof that a person approved this decision,
+	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
 	// for a cancel), rebuilds the EIP-712 digest from the action and the
 	// nonce, verifies the agent's message against it, and only then
@@ -555,7 +578,9 @@ type ClientInterface interface {
 	// outcome: a nonce used twice would reveal the key. The service decodes
 	// the action, refuses anything but an order or a cancel, verifies the
 	// decision's engine signature with the engine key it was configured
-	// with, checks that the action is the decision's (asset, side, size,
+	// with, requires the verdict to be `allow`, or `require_approval` with
+	// the engine's signed proof that a person approved this decision,
+	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
 	// for a cancel), rebuilds the EIP-712 digest from the action and the
 	// nonce, verifies the agent's message against it, and only then
@@ -787,7 +812,9 @@ func (c *Client) IssueCommitments(ctx context.Context, keyId KeyId, body IssueCo
 // outcome: a nonce used twice would reveal the key. The service decodes
 // the action, refuses anything but an order or a cancel, verifies the
 // decision's engine signature with the engine key it was configured
-// with, checks that the action is the decision's (asset, side, size,
+// with, requires the verdict to be `allow`, or `require_approval` with
+// the engine's signed proof that a person approved this decision,
+// checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
 // for a cancel), rebuilds the EIP-712 digest from the action and the
 // nonce, verifies the agent's message against it, and only then
@@ -817,7 +844,9 @@ func (c *Client) FinishWithBody(ctx context.Context, keyId KeyId, contentType st
 // outcome: a nonce used twice would reveal the key. The service decodes
 // the action, refuses anything but an order or a cancel, verifies the
 // decision's engine signature with the engine key it was configured
-// with, checks that the action is the decision's (asset, side, size,
+// with, requires the verdict to be `allow`, or `require_approval` with
+// the engine's signed proof that a person approved this decision,
+// checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
 // for a cancel), rebuilds the EIP-712 digest from the action and the
 // nonce, verifies the agent's message against it, and only then
@@ -1475,7 +1504,9 @@ type ClientWithResponsesInterface interface {
 	// outcome: a nonce used twice would reveal the key. The service decodes
 	// the action, refuses anything but an order or a cancel, verifies the
 	// decision's engine signature with the engine key it was configured
-	// with, checks that the action is the decision's (asset, side, size,
+	// with, requires the verdict to be `allow`, or `require_approval` with
+	// the engine's signed proof that a person approved this decision,
+	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
 	// for a cancel), rebuilds the EIP-712 digest from the action and the
 	// nonce, verifies the agent's message against it, and only then
@@ -1495,7 +1526,9 @@ type ClientWithResponsesInterface interface {
 	// outcome: a nonce used twice would reveal the key. The service decodes
 	// the action, refuses anything but an order or a cancel, verifies the
 	// decision's engine signature with the engine key it was configured
-	// with, checks that the action is the decision's (asset, side, size,
+	// with, requires the verdict to be `allow`, or `require_approval` with
+	// the engine's signed proof that a person approved this decision,
+	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
 	// for a cancel), rebuilds the EIP-712 digest from the action and the
 	// nonce, verifies the agent's message against it, and only then
@@ -2143,7 +2176,9 @@ func (c *ClientWithResponses) IssueCommitmentsWithResponse(ctx context.Context, 
 // outcome: a nonce used twice would reveal the key. The service decodes
 // the action, refuses anything but an order or a cancel, verifies the
 // decision's engine signature with the engine key it was configured
-// with, checks that the action is the decision's (asset, side, size,
+// with, requires the verdict to be `allow`, or `require_approval` with
+// the engine's signed proof that a person approved this decision,
+// checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
 // for a cancel), rebuilds the EIP-712 digest from the action and the
 // nonce, verifies the agent's message against it, and only then
@@ -2169,7 +2204,9 @@ func (c *ClientWithResponses) FinishWithBodyWithResponse(ctx context.Context, ke
 // outcome: a nonce used twice would reveal the key. The service decodes
 // the action, refuses anything but an order or a cancel, verifies the
 // decision's engine signature with the engine key it was configured
-// with, checks that the action is the decision's (asset, side, size,
+// with, requires the verdict to be `allow`, or `require_approval` with
+// the engine's signed proof that a person approved this decision,
+// checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
 // for a cancel), rebuilds the EIP-712 digest from the action and the
 // nonce, verifies the agent's message against it, and only then

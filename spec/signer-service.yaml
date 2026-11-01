@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar signer service
-  version: 0.13.0
+  version: 0.13.1
   summary: The engine's own signer, the one process on Mishmar's side that holds key material.
   description: |
     The signer service holds the engine's share of every venue key (FROST
@@ -183,7 +183,9 @@ paths:
         outcome: a nonce used twice would reveal the key. The service decodes
         the action, refuses anything but an order or a cancel, verifies the
         decision's engine signature with the engine key it was configured
-        with, checks that the action is the decision's (asset, side, size,
+        with, requires the verdict to be `allow`, or `require_approval` with
+        the engine's signed proof that a person approved this decision,
+        checks that the action is the decision's (asset, side, size,
         price, reduce-only and the client order id for an order; the target
         for a cancel), rebuilds the EIP-712 digest from the action and the
         nonce, verifies the agent's message against it, and only then
@@ -414,6 +416,26 @@ components:
         record:
           type: string
           description: Base64 of the canonical decision bytes the engine signed (DecisionSigningBytes in the engine, docs/ledger.md), which decode to the contract's Decision.
+        signature:
+          type: string
+          description: Base64, the engine key's Ed25519 signature over `record`.
+        approval:
+          $ref: '#/components/schemas/ApprovalProof'
+    ApprovalProof:
+      type: object
+      required: [record, signature]
+      description: |
+        The engine's word that a person approved a decision that needed one.
+        A decision is signed as it is written, so one that waited for a person
+        keeps the verdict `require_approval` for good; this separate statement
+        is what lets the service sign it. Without it, or for another decision,
+        the service refuses.
+      properties:
+        record:
+          type: string
+          description: |
+            Base64 of canonical JSON: `kind` (always "approval"), `decisionId`,
+            `approvalId`, `status` (always "approved"), `decidedBy`, `decidedAt`.
         signature:
           type: string
           description: Base64, the engine key's Ed25519 signature over `record`.

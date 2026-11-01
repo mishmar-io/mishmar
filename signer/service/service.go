@@ -733,8 +733,17 @@ func (s *Service) Finish(_ context.Context, r signerapi.FinishRequestObject) (si
 
 // decisionRecord is what the service reads of the decision the engine signed.
 type decisionRecord struct {
+	Id       string       `json:"id"`
 	Verdict  api.Verdict  `json:"verdict"`
 	Proposal api.Proposal `json:"proposal"`
+}
+
+// approvalRecord is what the service reads of the engine's signed statement
+// that a person approved a decision.
+type approvalRecord struct {
+	Kind       string `json:"kind"`
+	DecisionID string `json:"decisionId"`
+	Status     string `json:"status"`
 }
 
 // decision verifies the engine's signature over the decision record and
@@ -762,10 +771,48 @@ func (s *Service) decision(d *signerapi.Decision) (*decisionRecord, error) {
 	if err := json.Unmarshal(record, &rec); err != nil {
 		return nil, invalid("decision.record: %v", err)
 	}
-	if rec.Verdict != api.VerdictAllow {
-		return nil, refused("the decision's verdict is %s, not allow", rec.Verdict)
+	switch rec.Verdict {
+	case api.VerdictAllow:
+	case api.VerdictRequireApproval:
+		if err := s.checkApproval(d.Approval, rec.Id); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, refused("the decision's verdict is %s", rec.Verdict)
 	}
 	return &rec, nil
+}
+
+// checkApproval verifies the engine's signed statement that a person approved
+// this decision. A decision that waited for a person keeps its verdict, since
+// it was signed as it was written, so this is the only thing that lets one
+// through.
+func (s *Service) checkApproval(p *signerapi.ApprovalProof, decisionID string) error {
+	if p == nil {
+		return refused("the decision needs a person's approval and the request carries none")
+	}
+	record, err := decodeB64(&p.Record)
+	if err != nil {
+		return invalid("decision.approval.record: %v", err)
+	}
+	sig, err := decodeB64(&p.Signature)
+	if err != nil {
+		return invalid("decision.approval.signature: %v", err)
+	}
+	if s.opts.EnginePublicKey != nil && !ed25519.Verify(s.opts.EnginePublicKey, record, sig) {
+		return refused("the approval's engine signature does not verify")
+	}
+	var rec approvalRecord
+	if err := json.Unmarshal(record, &rec); err != nil {
+		return invalid("decision.approval.record: %v", err)
+	}
+	if rec.Kind != "approval" || rec.Status != "approved" {
+		return refused("the record is not an approval")
+	}
+	if decisionID == "" || rec.DecisionID != decisionID {
+		return refused("the approval is for another decision")
+	}
+	return nil
 }
 
 // matchHyperliquid checks the action is the decision's order or cancel:

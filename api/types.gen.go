@@ -1438,6 +1438,8 @@ type Error struct {
 	// Code Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
 	// `forbidden`, `unavailable`, `approval_expired`, `venue_rejected`, `internal`,
 	// `not_implemented` (501: in the contract, not yet in this engine).
+	// `unavailable` (503) means the request did nothing: the engine cannot read its
+	// state, or it is restarting. Send the same request again in a moment.
 	Code    string                  `json:"code"`
 	Details *map[string]interface{} `json:"details,omitempty"`
 	Message string                  `json:"message"`

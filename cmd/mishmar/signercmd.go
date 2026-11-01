@@ -34,7 +34,7 @@ each one against the order the agent proposed, and answers with its share
 of the signature or a refusal. Its config is ~/.mishmar/agent.json (or
 MISHMAR_AGENT_CONFIG), written by "mishmar add-agent" or by hand.`,
 	}
-	cmd.AddCommand(newSignerInitCmd(), newSignerAddKeyCmd(), newSignerKeygenCmd(), newSignerRunCmd(), newSignerServeCmd())
+	cmd.AddCommand(newSignerInitCmd(), newSignerAddKeyCmd(), newSignerKeygenCmd(), newSignerRunCmd(), newSignerWrapKeyCmd(), newSignerServeCmd())
 	return cmd
 }
 
@@ -64,7 +64,10 @@ either, it listens in plain HTTP on localhost for development.
 
 The shares are sealed at rest (AES-256-GCM) under the master key in
 MISHMAR_SIGNER_KEY, 64 hex characters (openssl rand -hex 32), which must not
-live next to the store. --store is where the sealed shares are kept: a file
+live next to the store. Or, with MISHMAR_KMS_KEY naming a Cloud KMS key,
+MISHMAR_SIGNER_KEY_WRAPPED holds it wrapped under that key (signer wrap-key):
+it is unwrapped at startup with the workload's identity, each time in the KMS
+audit log, and if KMS cannot unwrap, the service does not start. --store is where the sealed shares are kept: a file
 (the default, mode 0600, replaced atomically) or object storage,
 s3://bucket/prefix on AWS S3 or any S3-compatible store (MISHMAR_S3_ENDPOINT,
 MISHMAR_S3_REGION, MISHMAR_S3_ACCESS_KEY and MISHMAR_S3_SECRET_KEY, or the
@@ -99,11 +102,7 @@ func serve(ctx context.Context, o serveOptions) error {
 	if err != nil {
 		return err
 	}
-	masterHex := os.Getenv(service.MasterKeyEnv)
-	if masterHex == "" {
-		return fmt.Errorf("%s is not set: the master key the shares are sealed under (openssl rand -hex 32; keep it apart from the store)", service.MasterKeyEnv)
-	}
-	master, err := service.ParseMasterKey(masterHex)
+	master, err := service.MasterKeyFromEnv(ctx)
 	if err != nil {
 		return err
 	}
@@ -221,6 +220,28 @@ func serve(ctx context.Context, o serveOptions) error {
 
 type signerKeygenOptions struct {
 	config, venueKey, tradingAccount, venue, network string
+}
+
+func newSignerWrapKeyCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "wrap-key",
+		Short: "Wrap the signer service's master key under a Cloud KMS key, and print the wrapped form",
+		Long: `Print the value for MISHMAR_SIGNER_KEY_WRAPPED, base64: the master key in
+MISHMAR_SIGNER_KEY wrapped under the KMS key in MISHMAR_KMS_KEY, so the shares
+already sealed under it keep opening; with MISHMAR_SIGNER_KEY unset, a new
+master key. It uses this workload's identity from the metadata server, and
+checks that the result unwraps. The raw key is never printed. Once the service
+runs on the wrapped form, remove the raw key from wherever it was kept.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			wrapped, err := service.WrapMasterKey(cmd.Context())
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), wrapped)
+			return nil
+		},
+	}
 }
 
 func newSignerKeygenCmd() *cobra.Command {
