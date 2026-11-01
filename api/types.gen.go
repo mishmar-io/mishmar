@@ -1436,10 +1436,15 @@ type Entitlements struct {
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
-	// `forbidden`, `unavailable`, `approval_expired`, `venue_rejected`, `internal`,
-	// `not_implemented` (501: in the contract, not yet in this engine).
+	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
+	// `venue_rejected`, `internal`, `not_implemented` (501: in the contract, not yet
+	// in this engine).
 	// `unavailable` (503) means the request did nothing: the engine cannot read its
 	// state, or it is restarting. Send the same request again in a moment.
+	// `rate_limited` (429) also means the request did nothing: this caller has sent
+	// too many requests. Wait the seconds in the `Retry-After` header, then send the
+	// same request again. `too_large` (413) means the body was over the limit the
+	// engine accepts; sending it again changes nothing.
 	Code    string                  `json:"code"`
 	Details *map[string]interface{} `json:"details,omitempty"`
 	Message string                  `json:"message"`

@@ -12,8 +12,8 @@ export {
 } from "./agentkey.ts";
 export type { RequestToSign } from "./agentkey.ts";
 export { canonicalBytes, canonicalJson } from "./canon.ts";
-export { Client, EngineError, resolved } from "./client.ts";
-export type { ClientOptions, Decision, DecisionPage, SignRequest, SignerAnswer } from "./client.ts";
+export { Client, DEFAULT_RETRIES, EngineError, resolved, retryWait } from "./client.ts";
+export type { ClientOptions, Decision, DecisionPage, Retries, SignRequest, SignerAnswer } from "./client.ts";
 export { fromWire, isDecimal, rfc3339, sign, signingBytes, toWire, validate } from "./proposal.ts";
 export type { Kind, OrderType, Proposal, Scheme, Side, VenueMessage, WireProposal } from "./proposal.ts";
 export { Signer, downloadBinary, findBinary, platformName, RELEASES } from "./signer.ts";

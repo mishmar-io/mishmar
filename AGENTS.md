@@ -93,6 +93,12 @@ spec/        openapi.yaml, README.md (open questions), vectors/
 - Every SDK offers the same surface: parse the agent key, build a proposal,
   validate, sign, submit, read a decision, wait for a parked one. A behaviour
   added to one SDK is added to the others, with a vector when it touches bytes.
+- Every engine client retries only what the contract says did nothing (503,
+  429 after `Retry-After`), re-signing each attempt, under one policy
+  (`signer.Retries`, `mishmar.Retries`, `Retries` in TypeScript) that is on by
+  default and can be turned off. Never retry anything else; never retry
+  inside the local-API wrappers (`Signer` in Python and TypeScript), whose
+  child process already does.
 - `\uXXXX` escapes in source get rewritten by editing tools (a `&` in a
   test literal became `&`, a ` ` in a regex became a raw line break).
   Build such strings from pieces (`"\\" + "u0026"`, `String.fromCharCode`)

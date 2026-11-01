@@ -42,8 +42,12 @@ type Client struct {
 	Timeout time.Duration
 	// Now is the clock the signed-at header uses; nil means time.Now.
 	Now func() time.Time
+	// Retries is how a call the engine did nothing with (503 while it
+	// restarts, 429) goes again; the zero value is the default policy.
+	Retries Retries
 
 	instance atomic.Value // string: the engine instance its last answer named
+	sleep    func(context.Context, time.Duration) error
 }
 
 // HeaderEngineInstance names the engine instance that answered; it changes
@@ -127,8 +131,12 @@ func (c *Client) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 		p.ReduceOnly, p.Signature = s.ReduceOnly, s.Signature
 	}
 	p.ProposedAt, p.ExpiresAt = p.ProposedAt.UTC(), p.ExpiresAt.UTC()
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return api.Decision{}, err
+	}
 	var d api.Decision
-	err := c.do(ctx, http.MethodPost, "/proposals", "", p, nil, &d, c.timeout()+20*time.Second)
+	err = c.send(ctx, http.MethodPost, "/proposals", "", raw, nil, &d, c.timeout()+20*time.Second)
 	return d, err
 }
 
@@ -226,7 +234,8 @@ func (c *Client) PresignRound(ctx context.Context, in api.PresignRound) (api.Pre
 
 // agentCall signs the request with the agent's key and sends it. The path is
 // the contract's, without the server prefix; the query is signed exactly as
-// sent, and so is the body.
+// sent, and so is the body. Each attempt is signed anew, with its own nonce
+// and time, so a retry is never a replay.
 func (c *Client) agentCall(ctx context.Context, method, path string, query url.Values, body, out any, timeout time.Duration) error {
 	if c.Key == nil {
 		return errors.New("signer: the client has no agent key")
@@ -239,29 +248,52 @@ func (c *Client) agentCall(ctx context.Context, method, path string, query url.V
 			return err
 		}
 	}
-	headers, err := c.Key.SignRequest(agentkey.Request{
-		Method: method, Path: path, Query: rawQuery, Body: raw, KeyID: c.KeyID, SignedAt: agentkey.SignedAtString(c.now()),
-	})
-	if err != nil {
-		return err
+	sign := func() (map[string]string, error) {
+		return c.Key.SignRequest(agentkey.Request{
+			Method: method, Path: path, Query: rawQuery, Body: raw, KeyID: c.KeyID, SignedAt: agentkey.SignedAtString(c.now()),
+		})
 	}
-	return c.do(ctx, method, path, rawQuery, raw, headers, out, timeout)
+	return c.send(ctx, method, path, rawQuery, raw, sign, out, timeout)
 }
 
-// do sends one request and decodes the answer into out. body is either raw
-// bytes (already encoded) or a value to encode.
-func (c *Client) do(ctx context.Context, method, path, rawQuery string, body any, headers map[string]string, out any, timeout time.Duration) error {
-	var raw []byte
-	switch b := body.(type) {
-	case nil:
-	case []byte:
-		raw = b
-	default:
-		var err error
-		if raw, err = json.Marshal(b); err != nil {
+// send sends the request, again after an answer that did nothing (Retries),
+// and decodes the final answer into out. sign, when given, makes the
+// headers of each attempt. Each attempt has its own timeout.
+func (c *Client) send(ctx context.Context, method, path, rawQuery string, raw []byte, sign func() (map[string]string, error), out any, timeout time.Duration) error {
+	start := time.Now()
+	for attempt := 0; ; attempt++ {
+		var headers map[string]string
+		if sign != nil {
+			var err error
+			if headers, err = sign(); err != nil {
+				return err
+			}
+		}
+		res, data, err := c.once(ctx, method, path, rawQuery, raw, headers, timeout)
+		if err != nil {
 			return err
 		}
+		if res.StatusCode >= 200 && res.StatusCode <= 299 {
+			if out != nil && len(bytes.TrimSpace(data)) > 0 {
+				if err := json.Unmarshal(data, out); err != nil {
+					return fmt.Errorf("signer: %s %s: unexpected response: %w", method, path, err)
+				}
+			}
+			return nil
+		}
+		e := errorOf(res.StatusCode, data)
+		wait, again := c.Retries.Wait(attempt, res.StatusCode, res.Header.Get("Retry-After"), time.Since(start))
+		if !again {
+			return e
+		}
+		if err := c.pause(ctx, wait); err != nil {
+			return errors.Join(e, err)
+		}
 	}
+}
+
+// once sends one request and reads its answer, whatever the status.
+func (c *Client) once(ctx context.Context, method, path, rawQuery string, raw []byte, headers map[string]string, timeout time.Duration) (*http.Response, []byte, error) {
 	target := strings.TrimRight(c.Engine, "/") + path
 	if rawQuery != "" {
 		target += "?" + rawQuery
@@ -274,7 +306,7 @@ func (c *Client) do(ctx context.Context, method, path, rawQuery string, body any
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target, reader)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	if raw != nil {
@@ -289,7 +321,7 @@ func (c *Client) do(ctx context.Context, method, path, rawQuery string, body any
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("signer: %s %s: %w", method, path, err)
+		return nil, nil, fmt.Errorf("signer: %s %s: %w", method, path, err)
 	}
 	defer res.Body.Close()
 	if inst := res.Header.Get(HeaderEngineInstance); inst != "" {
@@ -297,24 +329,37 @@ func (c *Client) do(ctx context.Context, method, path, rawQuery string, body any
 	}
 	data, err := io.ReadAll(io.LimitReader(res.Body, maxResponse))
 	if err != nil {
-		return fmt.Errorf("signer: %s %s: %w", method, path, err)
+		return nil, nil, fmt.Errorf("signer: %s %s: %w", method, path, err)
 	}
-	if res.StatusCode < 200 || res.StatusCode > 299 {
-		e := &Error{Status: res.StatusCode, Code: "http_error", Message: strings.TrimSpace(string(data))}
-		var body api.Error
-		if json.Unmarshal(data, &body) == nil && body.Code != "" {
-			e.Code, e.Message = body.Code, body.Message
-		} else if e.Message == "" {
-			e.Message = http.StatusText(res.StatusCode)
-		}
-		return e
+	return res, data, nil
+}
+
+// errorOf is the engine's refusal as an Error: its body's code and message
+// when the body is one, the text or the status otherwise.
+func errorOf(status int, data []byte) *Error {
+	e := &Error{Status: status, Code: "http_error", Message: strings.TrimSpace(string(data))}
+	var body api.Error
+	if json.Unmarshal(data, &body) == nil && body.Code != "" {
+		e.Code, e.Message = body.Code, body.Message
+	} else if e.Message == "" {
+		e.Message = http.StatusText(status)
 	}
-	if out != nil && len(bytes.TrimSpace(data)) > 0 {
-		if err := json.Unmarshal(data, out); err != nil {
-			return fmt.Errorf("signer: %s %s: unexpected response: %w", method, path, err)
-		}
+	return e
+}
+
+// pause waits before the next attempt, or until ctx ends.
+func (c *Client) pause(ctx context.Context, d time.Duration) error {
+	if c.sleep != nil {
+		return c.sleep(ctx, d)
 	}
-	return nil
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (c *Client) timeout() time.Duration {

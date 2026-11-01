@@ -28,6 +28,12 @@ Sizes, prices and leverage are decimal **strings** and are signed exactly as
 written: `"0.5"` and `"0.50"` are the same quantity but different signatures.
 Never pass a float.
 
+A call the engine did nothing with goes again by itself: `503 unavailable`
+while the engine restarts and `429 rate_limited` (after its `Retry-After`),
+for up to 45 s, then the last answer is raised as `EngineError`. Nothing else
+is retried. `Client(..., retries=None)` turns that off; `retries=Retries(budget=90)`
+tunes it.
+
 Run the tests, which include the cross-language vectors in `../spec/vectors`:
 
 ```

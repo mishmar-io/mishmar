@@ -190,6 +190,23 @@ mishmar signer run
 mishmar propose --config ~/.mishmar/agent.json --trading-account ta_… --symbol BTCUSDT --size 0.01 --price 60000
 ```
 
+### Restarts and rate limits
+
+The engine answers `503 unavailable` while it restarts (it drains for up to
+28 s, so an order already in flight finishes) and `429 rate_limited` with a
+`Retry-After` when a caller sends too much. Both mean the request did
+nothing, and every client here sends it again on its own: the Go client
+(`signer.Client`, which the signer's poll loop, `mishmar propose` and
+`mishmar mcp` use), the Python `Client` and the TypeScript `Client`. They
+wait the seconds in `Retry-After` when there is one, otherwise 0.25 s
+doubling to 8 s with jitter, for up to 45 s after the first attempt, then
+raise the last answer. A signed `/agent` request is signed anew for each
+attempt, so a retry is never a replay; a proposal goes again byte for byte.
+Nothing else is retried: `413 too_large` would come back the same, and any
+other answer means the request was taken. Turn retries off or tune them
+with `Client.Retries` (Go), `Client(..., retries=None)` (Python) or
+`new Client(..., { retries: false })` (TypeScript).
+
 ### From an SDK, or from a model
 
 The Python and TypeScript SDKs can run the signer as a child process, so the

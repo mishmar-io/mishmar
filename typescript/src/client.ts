@@ -34,22 +34,75 @@ const RESOLVED_APPROVAL = new Set(["approved", "rejected", "expired"]);
 export class EngineError extends Error {
   readonly status: number;
   readonly code: string;
+  /** The `Retry-After` header of a 429, when the engine sent one. */
+  readonly retryAfter?: string;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, retryAfter?: string) {
     super(`${status} ${code}: ${message}`);
     this.name = "EngineError";
     this.status = status;
     this.code = code;
+    this.retryAfter = retryAfter;
   }
 }
 
+/**
+ * How a call the engine did nothing with goes again: 503 `unavailable` while
+ * the engine restarts (its drain is 28 s) and 429 `rate_limited`. The same
+ * request is sent again after the seconds in `Retry-After` when the engine
+ * names them, otherwise after a wait that doubles from `minWaitMs` to
+ * `maxWaitMs` with jitter, until `budgetMs` have passed since the first
+ * attempt; then the last answer is thrown. Nothing else is retried: a 413
+ * `too_large` would come back the same, and any other answer means the
+ * request was taken. The defaults cover a restart.
+ */
+export interface Retries {
+  budgetMs?: number;
+  minWaitMs?: number;
+  maxWaitMs?: number;
+}
+
+export const DEFAULT_RETRIES: Required<Retries> = { budgetMs: 45_000, minWaitMs: 250, maxWaitMs: 8_000 };
+
+/** The answers that mean the request did nothing and may go again. */
+const RETRYABLE = new Set([503, 429]);
+
 export interface ClientOptions {
   timeoutMs?: number;
+  /** Retries of a call the engine did nothing with; on by default, `false` turns them off. */
+  retries?: Retries | false;
   /** For tests: a fetch to use instead of the global one. */
   fetch?: typeof fetch;
+  /** For tests: how to wait between attempts instead of a timer. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 type Query = Record<string, string | number | undefined>;
+
+/**
+ * Milliseconds to wait before attempt `attempt + 1` (from 0) after an answer
+ * with the status and Retry-After header, `elapsedMs` after the first attempt
+ * began; `undefined` means stop and throw the answer.
+ */
+export function retryWait(retries: Retries, attempt: number, status: number, retryAfter: string | null, elapsedMs: number): number | undefined {
+  if (!RETRYABLE.has(status)) return undefined;
+  const budget = retries.budgetMs ?? DEFAULT_RETRIES.budgetMs;
+  const minWait = retries.minWaitMs ?? DEFAULT_RETRIES.minWaitMs;
+  const maxWait = Math.max(retries.maxWaitMs ?? DEFAULT_RETRIES.maxWaitMs, minWait);
+  let wait = parseRetryAfter(retryAfter);
+  if (wait === undefined) {
+    const step = Math.min(minWait * 2 ** Math.min(attempt, 20), maxWait);
+    wait = step / 2 + Math.random() * (step / 2);
+  }
+  return elapsedMs + wait > budget ? undefined : wait;
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  if (/^\d+$/.test(value.trim())) return Number(value) * 1000;
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? undefined : Math.max(at - Date.now(), 0);
+}
 
 /**
  * Talks to one engine as one agent. The trading key's share lives in the
@@ -148,22 +201,18 @@ export class Client {
     for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) params.set(k, String(v));
     const queryText = params.toString();
     const bodyText = body === undefined ? undefined : JSON.stringify(body);
-    const headers = this.agentKey.signRequest({ keyId: this.keyId, method, path, query: queryText, body: bodyText });
-    return this.#call(method, path + (queryText ? "?" + queryText : ""), body, headers, timeoutMs);
+    // Each attempt is signed anew, with its own nonce and time, so a retry is never a replay.
+    const sign = () => this.agentKey.signRequest({ keyId: this.keyId, method, path, query: queryText, body: bodyText });
+    return this.#call(method, path + (queryText ? "?" + queryText : ""), body, sign, timeoutMs);
   }
 
-  async #call(method: string, path: string, body?: unknown, headers: Record<string, string> = {}, timeoutMs?: number): Promise<unknown> {
-    const h: Record<string, string> = { Accept: "application/json", ...headers };
-    if (body !== undefined) h["Content-Type"] = "application/json";
-    const doFetch = this.#options.fetch ?? fetch;
-    const res = await doFetch(this.engineUrl + path, {
-      method,
-      headers: h,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs ?? this.#options.timeoutMs ?? 10_000),
-    });
-    const text = await res.text();
-    if (!res.ok) {
+  /** Sends the request, again after an answer that did nothing (`retries`), and returns the final answer decoded; `sign` makes each attempt's headers. */
+  async #call(method: string, path: string, body?: unknown, sign?: () => Record<string, string>, timeoutMs?: number): Promise<unknown> {
+    const retries = this.#options.retries ?? {};
+    const start = Date.now();
+    for (let attempt = 0; ; attempt++) {
+      const { res, text } = await this.#once(method, path, body, sign?.() ?? {}, timeoutMs);
+      if (res.ok) return text ? JSON.parse(text) : null;
       let code = "http_error";
       let message = res.statusText || text.slice(0, 200);
       try {
@@ -173,9 +222,24 @@ export class Client {
       } catch {
         // not JSON: keep the text
       }
-      throw new EngineError(res.status, code, message);
+      const err = new EngineError(res.status, code, message, res.headers.get("retry-after") ?? undefined);
+      const wait = retries === false ? undefined : retryWait(retries, attempt, res.status, err.retryAfter ?? null, Date.now() - start);
+      if (wait === undefined) throw err;
+      await (this.#options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))))(wait);
     }
-    return text ? JSON.parse(text) : null;
+  }
+
+  async #once(method: string, path: string, body: unknown, headers: Record<string, string>, timeoutMs?: number): Promise<{ res: Response; text: string }> {
+    const h: Record<string, string> = { Accept: "application/json", ...headers };
+    if (body !== undefined) h["Content-Type"] = "application/json";
+    const doFetch = this.#options.fetch ?? fetch;
+    const res = await doFetch(this.engineUrl + path, {
+      method,
+      headers: h,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs ?? this.#options.timeoutMs ?? 10_000),
+    });
+    return { res, text: await res.text() };
   }
 }
 
