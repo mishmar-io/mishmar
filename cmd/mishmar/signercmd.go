@@ -72,7 +72,8 @@ audit log, and if KMS cannot unwrap, the service does not start. --store is wher
 s3://bucket/prefix on AWS S3 or any S3-compatible store (MISHMAR_S3_ENDPOINT,
 MISHMAR_S3_REGION, MISHMAR_S3_ACCESS_KEY and MISHMAR_S3_SECRET_KEY, or the
 AWS SDK's own variables and roles) and gs://bucket/prefix on Google Cloud
-Storage with HMAC keys. Every share is opened into memory at startup, so no
+Storage as the workload itself, with no keys (its identity is granted the
+prefix). Every share is opened into memory at startup, so no
 order waits on the store; --sync is how often a replica reconciles with a
 shared backend.
 

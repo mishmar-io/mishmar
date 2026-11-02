@@ -1,12 +1,12 @@
 # Mishmar API contract
 
 `openapi.yaml` is the OpenAPI 3.1 description of the engine's HTTP API. It is
-the single source of truth for every client: the web app (mishmar-web), the
+the single source of truth for every client: the web app (mishmar-console), the
 SDKs in this repo and the CLI. The Go engine (mishmar-engine) implements it.
 It moved here from the engine repo on 26 Oct 2026 so that the public clients
 and the private engine generate from one file.
 
-Consumers regenerate from this file. mishmar-web does it with `npm run
+Consumers regenerate from this file. mishmar-console does it with `npm run
 api:gen` and the engine with `make gen`; both read
 `../mishmar/spec/openapi.yaml` from the sibling checkout, or the path in
 `MISHMAR_API_SPEC`. `info.version` moves with the contract.

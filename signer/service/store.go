@@ -281,15 +281,20 @@ func aad(id string, scheme signerapi.Scheme) []byte {
 }
 
 // OpenBackend picks the backend from the --store spec: a path, or
-// file:<path>, is the key file; s3://bucket/prefix and gs://bucket/prefix
-// are object storage (OpenS3, options from the MISHMAR_S3_* variables).
+// file:<path>, is the key file; s3://bucket/prefix is an S3-compatible store
+// (OpenS3, options from the MISHMAR_S3_* variables); gs://bucket/prefix is a
+// Google Cloud Storage bucket reached as the workload itself (OpenGCS, no
+// keys). GCS through its S3 endpoint with HMAC keys is s3:// with
+// MISHMAR_S3_ENDPOINT=https://storage.googleapis.com.
 func OpenBackend(spec string) (Backend, error) {
 	switch {
 	case spec == "":
 		return nil, errors.New("signer service: --store is empty")
 	case strings.HasPrefix(spec, "file:"):
 		return OpenFile(strings.TrimPrefix(spec, "file:"))
-	case strings.HasPrefix(spec, "s3://"), strings.HasPrefix(spec, "gs://"):
+	case strings.HasPrefix(spec, "gs://"):
+		return OpenGCS(spec)
+	case strings.HasPrefix(spec, "s3://"):
 		return OpenS3(context.Background(), spec, S3OptionsFromEnv())
 	case strings.Contains(spec, "://"):
 		return nil, fmt.Errorf("signer service: --store %s: not a file path, file:<path>, s3:// or gs://", spec)

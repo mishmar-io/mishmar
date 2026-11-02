@@ -273,8 +273,10 @@ where the sealed shares are kept, a file by default (mode 0600, replaced
 atomically) or object storage: `s3://bucket/prefix` on AWS S3 or any
 S3-compatible store (`MISHMAR_S3_ENDPOINT`, `MISHMAR_S3_REGION`,
 `MISHMAR_S3_ACCESS_KEY`, `MISHMAR_S3_SECRET_KEY`, or the AWS SDK's own
-variables and roles), `gs://bucket/prefix` on Google Cloud Storage with
-HMAC keys. Each key is one object, created conditionally so two replicas
+variables and roles), `gs://bucket/prefix` on Google Cloud Storage as the
+workload itself, with no keys: its identity is granted the prefix, and the
+token comes from the metadata server as it does for KMS. Each key is one
+object, created conditionally so two replicas
 can never both create it; turn bucket versioning on for the history. Every share is opened
 into memory at startup, so no order waits on the store, and a wrong master
 key fails there rather than on the first order; replicas sharing a backend

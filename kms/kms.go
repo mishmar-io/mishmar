@@ -177,19 +177,37 @@ func (c *Client) call(ctx context.Context, verb string, in, out any) error {
 	return nil
 }
 
-// token asks the metadata server for the workload's access token, trying again
-// for a while. Nothing here is called often enough for a token to be worth keeping.
+// token asks the metadata server for the workload's access token.
 func (c *Client) token(ctx context.Context) (string, error) {
+	return metadataToken(ctx, c.metadata, c.http, c.retry)
+}
+
+// Token asks the metadata server for the workload's access token, as the
+// client does for KMS: for the other Google APIs a workload speaks to with the
+// same identity, such as its bucket. The server's address is MetadataHostEnv or
+// the default.
+func Token(ctx context.Context) (string, error) {
+	host := os.Getenv(MetadataHostEnv)
+	if host == "" {
+		host = defaultMetadataHost
+	}
+	return metadataToken(ctx, host, &http.Client{Timeout: callTimeout, Transport: &http.Transport{Proxy: nil}}, tokenRetryWait)
+}
+
+// metadataToken tries for a while: a new pod's metadata server takes a few
+// seconds to answer, and Google's advice is to try again. Nothing here is called
+// often enough for a token to be worth keeping.
+func metadataToken(ctx context.Context, host string, client *http.Client, retry time.Duration) (string, error) {
 	var last error
 	for try := 0; try < tokenTries; try++ {
 		if try > 0 {
 			select {
 			case <-ctx.Done():
 				return "", ctx.Err()
-			case <-time.After(c.retry):
+			case <-time.After(retry):
 			}
 		}
-		token, err := c.tokenOnce(ctx)
+		token, err := tokenOnce(ctx, host, client)
 		if err == nil {
 			return token, nil
 		}
@@ -198,13 +216,13 @@ func (c *Client) token(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("kms: no token from the metadata server: %w", last)
 }
 
-func (c *Client) tokenOnce(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+c.metadata+tokenPath, nil)
+func tokenOnce(ctx context.Context, host string, client *http.Client) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+host+tokenPath, nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Metadata-Flavor", "Google")
-	res, err := c.http.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		return "", redact(err)
 	}

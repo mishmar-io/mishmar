@@ -1,0 +1,42 @@
+# On a version tag, builds the signer service's image and pushes it to the registry in
+# mishmar-prod, with no stored key: GitHub proves who it is, and only tags of the repos
+# infra-live's bootstrap.sh names may become image-pusher. Which environment runs it is
+# decided in infra-live. The cb-mpc build is long, so its layers are cached between runs.
+# release.yml builds the binaries from the same tag.
+name: image
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.PROD_PROJECT_ID }}
+      PROJECT_NUMBER: ${{ vars.PROD_PROJECT_NUMBER }}
+      REGISTRY: asia-northeast1-docker.pkg.dev
+    steps:
+      - uses: actions/checkout@v7
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/images
+          service_account: image-pusher@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+          token_format: access_token
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/mishmar/mishmar:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

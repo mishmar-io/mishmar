@@ -2,7 +2,7 @@
 
 The API contract, cross-language test vectors and SDKs for Mishmar. Public,
 Apache-2.0. The engine (`mishmar-engine`, private) and the console
-(`mishmar-web`, private) are sibling checkouts; both generate from the
+(`mishmar-console`, private) are sibling checkouts; both generate from the
 contract here.
 
 ## Commands
