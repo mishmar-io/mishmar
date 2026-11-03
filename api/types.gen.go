@@ -1005,6 +1005,11 @@ type Account struct {
 	ConfigRevision int       `json:"configRevision"`
 	CreatedAt      time.Time `json:"createdAt"`
 
+	// DefaultPortfolioId The account's default portfolio: the one an agent created without a
+	// portfolio joins, and the one portfolio that cannot be deleted
+	// (setDefaultPortfolio moves it).
+	DefaultPortfolioId string `json:"defaultPortfolioId"`
+
 	// Entitlements What the account's tier includes (plan doc, Pricing). Billing writes it
 	// for hosted accounts and a self-hosted engine reads it from its signed
 	// licence; the API only reads it. Safety is never gated: every rule, the
@@ -1047,7 +1052,9 @@ type Agent struct {
 type AgentCreate struct {
 	Description *string `json:"description,omitempty"`
 	Name        string  `json:"name"`
-	PortfolioId string  `json:"portfolioId"`
+
+	// PortfolioId Absent for the account's default portfolio (Account.defaultPortfolioId).
+	PortfolioId *string `json:"portfolioId,omitempty"`
 }
 
 // AgentKey defines model for AgentKey.
@@ -1713,8 +1720,8 @@ type PnlTotals struct {
 type Portfolio struct {
 	AgentCount int `json:"agentCount"`
 
-	// BudgetUsd Shared gross-exposure budget for every agent in the portfolio.
-	BudgetUsd Decimal   `json:"budgetUsd"`
+	// BudgetUsd Shared gross-exposure budget for every agent in the portfolio. Absent when the portfolio has none.
+	BudgetUsd *Decimal  `json:"budgetUsd,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 
 	// DayPnlUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
@@ -1730,7 +1737,10 @@ type Portfolio struct {
 	// engine verifies, and sums of cents stay exact.
 	GrossExposureUsd Decimal `json:"grossExposureUsd"`
 	Id               string  `json:"id"`
-	Name             string  `json:"name"`
+
+	// IsDefault True for the account's default portfolio (Account.defaultPortfolioId), which cannot be deleted.
+	IsDefault bool   `json:"isDefault"`
+	Name      string `json:"name"`
 
 	// NetExposureUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -1743,13 +1753,10 @@ type Portfolio struct {
 
 // PortfolioCreate defines model for PortfolioCreate.
 type PortfolioCreate struct {
-	// BudgetUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
-	// quantities are never JSON numbers. A string survives every language's
-	// float formatting unchanged, so the bytes an agent signs are the bytes the
-	// engine verifies, and sums of cents stay exact.
-	BudgetUsd   Decimal `json:"budgetUsd"`
-	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
+	// BudgetUsd Absent for a portfolio without a budget.
+	BudgetUsd   *Decimal `json:"budgetUsd,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Name        string   `json:"name"`
 }
 
 // PortfolioStatus defines model for PortfolioStatus.
@@ -1764,6 +1771,9 @@ type PortfolioUpdate struct {
 	BudgetUsd   *Decimal `json:"budgetUsd,omitempty"`
 	Description *string  `json:"description,omitempty"`
 	Name        *string  `json:"name,omitempty"`
+
+	// RemoveBudget True takes the budget away. budgetUsd must then be absent.
+	RemoveBudget *bool `json:"removeBudget,omitempty"`
 }
 
 // Position defines model for Position.

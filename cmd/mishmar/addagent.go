@@ -30,7 +30,8 @@ token (--token or MISHMAR_OPERATOR_TOKEN):
 
   1. the trading accounts are read, so a trading account whose venue has no supported key type
      stops the command before anything is created;
-  2. the agent is created in the portfolio and a key is issued; its secret,
+  2. the agent is created in the portfolio (--portfolio, or else the account's
+     default) and a key is issued; its secret,
      shown once, goes straight into the signer's config, which is written
      (mode 0600) before anything else happens;
   3. for every trading account a two-party venue key is made: on Hyperliquid by key
@@ -61,10 +62,10 @@ Environment:
 	f.StringVar(&o.engine, "engine", "http://localhost:8080/v1", "engine API base URL")
 	f.StringVar(&o.token, "token", "", "operator token (or MISHMAR_OPERATOR_TOKEN)")
 	f.StringVar(&o.name, "name", "", "the agent's name")
-	f.StringVar(&o.portfolio, "portfolio", "", "the portfolio the agent belongs to (pf_…)")
+	f.StringVar(&o.portfolio, "portfolio", "", "the portfolio the agent belongs to (pf_…); the account's default when left out")
 	f.StringArrayVar(&o.tradingAccounts, "trading-account", nil, "a trading account the agent trades through (ta_…); repeat for several")
 	configFlag(cmd, &o.config)
-	for _, name := range []string{"name", "portfolio", "trading-account"} {
+	for _, name := range []string{"name", "trading-account"} {
 		_ = cmd.MarkFlagRequired(name)
 	}
 	return cmd
@@ -106,7 +107,11 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 	}
 
 	// 2. The agent and its key; the config is written at once.
-	agent, err := op.createAgent(ctx, api.AgentCreate{Name: o.name, PortfolioId: o.portfolio})
+	create := api.AgentCreate{Name: o.name}
+	if o.portfolio != "" {
+		create.PortfolioId = &o.portfolio
+	}
+	agent, err := op.createAgent(ctx, create)
 	if err != nil {
 		return err
 	}

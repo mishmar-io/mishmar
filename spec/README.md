@@ -110,6 +110,27 @@ the YAML before the engine implements it.
   so resting orders that fill after a restart, and the fills snapshot at
   reconnect, attribute correctly.
 
+## Decided on 2026-11-03 (0.14.0)
+
+Every account has a default portfolio, so an agent always has somewhere to go.
+
+- An agent is still always in a portfolio: rules, the kill switch and PnL work
+  at the portfolio's scope, and a portfolio is where agents share a budget. On
+  a new account that was a dead end, since the agent form had no portfolio to
+  offer until one was made elsewhere.
+- A new account starts with a portfolio named Main, without a budget, as its
+  default (`Account.defaultPortfolioId`, `Portfolio.isDefault`). An engine
+  that already holds an account gives it a default at start: its oldest
+  portfolio, or a new Main if it has none.
+- `AgentCreate.portfolioId` is optional: absent, the agent joins the default.
+- The default cannot be deleted (409). `setDefaultPortfolio` moves the default
+  to another portfolio, after which the old one can be deleted once empty. The
+  protection follows the default, not the name, so Main can be renamed and a
+  fund can restructure without keeping it.
+- A portfolio's budget is optional (`budgetUsd` absent means none), on create
+  and on the portfolio itself; `PortfolioUpdate.removeBudget` takes one away,
+  since the generators read a null as absent.
+
 ## Decided on 2026-10-30 (0.13.0)
 
 Two-party ECDSA, single-hop, on Hyperliquid, and the signer leaves the

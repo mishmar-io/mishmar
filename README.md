@@ -161,9 +161,10 @@ go build ./cmd/mishmar
 # agent, issue its key, make a venue key per trading account by two-party
 # key generation with the engine's signer (FROST for Binance, ECDSA for
 # Hyperliquid; no machine ever holds the whole key), write the config. It
-# prints what to register or approve at the venue.
+# prints what to register or approve at the venue. The agent joins the
+# account's default portfolio unless --portfolio pf_… names another.
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
-  --name momentum-1 --portfolio pf_… --trading-account ta_…
+  --name momentum-1 --trading-account ta_…
 
 # Or by hand, for an agent and key issued in the console: write the config
 # from the key (the secret from MISHMAR_AGENT_SECRET or piped in), then add

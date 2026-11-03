@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.13.1
+  version: 0.14.0
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -195,7 +195,7 @@ paths:
     delete:
       tags: [portfolios]
       operationId: deletePortfolio
-      summary: Delete an empty portfolio. Refused while it still holds agents.
+      summary: Delete an empty portfolio. Refused (409) while it still holds agents, and for the account's default portfolio.
       responses:
         '204': { description: Deleted }
         default: { $ref: '#/components/responses/Error' }
@@ -219,6 +219,26 @@ paths:
     post:
       tags: [portfolios]
       operationId: resumePortfolio
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Portfolio' }
+        default: { $ref: '#/components/responses/Error' }
+  /portfolios/{portfolioId}/default:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [portfolios]
+      operationId: setDefaultPortfolio
+      summary: Make this the account's default portfolio, the one an agent created without a portfolio joins
+      description: |
+        Every account has exactly one default portfolio. A new account starts
+        with one named Main, without a budget. The default cannot be deleted:
+        make another portfolio the default first. The default is otherwise an
+        ordinary portfolio: it can be renamed, given a budget, stopped and
+        resumed.
       responses:
         '200':
           description: OK
@@ -250,7 +270,7 @@ paths:
     post:
       tags: [agents]
       operationId: createAgent
-      summary: Add an agent. It starts active with no key and no trading accounts.
+      summary: Add an agent. It starts active with no key and no trading accounts, in the portfolio named or else the account's default.
       requestBody:
         required: true
         content:
@@ -1631,7 +1651,7 @@ components:
 
     Account:
       type: object
-      required: [id, name, killSwitch, paused, configRevision, entitlements, createdAt]
+      required: [id, name, killSwitch, paused, configRevision, defaultPortfolioId, entitlements, createdAt]
       properties:
         id: { type: string }
         name: { type: string }
@@ -1650,6 +1670,12 @@ components:
         configRevision:
           type: integer
           description: Bumped on every configuration change. Decisions record the revision they were evaluated under.
+        defaultPortfolioId:
+          type: string
+          description: |
+            The account's default portfolio: the one an agent created without a
+            portfolio joins, and the one portfolio that cannot be deleted
+            (setDefaultPortfolio moves it).
         entitlements: { $ref: '#/components/schemas/Entitlements' }
         createdAt: { type: string, format: date-time }
 
@@ -1712,14 +1738,17 @@ components:
       enum: [active, killed]
     Portfolio:
       type: object
-      required: [id, name, budgetUsd, status, agentCount, grossExposureUsd, netExposureUsd, dayPnlUsd, createdAt, updatedAt]
+      required: [id, name, isDefault, status, agentCount, grossExposureUsd, netExposureUsd, dayPnlUsd, createdAt, updatedAt]
       properties:
         id: { type: string }
         name: { type: string }
         description: { type: string }
         budgetUsd:
           $ref: '#/components/schemas/Decimal'
-          description: Shared gross-exposure budget for every agent in the portfolio.
+          description: Shared gross-exposure budget for every agent in the portfolio. Absent when the portfolio has none.
+        isDefault:
+          type: boolean
+          description: True for the account's default portfolio (Account.defaultPortfolioId), which cannot be deleted.
         status: { $ref: '#/components/schemas/PortfolioStatus' }
         agentCount: { type: integer }
         grossExposureUsd: { $ref: '#/components/schemas/Decimal' }
@@ -1729,17 +1758,22 @@ components:
         updatedAt: { type: string, format: date-time }
     PortfolioCreate:
       type: object
-      required: [name, budgetUsd]
+      required: [name]
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
-        budgetUsd: { $ref: '#/components/schemas/Decimal' }
+        budgetUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Absent for a portfolio without a budget.
     PortfolioUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
         budgetUsd: { $ref: '#/components/schemas/Decimal' }
+        removeBudget:
+          type: boolean
+          description: True takes the budget away. budgetUsd must then be absent.
 
     AgentStatus:
       type: string
@@ -1797,11 +1831,13 @@ components:
         updatedAt: { type: string, format: date-time }
     AgentCreate:
       type: object
-      required: [name, portfolioId]
+      required: [name]
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
-        portfolioId: { type: string }
+        portfolioId:
+          type: string
+          description: Absent for the account's default portfolio (Account.defaultPortfolioId).
     AgentUpdate:
       type: object
       properties:
