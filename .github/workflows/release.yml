@@ -2,17 +2,24 @@
 # service and the CLI, one binary) on every platform it ships for and attach
 # the binaries and their checksums to the GitHub release. The binary links
 # Coinbase's cb-mpc (C++, cgo) through the mishmar-io fork of cb-mpc-go, so
-# each platform builds natively: cgo does not cross-compile cheaply.
+# each platform builds on its own OS. darwin-arm64 is the exception: it is
+# cross-compiled on an Intel Mac, because GitHub's Apple Silicon runners went
+# hours without picking up a job (v0.2.0). That job cannot run what it builds,
+# so it skips the tests (darwin-amd64 runs them on the same code) and checks
+# the binary's architecture instead.
 #
 # The fork is checked out next to this repo at the ref in cbmpc.ref (go.mod
 # replaces github.com/mishmar-io/cb-mpc-go with ../cb-mpc-go). Its C++ build
 # and the static OpenSSL it needs are cached by that ref.
+#
+# Run by hand (workflow_dispatch) it builds every archive and attaches nothing.
 name: Release
 
 on:
   push:
     tags:
       - "v[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -37,8 +44,12 @@ jobs:
         include:
           - { runner: ubuntu-latest, os: linux, arch: amd64, openssl: build-static-openssl-linux.sh }
           - { runner: ubuntu-24.04-arm, os: linux, arch: arm64, openssl: build-static-openssl-linux.sh }
-          - { runner: macos-15, os: darwin, arch: arm64, openssl: build-static-openssl-macos-m1.sh }
+          - { runner: macos-15-intel, os: darwin, arch: arm64, openssl: build-static-openssl-macos-m1.sh, cross: true }
           - { runner: macos-15-intel, os: darwin, arch: amd64, openssl: build-static-openssl-macos.sh }
+    env:
+      # Go builds for the matrix's architecture: the runner's own everywhere
+      # but the cross-compiled darwin-arm64, where cgo passes -arch arm64.
+      GOARCH: ${{ matrix.arch }}
     steps:
       - name: Check out mishmar
         uses: actions/checkout@v4
@@ -84,14 +95,31 @@ jobs:
           key: cbmpc-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.cbmpc.outputs.ref }}-${{ env.MACOSX_DEPLOYMENT_TARGET }}
 
       - name: Build the static OpenSSL
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' && !matrix.cross
         run: sudo --preserve-env=MACOSX_DEPLOYMENT_TARGET bash cb-mpc-go/scripts/openssl/${{ matrix.openssl }}
 
+      # Apple's clang targets arm64 from an Intel Mac; the script's
+      # darwin64-arm64-cc target passes -arch arm64.
+      - name: Build the static OpenSSL (cross)
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.cross
+        env:
+          CC: /usr/bin/clang
+          CXX: /usr/bin/clang++
+        run: sudo --preserve-env=MACOSX_DEPLOYMENT_TARGET,CC,CXX bash cb-mpc-go/scripts/openssl/${{ matrix.openssl }}
+
       - name: Build cb-mpc
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' && !matrix.cross
+        run: bash cb-mpc-go/scripts/build_cpp.sh Release
+
+      # cb-mpc's CMake picks its arm64 flags from CMAKE_OSX_ARCHITECTURES.
+      - name: Build cb-mpc (cross)
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.cross
+        env:
+          CMAKE_OSX_ARCHITECTURES: arm64
         run: bash cb-mpc-go/scripts/build_cpp.sh Release
 
       - name: Test
+        if: ${{ !matrix.cross }}
         working-directory: mishmar
         run: make test
 
@@ -100,7 +128,12 @@ jobs:
         run: |
           mkdir -p dist
           bash ../cb-mpc-go/scripts/go_with_cpp.sh go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/mishmar ./cmd/mishmar
-          ./dist/mishmar version
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            file dist/mishmar
+            [ "$(lipo -archs dist/mishmar)" = "arm64" ]
+          else
+            ./dist/mishmar version
+          fi
           # The binary links cb-mpc, OpenSSL and the Go modules statically, so
           # their licenses travel with it.
           cp LICENSE dist/
@@ -121,6 +154,7 @@ jobs:
   release:
     name: Attach to the release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
