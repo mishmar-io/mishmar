@@ -101,8 +101,12 @@ jobs:
           mkdir -p dist
           bash ../cb-mpc-go/scripts/go_with_cpp.sh go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/mishmar ./cmd/mishmar
           ./dist/mishmar version
+          # The binary links cb-mpc, OpenSSL and the Go modules statically, so
+          # their licenses travel with it.
+          cp LICENSE dist/
+          python3 scripts/third_party_notices.py --openssl "${CBMPC_OPENSSL_ROOT##*@}" > dist/THIRD_PARTY_NOTICES
           name="mishmar_${GITHUB_REF_NAME}_${{ matrix.os }}_${{ matrix.arch }}"
-          tar -C dist -czf "dist/${name}.tar.gz" mishmar
+          tar -C dist -czf "dist/${name}.tar.gz" mishmar LICENSE THIRD_PARTY_NOTICES
           (cd dist && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
 
       - name: Keep the binary

@@ -20,7 +20,7 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
 1. Pick the release. The [releases page](https://github.com/mishmar-io/mishmar/releases) lists them; the archives are named `mishmar_<version>_<os>_<arch>.tar.gz`.
 
    ```sh
-   VERSION=v0.1.0
+   VERSION=v0.2.0
    OS=$(uname -s | tr '[:upper:]' '[:lower:]')            # darwin or linux
    ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')  # amd64 or arm64
    NAME=mishmar_${VERSION}_${OS}_${ARCH}.tar.gz
@@ -40,7 +40,7 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
    ```
 
    ```text
-   mishmar_v0.1.0_darwin_arm64.tar.gz: OK
+   mishmar_v0.2.0_darwin_arm64.tar.gz: OK
    ```
 
 4. Unpack it and put the binary on your PATH.
@@ -49,6 +49,8 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
    tar -xzf $NAME
    sudo mv mishmar /usr/local/bin/
    ```
+
+   The archive also holds `LICENSE` and `THIRD_PARTY_NOTICES`, the licenses of mishmar and of the libraries built into it.
 
 ## Check it worked
 

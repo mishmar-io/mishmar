@@ -317,3 +317,12 @@ export MISHMAR_SIGNER_KEY=$(openssl rand -hex 32)   # keep it: it seals the shar
 mishmar signer serve --listen unix:/var/run/mishmar/signer.sock --store /var/lib/mishmar/signer-keys.json --engine-key <base64>
 # and on the engine: MISHMAR_SIGNER_URL=unix:/var/run/mishmar/signer.sock
 ```
+
+## Audit status
+
+The two-party ECDSA comes from Coinbase's [cb-mpc](https://github.com/coinbase/cb-mpc),
+which has had independent security reviews. Our change to it, which runs the
+first three of its four signing messages ahead of time so an order needs one
+round trip, has not been audited yet;
+[docs/ecdsa-presign-review.md](docs/ecdsa-presign-review.md) is the note for
+its reviewer, and [SECURITY.md](SECURITY.md) says how to report a flaw.
