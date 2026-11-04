@@ -184,7 +184,11 @@ mishmar keygen --scheme ed25519 --agent-share-out agent.share > engine.share
 mishmar signer add-key --venue-key vk_… --trading-account ta_… --venue binance --share agent.share
 
 # Run the signer; then register the key at the venue and verify it in the
-# console (the verification is a read the signer co-signs).
+# console (the verification is a read the signer co-signs). One signer runs
+# per config: it holds <config>.lock while it runs, and a second one on the
+# same config stops at once, naming the first one's pid. "signer keygen" and
+# "signer add-key" say so when a signer is running, since it reads the config
+# only when it starts: restart it to use the new key.
 mishmar signer run
 
 # Drive one order end to end with the signer running.
@@ -237,6 +241,23 @@ const s = await new Signer().start();
 const d = await s.order({ tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
 await s.stop();
 ```
+
+The child lives and dies with the bot. The SDK starts it with
+`--exit-on-stdin-close` and a pipe on its stdin that it never writes to; the
+pipe closes when the bot's process ends, however it ends (a crash or a
+SIGKILL included), and the signer stops as it would on SIGTERM. So a signer
+never stays online for an agent whose bot is gone.
+
+A signer can also run on its own, kept up by systemd, launchd or Docker,
+with `mishmar signer run --local unix:/run/mishmar/signer.sock` (or a
+loopback port with a token in `MISHMAR_LOCAL_TOKEN`), and the bot attaches to
+it instead of starting one: `Signer.connect("unix:/run/mishmar/signer.sock")`
+in Python, `await Signer.connect("unix:/run/mishmar/signer.sock", { token })`
+in TypeScript. `connect` starts nothing and `stop` leaves the signer running.
+That is the way when several processes trade as one agent (one signer per
+config: a second `Signer()` on the same config fails, naming the process
+that holds it), or to keep the signer connected and its presigned slots warm
+while the bot restarts.
 
 `mishmar mcp` is the same signer behind an MCP server on stdio: a language
 model gets tools to propose orders and cancels, follow a decision parked

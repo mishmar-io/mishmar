@@ -312,6 +312,30 @@ func (e LedgerEventKind) Valid() bool {
 	}
 }
 
+// Defines values for OrderCancellationBy.
+const (
+	OrderCancellationByAgent   OrderCancellationBy = "agent"
+	OrderCancellationByOutside OrderCancellationBy = "outside"
+	OrderCancellationByUnknown OrderCancellationBy = "unknown"
+	OrderCancellationByVenue   OrderCancellationBy = "venue"
+)
+
+// Valid indicates whether the value is a known member of the OrderCancellationBy enum.
+func (e OrderCancellationBy) Valid() bool {
+	switch e {
+	case OrderCancellationByAgent:
+		return true
+	case OrderCancellationByOutside:
+		return true
+	case OrderCancellationByUnknown:
+		return true
+	case OrderCancellationByVenue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PortfolioStatus.
 const (
 	PortfolioStatusActive PortfolioStatus = "active"
@@ -805,6 +829,7 @@ const (
 	TradingAccountRestrictionCauseStateUnavailable    TradingAccountRestrictionCause = "state_unavailable"
 	TradingAccountRestrictionCauseStreamGap           TradingAccountRestrictionCause = "stream_gap"
 	TradingAccountRestrictionCauseUnexplainedPosition TradingAccountRestrictionCause = "unexplained_position"
+	TradingAccountRestrictionCauseVenueUnreachable    TradingAccountRestrictionCause = "venue_unreachable"
 )
 
 // Valid indicates whether the value is a known member of the TradingAccountRestrictionCause enum.
@@ -819,6 +844,8 @@ func (e TradingAccountRestrictionCause) Valid() bool {
 	case TradingAccountRestrictionCauseStreamGap:
 		return true
 	case TradingAccountRestrictionCauseUnexplainedPosition:
+		return true
+	case TradingAccountRestrictionCauseVenueUnreachable:
 		return true
 	default:
 		return false
@@ -960,6 +987,7 @@ func (e VenueKeyScheme) Valid() bool {
 // Defines values for VenueKeyStatus.
 const (
 	VenueKeyStatusActive  VenueKeyStatus = "active"
+	VenueKeyStatusExpired VenueKeyStatus = "expired"
 	VenueKeyStatusPending VenueKeyStatus = "pending"
 	VenueKeyStatusRevoked VenueKeyStatus = "revoked"
 )
@@ -968,6 +996,8 @@ const (
 func (e VenueKeyStatus) Valid() bool {
 	switch e {
 	case VenueKeyStatusActive:
+		return true
+	case VenueKeyStatusExpired:
 		return true
 	case VenueKeyStatusPending:
 		return true
@@ -1194,10 +1224,16 @@ type Decision struct {
 	AgentSignature string `json:"agentSignature"`
 
 	// Approval The approval's outcome, when the decision was parked for a person.
-	Approval       *ApprovalOutcome `json:"approval,omitempty"`
-	ApprovalId     *string          `json:"approvalId,omitempty"`
-	ConfigRevision int              `json:"configRevision"`
-	CreatedAt      time.Time        `json:"createdAt"`
+	Approval   *ApprovalOutcome `json:"approval,omitempty"`
+	ApprovalId *string          `json:"approvalId,omitempty"`
+
+	// Cancellation How the order left the venue's book without filling completely, once the
+	// engine knows (the `cancelled` ledger event). Absent while it rests, after it
+	// filled completely, and on orders that never rested. Not covered by
+	// engineSignature: it arrives later, as a chained event.
+	Cancellation   *OrderCancellation `json:"cancellation,omitempty"`
+	ConfigRevision int                `json:"configRevision"`
+	CreatedAt      time.Time          `json:"createdAt"`
 
 	// EngineSignature The engine key's Ed25519 signature over the decision record as written
 	// (every field above plus `submission`, without `venueAck`, `approval`,
@@ -1432,20 +1468,42 @@ type Entitlements struct {
 	// FailoverCell A standby cell in another availability zone takes over when the account's cell fails (the uptime guarantee).
 	FailoverCell bool `json:"failoverCell"`
 
+	// MaxAgents The most agents the account may have, stopped ones included. Absent
+	// means no limit. An account already over it keeps what it has;
+	// createAgent is refused with `limit_reached` until one is deleted.
+	MaxAgents *int `json:"maxAgents,omitempty"`
+
+	// MaxTradingAccounts The most trading accounts the account may have, on every venue
+	// together. Absent means no limit. createTradingAccount is refused
+	// with `limit_reached` past it, as createAgent is.
+	MaxTradingAccounts *int `json:"maxTradingAccounts,omitempty"`
+
 	// SelfHosted Licensed to run the engine on the customer's own infrastructure.
 	SelfHosted bool `json:"selfHosted"`
 
 	// SignerTransports The transports the signer channel may use. long_poll is in every tier.
 	SignerTransports []SignerTransport `json:"signerTransports"`
 	Tier             Tier              `json:"tier"`
+
+	// VenueBudgets The account's share of each venue's request budget. A venue limits
+	// requests per address, and accounts may share an address, so each
+	// takes no more than its share. The engine counts every request it
+	// makes to the venue for the account: reads, polling, orders and
+	// cancels. When the share is spent, polling waits, and a new order
+	// is refused with `rate_limited` until the share refills; exits and
+	// cancels always go. A venue not listed has no share of its own.
+	VenueBudgets *[]VenueBudget `json:"venueBudgets,omitempty"`
 }
 
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
-	// `venue_rejected`, `internal`, `not_implemented` (501: in the contract, not yet
-	// in this engine).
+	// `venue_rejected`, `limit_reached`, `internal`, `not_implemented` (501: in the
+	// contract, not yet in this engine).
+	// `limit_reached` (403) means the account's plan holds no more of what
+	// the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
+	// Sending it again changes nothing: delete one, or move to a larger plan.
 	// `unavailable` (503) means the request did nothing: the engine cannot read its
 	// state, or it is restarting. Send the same request again in a moment.
 	// `rate_limited` (429) also means the request did nothing: this caller has sent
@@ -1529,9 +1587,12 @@ type KeygenRoundResult struct {
 // event's hash, a newline and the canonical JSON of `payload` (keys sorted, no
 // whitespace, nulls dropped), hex; the first event's prevHash is empty. The
 // kinds: decision (the record as written), forwarded (reason, venue ack, fills
-// the venue returned), fills (fills a venue stream reported), parked, approval
-// (the outcome), expired (approvals nobody decided in time), cancelled (the
-// venue's answer to a cancel), capital (a transfer in or out, valued at the
+// the venue returned; a cancel's own answer too), fills (fills a venue stream
+// reported), parked, approval (the outcome), expired (approvals nobody decided
+// in time), cancelled (an order Mishmar placed left the venue's book without
+// filling completely, written once against the decision that placed it; the
+// payload is that decision's OrderCancellation plus `decisionId` and
+// `clientOrderId`), capital (a transfer in or out, valued at the
 // mark), venue_event (funding, a liquidation or auto-deleveraging, a
 // settlement, a rebate, interest and the venue's other non-trade entries, with
 // how they were booked), discrepancy (one opened), resolved (one resolved, and
@@ -1606,6 +1667,38 @@ type Operator struct {
 	// Name The person behind the bearer token. Recorded on approvals as decidedBy.
 	Name string `json:"name"`
 }
+
+// OrderCancellation The end of a resting order that did not fill completely. Each order has at
+// most one.
+type OrderCancellation struct {
+	// At When the venue took it off the book, or when the engine learned it did.
+	At time.Time `json:"at"`
+
+	// By agent: a cancel the agent proposed through Mishmar (`cancelDecisionId`).
+	// venue: the venue pulled it itself (expiry, margin, reduce-only, self-trade,
+	// delisting, liquidation, …; `venueStatus` says which). outside: cancelled at
+	// the venue but not through Mishmar, by the owner in the venue's app or another
+	// key. unknown: it left the venue's list of open orders with no status the
+	// engine could read and no fill to explain it.
+	By OrderCancellationBy `json:"by"`
+
+	// CancelDecisionId Present when by is agent. The decision of the cancel.
+	CancelDecisionId *string `json:"cancelDecisionId,omitempty"`
+
+	// FilledSize How much of the order filled before it left the book; "0" when none did.
+	FilledSize Decimal `json:"filledSize"`
+
+	// VenueStatus The venue's own word for it when it gave one, e.g. Hyperliquid's `marginCanceled` or Binance's `EXPIRED`.
+	VenueStatus *string `json:"venueStatus,omitempty"`
+}
+
+// OrderCancellationBy agent: a cancel the agent proposed through Mishmar (`cancelDecisionId`).
+// venue: the venue pulled it itself (expiry, margin, reduce-only, self-trade,
+// delisting, liquidation, …; `venueStatus` says which). outside: cancelled at
+// the venue but not through Mishmar, by the owner in the venue's app or another
+// key. unknown: it left the venue's list of open orders with no status the
+// engine could read and no fill to explain it.
+type OrderCancellationBy string
 
 // PnlDay defines model for PnlDay.
 type PnlDay struct {
@@ -1720,9 +1813,13 @@ type PnlTotals struct {
 type Portfolio struct {
 	AgentCount int `json:"agentCount"`
 
-	// BudgetUsd Shared gross-exposure budget for every agent in the portfolio. Absent when the portfolio has none.
-	BudgetUsd *Decimal  `json:"budgetUsd,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	// CapitalUsd The capital allocated to the portfolio: what leverage (gross exposure ÷
+	// capital) and drawdown are measured against, for the portfolio and for
+	// each of its agents. It is not a cap on exposure; a gross_exposure rule
+	// is. Absent when none is set, and then no leverage or drawdown rule may
+	// be scoped to the portfolio or its agents (createRule).
+	CapitalUsd *Decimal  `json:"capitalUsd,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
 
 	// DayPnlUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -1753,8 +1850,8 @@ type Portfolio struct {
 
 // PortfolioCreate defines model for PortfolioCreate.
 type PortfolioCreate struct {
-	// BudgetUsd Absent for a portfolio without a budget.
-	BudgetUsd   *Decimal `json:"budgetUsd,omitempty"`
+	// CapitalUsd The capital allocated to the portfolio (Portfolio.capitalUsd). Absent for none.
+	CapitalUsd  *Decimal `json:"capitalUsd,omitempty"`
 	Description *string  `json:"description,omitempty"`
 	Name        string   `json:"name"`
 }
@@ -1764,16 +1861,18 @@ type PortfolioStatus string
 
 // PortfolioUpdate defines model for PortfolioUpdate.
 type PortfolioUpdate struct {
-	// BudgetUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// CapitalUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
 	// float formatting unchanged, so the bytes an agent signs are the bytes the
 	// engine verifies, and sums of cents stay exact.
-	BudgetUsd   *Decimal `json:"budgetUsd,omitempty"`
+	CapitalUsd  *Decimal `json:"capitalUsd,omitempty"`
 	Description *string  `json:"description,omitempty"`
 	Name        *string  `json:"name,omitempty"`
 
-	// RemoveBudget True takes the budget away. budgetUsd must then be absent.
-	RemoveBudget *bool `json:"removeBudget,omitempty"`
+	// RemoveCapital True takes the allocated capital away; capitalUsd must then be absent.
+	// Refused while a leverage or drawdown rule is measured against it
+	// (updatePortfolio).
+	RemoveCapital *bool `json:"removeCapital,omitempty"`
 }
 
 // Position defines model for Position.
@@ -2131,6 +2230,10 @@ type Rule struct {
 
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
+	// portfolio and agent scope, where drawdown is measured against that capital too;
+	// a portfolio without capital cannot have such rules (createRule).
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -2162,6 +2265,10 @@ type RuleCreate struct {
 
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
+	// portfolio and agent scope, where drawdown is measured against that capital too;
+	// a portfolio without capital cannot have such rules (createRule).
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -2185,6 +2292,10 @@ type RuleCreate struct {
 type RuleEvaluation struct {
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
+	// portfolio and agent scope, where drawdown is measured against that capital too;
+	// a portfolio without capital cannot have such rules (createRule).
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -2220,6 +2331,10 @@ type RuleEvaluation struct {
 
 // RuleMetric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 // leverage is a ratio. concentration and drawdown are percentages.
+// leverage is gross exposure ÷ equity at account and trading account scope, and
+// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
+// portfolio and agent scope, where drawdown is measured against that capital too;
+// a portfolio without capital cannot have such rules (createRule).
 // net_exposure and concentration accept an `asset` to narrow to one name.
 // daily_loss is today's loss counting open positions at their marks
 // (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -2240,6 +2355,10 @@ type RuleUpdate struct {
 
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
+	// portfolio and agent scope, where drawdown is measured against that capital too;
+	// a portfolio without capital cannot have such rules (createRule).
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -2610,7 +2729,15 @@ type TradingAccountRestriction struct {
 	// asset several agents hold was transferred out beyond what the unassigned
 	// book holds. stream_gap: the venue's stream missed more than its
 	// history can fill. state_unavailable: the venue's state cannot be read.
+	// venue_unreachable: the engine has no live stream of the trading account's
+	// fills and orders from the venue: the venue refused the subscription, or the
+	// stream has been down past its grace. It lifts by itself once the stream is
+	// back and the engine has caught up.
 	Cause TradingAccountRestrictionCause `json:"cause"`
+
+	// Detail More than the cause says, when there is more: for venue_unreachable,
+	// why the stream is down, in the venue's words where it gave any.
+	Detail *string `json:"detail,omitempty"`
 
 	// DiscrepancyId The discrepancy that lifts it once resolved
 	DiscrepancyId *string `json:"discrepancyId,omitempty"`
@@ -2626,6 +2753,10 @@ type TradingAccountRestriction struct {
 // asset several agents hold was transferred out beyond what the unassigned
 // book holds. stream_gap: the venue's stream missed more than its
 // history can fill. state_unavailable: the venue's state cannot be read.
+// venue_unreachable: the engine has no live stream of the trading account's
+// fills and orders from the venue: the venue refused the subscription, or the
+// stream has been down past its grace. It lifts by itself once the stream is
+// back and the engine has caught up.
 type TradingAccountRestrictionCause string
 
 // TradingAccountRestrictionScope The whole trading account, or one asset on it (every market that trades that asset).
@@ -2675,6 +2806,15 @@ type VenueAck struct {
 	Status        string    `json:"status"`
 }
 
+// VenueBudget defines model for VenueBudget.
+type VenueBudget struct {
+	Venue Venue `json:"venue"`
+
+	// WeightPerMinute Request weight a minute, in the venue's own units: Hyperliquid's
+	// and Binance's published weights per request.
+	WeightPerMinute int `json:"weightPerMinute"`
+}
+
 // VenueKey One agent's trading key on one trading account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
 type VenueKey struct {
 	AgentId string `json:"agentId"`
@@ -2682,7 +2822,14 @@ type VenueKey struct {
 	// ApiKeyRegistered Whether the engine holds the key id the exchange issued (`register`). True from creation for HMAC keys, whose id the signer carries, and for Hyperliquid, which has none.
 	ApiKeyRegistered bool      `json:"apiKeyRegistered"`
 	CreatedAt        time.Time `json:"createdAt"`
-	Fingerprint      *string   `json:"fingerprint,omitempty"`
+
+	// ExpiresAt When the key stops working: 100 days after it became active, or
+	// the venue's own expiry if that comes first (a Hyperliquid
+	// approval carries the same date). The engine stops signing with it
+	// then and its status becomes `expired`; the console warns from 7
+	// days before. Absent until the key is active.
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	Fingerprint *string    `json:"fingerprint,omitempty"`
 
 	// Hyperliquid Hyperliquid keys only. The master wallet's approval of the API wallet.
 	Hyperliquid *struct {
@@ -2706,7 +2853,10 @@ type VenueKey struct {
 	// exchange (SPKI PEM), or the API wallet's address for the master wallet
 	// to approve on Hyperliquid. Absent for HMAC keys, and for an ECDSA
 	// key until its key generation is done.
-	PublicKey *string    `json:"publicKey,omitempty"`
+	PublicKey *string `json:"publicKey,omitempty"`
+
+	// Replaces The key this one replaces (VenueKeyCreate.replaces), revoked when this one became active.
+	Replaces  *string    `json:"replaces,omitempty"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 
 	// Scheme The venue's key type, which alone decides how the key is held and used:
@@ -2716,7 +2866,11 @@ type VenueKey struct {
 	// signs only what both the agent and the engine signed. Per venue:
 	// Binance ed25519, Hyperliquid ecdsa (an API wallet), Bybit rsa, Coinbase
 	// ecdsa, OKX hmac.
-	Scheme              VenueKeyScheme              `json:"scheme"`
+	Scheme VenueKeyScheme `json:"scheme"`
+
+	// Status pending until the venue accepts a co-signed read, active until
+	// `expiresAt` or revocation. An expired key never signs again: the
+	// engine forgets its share, as on revocation.
 	Status              VenueKeyStatus              `json:"status"`
 	TradingAccountId    string                      `json:"tradingAccountId"`
 	Venue               Venue                       `json:"venue"`
@@ -2740,7 +2894,13 @@ type VenueKeyCreate struct {
 	// key generation (signerKeygen) and a dealt share is refused.
 	// Write-only; the agent's share never passes through the engine, and
 	// the public key is derived from this share.
-	EngineShare      *string `json:"engineShare,omitempty"`
+	EngineShare *string `json:"engineShare,omitempty"`
+
+	// Replaces The agent's live key on the same trading account that this one
+	// replaces. It must be active and not expired, and nothing else may
+	// be replacing it. It keeps signing until this key becomes active,
+	// and is revoked then.
+	Replaces         *string `json:"replaces,omitempty"`
 	TradingAccountId string  `json:"tradingAccountId"`
 }
 
@@ -2759,7 +2919,9 @@ type VenueKeyRegistration struct {
 // ecdsa, OKX hmac.
 type VenueKeyScheme string
 
-// VenueKeyStatus defines model for VenueKeyStatus.
+// VenueKeyStatus pending until the venue accepts a co-signed read, active until
+// `expiresAt` or revocation. An expired key never signs again: the
+// engine forgets its share, as on revocation.
 type VenueKeyStatus string
 
 // VenueRequest The venue request the signature serves. For the proxy scheme it is the

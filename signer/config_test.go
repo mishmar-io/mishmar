@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mishmar-io/mishmar/agentkey"
+	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
 )
@@ -86,6 +87,35 @@ func TestConfigRoundTrip(t *testing.T) {
 	}
 	if err := got.AddVenueKey("vk_1", got.VenueKeys["vk_1"]); err == nil || !strings.Contains(err.Error(), "already in the config") {
 		t.Fatalf("adding vk_1 twice: %v", err)
+	}
+}
+
+// A replacement sits beside the key it replaces; PruneVenueKeys drops a
+// share once the engine reports its key revoked or expired, and only then.
+func TestReplacementAndPrune(t *testing.T) {
+	cfg, _, _ := testConfig(t)
+	next, _, err := frost.Deal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.AddVenueKey("vk_2", VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: mustJSON(t, next)}); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.VenueKeys) != 2 {
+		t.Fatalf("both keys on rt_1 stay while the replacement is pending: %+v", cfg.VenueKeys)
+	}
+	if dropped := cfg.PruneVenueKeys([]api.VenueKey{{Id: "vk_1", Status: api.VenueKeyStatusActive}, {Id: "vk_2", Status: api.VenueKeyStatusPending}}); len(dropped) != 0 || len(cfg.VenueKeys) != 2 {
+		t.Fatalf("nothing is dead yet: dropped %v", dropped)
+	}
+	engine := []api.VenueKey{
+		{Id: "vk_1", Status: api.VenueKeyStatusRevoked}, {Id: "vk_2", Status: api.VenueKeyStatusActive},
+		{Id: "vk_9", Status: api.VenueKeyStatusExpired}, // not in the config
+	}
+	if dropped := cfg.PruneVenueKeys(engine); len(dropped) != 1 || dropped[0] != "vk_1" {
+		t.Fatalf("dropped %v", dropped)
+	}
+	if _, ok := cfg.VenueKeys["vk_2"]; !ok || len(cfg.VenueKeys) != 1 {
+		t.Fatalf("after the prune: %+v", cfg.VenueKeys)
 	}
 }
 

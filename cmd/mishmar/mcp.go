@@ -8,6 +8,7 @@ import (
 
 	"github.com/mishmar-io/mishmar/mcp"
 	"github.com/mishmar-io/mishmar/signer"
+	"github.com/mishmar-io/mishmar/signer/configlock"
 )
 
 func newMCPCmd() *cobra.Command {
@@ -25,13 +26,20 @@ nothing reaches a venue without both signatures.
 
 Point an MCP client at it with the command "mishmar mcp" (and --config when
 the config is not at the default path). The protocol runs on stdin and
-stdout; this process logs to stderr only.`,
+stdout; this process logs to stderr only. Like "signer run", it holds the
+config's lock while it runs, so it does not start next to another signer on
+the same config.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(config)
 			if err != nil {
 				return err
 			}
+			lock, err := configlock.Acquire(path)
+			if err != nil {
+				return err
+			}
+			defer lock.Close()
 			cfg, err := signer.Load(path)
 			if err != nil {
 				return err

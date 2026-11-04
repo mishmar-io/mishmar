@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.14.0
+  version: 0.17.0
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -180,6 +180,11 @@ paths:
     patch:
       tags: [portfolios]
       operationId: updatePortfolio
+      description: |
+        `removeCapital` is refused with a conflict (409) while an enabled
+        leverage or drawdown rule is measured against the capital: one scoped
+        to the portfolio or to one of its agents. Disable or delete those rules
+        first; the conflict's details name them (`ruleIds`).
       requestBody:
         required: true
         content:
@@ -235,10 +240,10 @@ paths:
       summary: Make this the account's default portfolio, the one an agent created without a portfolio joins
       description: |
         Every account has exactly one default portfolio. A new account starts
-        with one named Main, without a budget. The default cannot be deleted:
-        make another portfolio the default first. The default is otherwise an
-        ordinary portfolio: it can be renamed, given a budget, stopped and
-        resumed.
+        with one named Main, without allocated capital. The default cannot be
+        deleted: make another portfolio the default first. The default is
+        otherwise an ordinary portfolio: it can be renamed, given capital,
+        stopped and resumed.
       responses:
         '200':
           description: OK
@@ -299,6 +304,11 @@ paths:
     patch:
       tags: [agents]
       operationId: updateAgent
+      description: |
+        Moving the agent to another portfolio (`portfolioId`) is refused with a
+        conflict (409) when that portfolio has no allocated capital and the agent
+        has an enabled leverage or drawdown rule of its own, which would then have
+        nothing to measure against; the details name the rules (`ruleIds`).
       requestBody:
         required: true
         content:
@@ -385,6 +395,14 @@ paths:
         the whole key, and the engine records only that the key exists.
         Verify the key afterwards; it becomes `active` when the venue accepts
         a co-signed read.
+
+        A key lives 100 days from when it becomes active (`expiresAt`), then
+        expires for good. The agent holds one live key per trading account; a
+        second is a conflict (409) unless it `replaces` the live one while that
+        one is active and has not expired. The old key keeps signing until the
+        new one becomes active, and is revoked at that moment, so the agent
+        trades through the change. After a key expired, create a new one
+        without `replaces`.
       requestBody:
         required: true
         content:
@@ -458,6 +476,13 @@ paths:
         API wallet. The engine builds it, so the venue's signing rules live in
         one place. The signature goes back through `submitWalletApproval` with
         the `approvalId`. The typed data expires; ask again if it does.
+
+        The approval names the date the key will expire (the agent name ends
+        in `valid_until`), 100 days out, so the venue drops the API wallet when
+        Mishmar does. An API wallet is approved once: a key already approved,
+        expired or revoked is a conflict (409), since an API wallet's address
+        must not be approved again once the venue may have forgotten its
+        nonces. To renew, give the agent a new key (`replaces`).
       requestBody:
         content:
           application/json:
@@ -853,6 +878,13 @@ paths:
     post:
       tags: [rules]
       operationId: createRule
+      description: |
+        An enabled leverage or drawdown rule scoped to a portfolio, or to an agent,
+        is measured against that portfolio's allocated capital (the agent's
+        portfolio for an agent rule; see RuleMetric). Without capital it would
+        refuse every order, so it is refused here instead: `validation` (422),
+        naming the portfolio to give capital to. A disabled rule is accepted and
+        checked when it is enabled.
       requestBody:
         required: true
         content:
@@ -881,6 +913,10 @@ paths:
     patch:
       tags: [rules]
       operationId: updateRule
+      description: |
+        The same check as createRule, on the rule as it would be after the
+        update: enabling a leverage or drawdown rule, or moving one to a
+        portfolio or agent scope, needs that portfolio's allocated capital.
       requestBody:
         required: true
         content:
@@ -1189,6 +1225,28 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PnlSeries' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/venue-keys:
+    get:
+      tags: [agent]
+      operationId: agentListVenueKeys
+      security: [{ agentAuth: [] }]
+      summary: The calling agent's trading keys, live and past
+      description: |
+        What the agent's signer needs to sign with the right key: while a
+        replacement is pending the agent holds two keys on one trading
+        account and signs with the active one, and a revoked or expired
+        key's share can be dropped. Also when each key expires, for an agent
+        that warns its operator.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VenueKey' }
         '401': { $ref: '#/components/responses/AgentUnauthorized' }
         default: { $ref: '#/components/responses/Error' }
   /agent/trading-accounts/{tradingAccountId}:
@@ -1617,8 +1675,11 @@ components:
           description: |
             Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
             `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
-            `venue_rejected`, `internal`, `not_implemented` (501: in the contract, not yet
-            in this engine).
+            `venue_rejected`, `limit_reached`, `internal`, `not_implemented` (501: in the
+            contract, not yet in this engine).
+            `limit_reached` (403) means the account's plan holds no more of what
+            the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
+            Sending it again changes nothing: delete one, or move to a larger plan.
             `unavailable` (503) means the request did nothing: the engine cannot read its
             state, or it is restarting. Send the same request again in a moment.
             `rate_limited` (429) also means the request did nothing: this caller has sent
@@ -1716,6 +1777,42 @@ components:
         selfHosted:
           type: boolean
           description: Licensed to run the engine on the customer's own infrastructure.
+        maxAgents:
+          type: integer
+          minimum: 1
+          description: |
+            The most agents the account may have, stopped ones included. Absent
+            means no limit. An account already over it keeps what it has;
+            createAgent is refused with `limit_reached` until one is deleted.
+        maxTradingAccounts:
+          type: integer
+          minimum: 1
+          description: |
+            The most trading accounts the account may have, on every venue
+            together. Absent means no limit. createTradingAccount is refused
+            with `limit_reached` past it, as createAgent is.
+        venueBudgets:
+          type: array
+          description: |
+            The account's share of each venue's request budget. A venue limits
+            requests per address, and accounts may share an address, so each
+            takes no more than its share. The engine counts every request it
+            makes to the venue for the account: reads, polling, orders and
+            cancels. When the share is spent, polling waits, and a new order
+            is refused with `rate_limited` until the share refills; exits and
+            cancels always go. A venue not listed has no share of its own.
+          items: { $ref: '#/components/schemas/VenueBudget' }
+    VenueBudget:
+      type: object
+      required: [venue, weightPerMinute]
+      properties:
+        venue: { $ref: '#/components/schemas/Venue' }
+        weightPerMinute:
+          type: integer
+          minimum: 1
+          description: |
+            Request weight a minute, in the venue's own units: Hyperliquid's
+            and Binance's published weights per request.
 
     EngineMode:
       type: string
@@ -1743,9 +1840,14 @@ components:
         id: { type: string }
         name: { type: string }
         description: { type: string }
-        budgetUsd:
+        capitalUsd:
           $ref: '#/components/schemas/Decimal'
-          description: Shared gross-exposure budget for every agent in the portfolio. Absent when the portfolio has none.
+          description: |
+            The capital allocated to the portfolio: what leverage (gross exposure ÷
+            capital) and drawdown are measured against, for the portfolio and for
+            each of its agents. It is not a cap on exposure; a gross_exposure rule
+            is. Absent when none is set, and then no leverage or drawdown rule may
+            be scoped to the portfolio or its agents (createRule).
         isDefault:
           type: boolean
           description: True for the account's default portfolio (Account.defaultPortfolioId), which cannot be deleted.
@@ -1762,18 +1864,21 @@ components:
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
-        budgetUsd:
+        capitalUsd:
           $ref: '#/components/schemas/Decimal'
-          description: Absent for a portfolio without a budget.
+          description: The capital allocated to the portfolio (Portfolio.capitalUsd). Absent for none.
     PortfolioUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
-        budgetUsd: { $ref: '#/components/schemas/Decimal' }
-        removeBudget:
+        capitalUsd: { $ref: '#/components/schemas/Decimal' }
+        removeCapital:
           type: boolean
-          description: True takes the budget away. budgetUsd must then be absent.
+          description: |
+            True takes the allocated capital away; capitalUsd must then be absent.
+            Refused while a leverage or drawdown rule is measured against it
+            (updatePortfolio).
 
     AgentStatus:
       type: string
@@ -1857,7 +1962,11 @@ components:
         ecdsa, OKX hmac.
     VenueKeyStatus:
       type: string
-      enum: [pending, active, revoked]
+      enum: [pending, active, expired, revoked]
+      description: |
+        pending until the venue accepts a co-signed read, active until
+        `expiresAt` or revocation. An expired key never signs again: the
+        engine forgets its share, as on revocation.
     VenueKey:
       type: object
       description: One agent's trading key on one trading account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
@@ -1904,6 +2013,18 @@ components:
         withdrawalsDisabled: { type: boolean }
         ipAllowlisted: { type: boolean }
         verification: { $ref: '#/components/schemas/TradingAccountVerification' }
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            When the key stops working: 100 days after it became active, or
+            the venue's own expiry if that comes first (a Hyperliquid
+            approval carries the same date). The engine stops signing with it
+            then and its status becomes `expired`; the console warns from 7
+            days before. Absent until the key is active.
+        replaces:
+          type: string
+          description: The key this one replaces (VenueKeyCreate.replaces), revoked when this one became active.
         createdAt: { type: string, format: date-time }
         revokedAt: { type: string, format: date-time }
     VenueKeyCreate:
@@ -1911,6 +2032,13 @@ components:
       required: [tradingAccountId]
       properties:
         tradingAccountId: { type: string }
+        replaces:
+          type: string
+          description: |
+            The agent's live key on the same trading account that this one
+            replaces. It must be active and not expired, and nothing else may
+            be replacing it. It keeps signing until this key becomes active,
+            and is revoked then.
         engineShare:
           type: string
           description: |
@@ -1984,7 +2112,7 @@ components:
         asset: { type: string, description: The asset, when `scope` is asset. }
         cause:
           type: string
-          enum: [foreign_fill, unexplained_position, ambiguous_transfer, stream_gap, state_unavailable]
+          enum: [foreign_fill, unexplained_position, ambiguous_transfer, stream_gap, state_unavailable, venue_unreachable]
           description: |
             foreign_fill: an agents-only trading account saw a fill Mishmar did not place.
             unexplained_position: the venue's position in the asset disagrees
@@ -1992,8 +2120,17 @@ components:
             asset several agents hold was transferred out beyond what the unassigned
             book holds. stream_gap: the venue's stream missed more than its
             history can fill. state_unavailable: the venue's state cannot be read.
+            venue_unreachable: the engine has no live stream of the trading account's
+            fills and orders from the venue: the venue refused the subscription, or the
+            stream has been down past its grace. It lifts by itself once the stream is
+            back and the engine has caught up.
         since: { type: string, format: date-time }
         discrepancyId: { type: string, description: The discrepancy that lifts it once resolved, when there is one. }
+        detail:
+          type: string
+          description: |
+            More than the cause says, when there is more: for venue_unreachable,
+            why the stream is down, in the venue's words where it gave any.
     MaintenanceWindow:
       type: object
       required: [openedAt, openedBy]
@@ -2185,6 +2322,10 @@ components:
       description: |
         gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
         leverage is a ratio. concentration and drawdown are percentages.
+        leverage is gross exposure ÷ equity at account and trading account scope, and
+        gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
+        portfolio and agent scope, where drawdown is measured against that capital too;
+        a portfolio without capital cannot have such rules (createRule).
         net_exposure and concentration accept an `asset` to narrow to one name.
         daily_loss is today's loss counting open positions at their marks
         (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -2387,6 +2528,43 @@ components:
           description: |
             Where the order stands with the agent's signer. Absent on trading accounts that
             need no signer (the paper simulator, co-signer callbacks).
+        cancellation:
+          $ref: '#/components/schemas/OrderCancellation'
+          description: |
+            How the order left the venue's book without filling completely, once the
+            engine knows (the `cancelled` ledger event). Absent while it rests, after it
+            filled completely, and on orders that never rested. Not covered by
+            engineSignature: it arrives later, as a chained event.
+    OrderCancellation:
+      type: object
+      required: [at, by, filledSize]
+      description: |
+        The end of a resting order that did not fill completely. Each order has at
+        most one.
+      properties:
+        at:
+          type: string
+          format: date-time
+          description: When the venue took it off the book, or when the engine learned it did.
+        by:
+          type: string
+          enum: [agent, venue, outside, unknown]
+          description: |
+            agent: a cancel the agent proposed through Mishmar (`cancelDecisionId`).
+            venue: the venue pulled it itself (expiry, margin, reduce-only, self-trade,
+            delisting, liquidation, …; `venueStatus` says which). outside: cancelled at
+            the venue but not through Mishmar, by the owner in the venue's app or another
+            key. unknown: it left the venue's list of open orders with no status the
+            engine could read and no fill to explain it.
+        cancelDecisionId:
+          type: string
+          description: Present when by is agent. The decision of the cancel.
+        filledSize:
+          $ref: '#/components/schemas/Decimal'
+          description: How much of the order filled before it left the book; "0" when none did.
+        venueStatus:
+          type: string
+          description: The venue's own word for it when it gave one, e.g. Hyperliquid's `marginCanceled` or Binance's `EXPIRED`.
     DecisionSubmission:
       type: object
       required: [keyId, nonce, proposedAt]
@@ -2435,9 +2613,12 @@ components:
         event's hash, a newline and the canonical JSON of `payload` (keys sorted, no
         whitespace, nulls dropped), hex; the first event's prevHash is empty. The
         kinds: decision (the record as written), forwarded (reason, venue ack, fills
-        the venue returned), fills (fills a venue stream reported), parked, approval
-        (the outcome), expired (approvals nobody decided in time), cancelled (the
-        venue's answer to a cancel), capital (a transfer in or out, valued at the
+        the venue returned; a cancel's own answer too), fills (fills a venue stream
+        reported), parked, approval (the outcome), expired (approvals nobody decided
+        in time), cancelled (an order Mishmar placed left the venue's book without
+        filling completely, written once against the decision that placed it; the
+        payload is that decision's OrderCancellation plus `decisionId` and
+        `clientOrderId`), capital (a transfer in or out, valued at the
         mark), venue_event (funding, a liquidation or auto-deleveraging, a
         settlement, a rebate, interest and the venue's other non-trade entries, with
         how they were booked), discrepancy (one opened), resolved (one resolved, and

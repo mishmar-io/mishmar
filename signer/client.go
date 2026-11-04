@@ -192,6 +192,14 @@ func (c *Client) Positions(ctx context.Context) ([]api.Position, error) {
 	return out, err
 }
 
+// VenueKeys lists this agent's venue keys as the engine holds them: which
+// one is active on each trading account, and which were revoked or expired.
+func (c *Client) VenueKeys(ctx context.Context) ([]api.VenueKey, error) {
+	var out []api.VenueKey
+	err := c.agentCall(ctx, http.MethodGet, "/agent/venue-keys", nil, nil, &out, c.timeout())
+	return out, err
+}
+
 // VenueRules reads what the trading account's venue accepts (tick, step,
 // minimums), for building orders; symbol narrows it to one market.
 func (c *Client) VenueRules(ctx context.Context, tradingAccountID, symbol string) (api.VenueRules, error) {

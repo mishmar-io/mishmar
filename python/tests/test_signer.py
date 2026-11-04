@@ -3,9 +3,16 @@
 import hashlib
 import io
 import os
+import shutil
+import signal
+import socket
 import stat
+import subprocess
+import sys
 import tarfile
+import tempfile
 import textwrap
+import time
 
 import pytest
 
@@ -25,6 +32,16 @@ FAKE = textwrap.dedent(
     if os.environ.get("FAKE_EXIT"):
         sys.stderr.write("fake signer: refusing to start\\n")
         sys.exit(3)
+    if "--exit-on-stdin-close" in args:
+        import threading
+        def watch():
+            try:
+                while sys.stdin.buffer.read(65536):
+                    pass
+            except Exception:
+                pass
+            os._exit(0)
+        threading.Thread(target=watch, daemon=True).start()
 
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -45,7 +62,7 @@ FAKE = textwrap.dedent(
                 return
             path = self.path.split("?")[0]
             if path == "/health":
-                self._send(200, {"agentId": "agt_1", "keyId": "key_1", "engine": "http://e/v1", "venueKeys": ["vk_1"], "config": config})
+                self._send(200, {"agentId": "agt_1", "keyId": "key_1", "engine": "http://e/v1", "venueKeys": ["vk_1"], "config": config, "args": args})
             elif path == "/positions":
                 self._send(200, [{"symbol": "BTC", "size": "0.001"}])
             elif path == "/decisions/dec_bad":
@@ -219,3 +236,116 @@ def test_download_binary_checks_the_release_checksum(tmp_path):
 
     with pytest.raises(RuntimeError, match="checksum"):
         download_binary("v0.1.0", str(tmp_path / "bin2"), opener=bad_opener)
+
+
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
+
+
+def _gone(pid: int, within: float) -> bool:
+    deadline = time.monotonic() + within
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_the_child_is_told_to_stop_with_this_process(fake_binary):
+    with Signer(binary=fake_binary) as s:
+        assert "--exit-on-stdin-close" in s.health()["args"]
+        assert s.process.stdin is not None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGKILL")
+def test_the_child_dies_with_a_killed_parent(fake_binary, tmp_path):
+    parent = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent(
+                f"""\
+                import sys, time
+                sys.path.insert(0, {SRC!r})
+                from mishmar import Signer
+                s = Signer(binary={fake_binary!r}).start()
+                print(s.process.pid, flush=True)
+                time.sleep(60)
+                """
+            ),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    child = None
+    try:
+        child = int(parent.stdout.readline())
+        os.kill(child, 0)  # running
+        parent.kill()  # SIGKILL: no cleanup runs in the parent
+        parent.wait(timeout=5)
+        assert _gone(child, 10), "the signer outlived the process that started it"
+    finally:
+        parent.kill()
+        parent.stdout.close()
+        if child is not None:
+            try:
+                os.kill(child, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix socket")
+def test_connect_speaks_to_a_running_signer_and_leaves_it_running(fake_binary):
+    # A short path: a Unix socket's path is limited to about a hundred bytes.
+    short = tempfile.mkdtemp(prefix="mishmar-")
+    sock = os.path.join(short, "signer.sock")
+    running = subprocess.Popen(
+        [fake_binary, "signer", "run", "--local", f"unix:{sock}"],
+        stdin=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        with Signer.connect(f"unix:{sock}", start_timeout=10) as s:
+            assert s.process is None, "connect starts nothing"
+            h = s.health()
+            assert h["agentId"] == "agt_1" and "--exit-on-stdin-close" not in h["args"]
+            assert (
+                s.order("ta_1", "BTC", "buy", "0.001", price="1")["verdict"] == "allow"
+            )
+        assert running.poll() is None, "stop() left the signer running"
+        # It can be spoken to again.
+        assert Signer.connect(f"unix:{sock}").positions() == [
+            {"symbol": "BTC", "size": "0.001"}
+        ]
+    finally:
+        running.kill()
+        running.wait(timeout=5)
+        shutil.rmtree(short, ignore_errors=True)
+
+
+def test_connect_over_tcp_needs_the_token(fake_binary, monkeypatch):
+    monkeypatch.delenv("MISHMAR_LOCAL_TOKEN", raising=False)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    with pytest.raises(ValueError, match="token"):
+        Signer.connect(f"127.0.0.1:{port}")
+    env = dict(os.environ, MISHMAR_LOCAL_TOKEN="t0ken")
+    running = subprocess.Popen(
+        [fake_binary, "signer", "run", "--local", f"127.0.0.1:{port}"],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        s = Signer.connect(f"127.0.0.1:{port}", token="t0ken", start_timeout=10)
+        assert s.health()["agentId"] == "agt_1"
+        # A wrong token is refused at once, not retried until the timeout.
+        start = time.monotonic()
+        with pytest.raises(EngineError) as err:
+            Signer.connect(f"127.0.0.1:{port}", token="wrong", start_timeout=10)
+        assert err.value.status == 401 and time.monotonic() - start < 5
+    finally:
+        running.kill()
+        running.wait(timeout=5)

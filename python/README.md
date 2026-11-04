@@ -57,3 +57,11 @@ with Signer() as s:                                   # ~/.mishmar/agent.json
         d = s.wait(d["id"])
     s.cancel("ta_…", "BTC", d["proposal"]["clientOrderId"])
 ```
+
+The child stops when this process ends, however it ends: it runs with
+`--exit-on-stdin-close` and a pipe on its stdin. To share one signer among
+several processes, or keep it connected across restarts, run it on its own
+(`mishmar signer run --local unix:/run/mishmar/signer.sock`) and attach with
+`Signer.connect("unix:/run/mishmar/signer.sock")`; `stop()` then leaves it
+running. One signer runs per config, so a second `Signer()` on a config in
+use fails and names the process that holds it.

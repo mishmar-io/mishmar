@@ -1,12 +1,13 @@
 // The Signer against a fake mishmar binary: a script that serves the local API the way the real signer does.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { platform, tmpdir } from "node:os";
 import * as path from "node:path";
 import { after, before, test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { EngineError, Signer, downloadBinary, findBinary, platformName } from "../src/index.ts";
 
 const FAKE = `#!/usr/bin/env node
@@ -17,6 +18,7 @@ const addr = args[args.indexOf("--local") + 1];
 const config = args.includes("--config") ? args[args.indexOf("--config") + 1] : "";
 const token = process.env.MISHMAR_LOCAL_TOKEN || "";
 if (process.env.FAKE_EXIT) { process.stderr.write("fake signer: refusing to start\\n"); process.exit(3); }
+if (args.includes("--exit-on-stdin-close")) { process.stdin.on("data", () => {}); process.stdin.on("end", () => process.exit(0)); process.stdin.on("error", () => process.exit(0)); }
 const send = (res, status, body) => { res.writeHead(status, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
 const srv = http.createServer((req, res) => {
   if (!addr.startsWith("unix:") && req.headers.authorization !== "Bearer " + token) return send(res, 401, { code: "unauthorized", message: "token" });
@@ -24,7 +26,7 @@ const srv = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
-    if (req.method === "GET" && p === "/health") return send(res, 200, { agentId: "agt_1", keyId: "key_1", engine: "http://e/v1", venueKeys: ["vk_1"], config });
+    if (req.method === "GET" && p === "/health") return send(res, 200, { agentId: "agt_1", keyId: "key_1", engine: "http://e/v1", venueKeys: ["vk_1"], config, args });
     if (req.method === "GET" && p === "/positions") return send(res, 200, [{ symbol: "BTC", size: "0.001" }]);
     if (req.method === "GET" && p === "/decisions/dec_bad") return send(res, 422, { code: "validation", message: "no such decision" });
     if (req.method === "GET" && p.startsWith("/decisions/")) return send(res, 200, { id: p.slice("/decisions/".length), verdict: "allow", query: req.url });
@@ -162,4 +164,120 @@ test("downloadBinary checks the release checksum", async () => {
   const tampered = (async (url: string | URL | Request) =>
     String(url).endsWith("SHA256SUMS") ? new Response(sums) : new Response(Buffer.concat([archive, Buffer.from("x")]))) as typeof fetch;
   await assert.rejects(downloadBinary("v0.1.0", path.join(dir, "bin2"), tampered), /checksum/);
+});
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+async function goneWithin(pid: number, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (!alive(pid)) return true;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return false;
+}
+
+function freeTcpPort(): Promise<number> {
+  return new Promise((resolve) => {
+    const srv = createServer();
+    srv.listen(0, "127.0.0.1", () => {
+      const p = (srv.address() as { port: number }).port;
+      srv.close(() => resolve(p));
+    });
+  });
+}
+
+/** Run the fake as a signer of its own, as systemd or Docker would, and wait until it listens. */
+async function runOnItsOwn(address: string, env: NodeJS.ProcessEnv = process.env) {
+  const child = spawn(fake, ["signer", "run", "--local", address], { env, stdio: ["ignore", "ignore", "pipe"] });
+  await new Promise<void>((resolve) => child.stderr.once("data", () => resolve()));
+  return child;
+}
+
+test("the child is told to stop with this process", async () => {
+  const s = await new Signer({ binary: fake }).start();
+  try {
+    assert.ok(((await s.health()).args as string[]).includes("--exit-on-stdin-close"));
+    assert.ok(s.process?.stdin, "the child's stdin is a pipe");
+  } finally {
+    await s.stop();
+  }
+});
+
+test("the child dies with a killed parent", { skip: platform() === "win32" }, async () => {
+  const index = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "index.ts");
+  const script = path.join(dir, "parent.mts");
+  await writeFile(
+    script,
+    `import { Signer } from ${JSON.stringify(index)};\n` +
+      `const s = await new Signer({ binary: ${JSON.stringify(fake)}, onLog: () => {} }).start();\n` +
+      `console.log(s.process.pid);\n` +
+      `setInterval(() => {}, 1000);\n`,
+  );
+  const parent = spawn(process.execPath, [...process.execArgv, script], { stdio: ["ignore", "pipe", "inherit"] });
+  let child: number | undefined;
+  try {
+    child = await new Promise<number>((resolve, reject) => {
+      parent.stdout.once("data", (b: Buffer) => resolve(Number(String(b).trim())));
+      parent.once("exit", (code) => reject(new Error(`the parent exited first: ${code}`)));
+    });
+    assert.ok(alive(child), "the signer runs");
+    parent.kill("SIGKILL"); // no cleanup runs in the parent
+    assert.ok(await goneWithin(child, 10_000), "the signer outlived the process that started it");
+  } finally {
+    parent.kill("SIGKILL");
+    if (child !== undefined && alive(child)) process.kill(child, "SIGKILL");
+  }
+});
+
+test("connect speaks to a running signer and leaves it running", { skip: platform() === "win32" }, async () => {
+  // A short path: a Unix socket's path is limited to about a hundred bytes.
+  const short = await mkdtemp(path.join(tmpdir(), "mishmar-"));
+  const address = "unix:" + path.join(short, "signer.sock");
+  const running = await runOnItsOwn(address);
+  try {
+    const s = await Signer.connect(address, { startTimeoutMs: 10_000 });
+    assert.equal(s.process, undefined, "connect starts nothing");
+    const h = await s.health();
+    assert.equal(h.agentId, "agt_1");
+    assert.ok(!(h.args as string[]).includes("--exit-on-stdin-close"));
+    assert.equal((await s.order({ tradingAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "1" })).verdict, "allow");
+    await s.stop();
+    assert.equal(running.exitCode, null, "stop() left the signer running");
+    assert.ok(alive(running.pid as number));
+    // It can be spoken to again.
+    assert.deepEqual(await (await Signer.connect(address)).positions(), [{ symbol: "BTC", size: "0.001" }]);
+  } finally {
+    running.kill("SIGKILL");
+    await rm(short, { recursive: true, force: true });
+  }
+});
+
+test("connect over TCP needs the token", async () => {
+  const saved = process.env.MISHMAR_LOCAL_TOKEN;
+  delete process.env.MISHMAR_LOCAL_TOKEN;
+  const port = await freeTcpPort();
+  const address = `127.0.0.1:${port}`;
+  try {
+    await assert.rejects(Signer.connect(address), /token/);
+    const running = await runOnItsOwn(address, { ...process.env, MISHMAR_LOCAL_TOKEN: "t0ken" });
+    try {
+      assert.equal((await (await Signer.connect(address, { token: "t0ken", startTimeoutMs: 10_000 })).health()).agentId, "agt_1");
+      // A wrong token is refused at once, not retried until the timeout.
+      const start = Date.now();
+      await assert.rejects(Signer.connect(address, { token: "wrong", startTimeoutMs: 10_000 }), (err: unknown) => err instanceof EngineError && err.status === 401);
+      assert.ok(Date.now() - start < 5_000);
+    } finally {
+      running.kill("SIGKILL");
+    }
+  } finally {
+    if (saved !== undefined) process.env.MISHMAR_LOCAL_TOKEN = saved;
+  }
 });

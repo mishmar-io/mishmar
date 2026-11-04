@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,11 @@ import (
 const (
 	// rulesTTL is how long a symbol's venue rules are kept.
 	rulesTTL = 10 * time.Minute
+	// keysTTL is how long the engine's word on which key is active is kept,
+	// while a replacement is pending: the new key takes over when the owner
+	// approves or verifies it, and a one-shot order built with the old key in
+	// the seconds after is refused.
+	keysTTL = 5 * time.Second
 	// commitmentMargin: a commitment this close to its expiry is not used.
 	commitmentMargin = 30 * time.Second
 )
@@ -51,6 +57,10 @@ type oneShotState struct {
 	presigs     map[string][]*presigBatch
 	instance    string
 	refilling   map[string]bool
+	// active is the venue keys the engine reported active, when there was a
+	// choice to make (activeKeys).
+	active        map[string]bool
+	activeFetched time.Time
 }
 
 type cachedRules struct {
@@ -82,9 +92,9 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	case s.Config.AgentID == "":
 		return noOneShot("the config names no agentId")
 	}
-	vkID, vk, ok := s.venueKeyOn(p.TradingAccountId)
-	if !ok {
-		return noOneShot("no venue key on %s in the config", p.TradingAccountId)
+	vkID, vk, err := s.venueKeyOn(ctx, p.TradingAccountId)
+	if err != nil {
+		return err
 	}
 	switch {
 	case api.Venue(vk.Venue) == api.VenueHyperliquid && vk.Scheme == SchemeECDSA2p:
@@ -94,7 +104,6 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	}
 	now := s.now()
 	var message []byte
-	var err error
 	req := api.SignRequest{
 		AgentId: s.Config.AgentID, TradingAccountId: p.TradingAccountId, VenueKeyId: vkID, Venue: api.VenueBinance,
 		Scheme: api.SigningSchemeFrostEd25519, Proposal: p, IssuedAt: now,
@@ -296,14 +305,58 @@ func (s *Signer) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 	return d, err
 }
 
-// venueKeyOn finds the config's venue key on a trading account.
-func (s *Signer) venueKeyOn(tradingAccountID string) (string, VenueKey, bool) {
+// venueKeyOn finds the config's venue key on a trading account. While a
+// replacement is pending the config holds two there, and the one the engine
+// reports active signs; with neither active, the proposal goes without
+// one-shot and the engine's sign request names the key.
+func (s *Signer) venueKeyOn(ctx context.Context, tradingAccountID string) (string, VenueKey, error) {
+	var ids []string
 	for id, k := range s.Config.VenueKeys {
 		if k.TradingAccountID == tradingAccountID {
-			return id, k, true
+			ids = append(ids, id)
 		}
 	}
-	return "", VenueKey{}, false
+	switch len(ids) {
+	case 0:
+		return "", VenueKey{}, noOneShot("no venue key on %s in the config", tradingAccountID)
+	case 1:
+		return ids[0], s.Config.VenueKeys[ids[0]], nil
+	}
+	active := s.activeKeys(ctx)
+	for _, id := range ids {
+		if active[id] {
+			return id, s.Config.VenueKeys[id], nil
+		}
+	}
+	sort.Strings(ids)
+	return "", VenueKey{}, noOneShot("none of the config's keys on %s (%s) is active at the engine", tradingAccountID, strings.Join(ids, ", "))
+}
+
+// activeKeys is the set of this agent's venue keys the engine reports active,
+// read at most once per keysTTL. A failed read keeps the last answer.
+func (s *Signer) activeKeys(ctx context.Context) map[string]bool {
+	st := s.oneShot()
+	st.mu.Lock()
+	if st.active != nil && s.now().Sub(st.activeFetched) < keysTTL {
+		defer st.mu.Unlock()
+		return st.active
+	}
+	st.mu.Unlock()
+	keys, err := s.Client.VenueKeys(ctx)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if err != nil {
+		s.Logger.Warn("signer: reading the agent's venue keys failed", "err", err)
+		return st.active
+	}
+	st.active = map[string]bool{}
+	for _, k := range keys {
+		if k.Status == api.VenueKeyStatusActive {
+			st.active[k.Id] = true
+		}
+	}
+	st.activeFetched = s.now()
+	return st.active
 }
 
 // symbolRules returns a symbol's rules on a trading account, from the engine

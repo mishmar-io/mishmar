@@ -6,6 +6,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/frost"
 	"github.com/mishmar-io/mishmar/signer"
+	"github.com/mishmar-io/mishmar/signer/configlock"
 	"github.com/mishmar-io/mishmar/signer/service"
 	"github.com/mishmar-io/mishmar/signerapi"
 )
@@ -283,17 +286,30 @@ for every trading account of a new agent.`,
 			if o.venue == string(api.VenueHyperliquid) && o.network == "" {
 				return errors.New("--network is required for a Hyperliquid key: mainnet | testnet")
 			}
-			key, err := signer.RunKeygen(cmd.Context(), signer.NewClient(cfg.Engine, cfg.KeyID, agentKey), o.venueKey, scheme)
+			client := signer.NewClient(cfg.Engine, cfg.KeyID, agentKey)
+			key, err := signer.RunKeygen(cmd.Context(), client, o.venueKey, scheme)
 			if err != nil {
 				return err
 			}
 			if err := cfg.AddVenueKey(o.venueKey, signer.VenueKey{TradingAccountID: o.tradingAccount, Venue: o.venue, Scheme: key.Scheme, Share: key.Share, Network: o.network}); err != nil {
 				return err
 			}
+			// A new key often follows one that expired or was revoked: its share goes.
+			// One that is still active stays until its replacement takes over.
+			out := cmd.OutOrStdout()
+			var dropped []string
+			if keys, err := client.VenueKeys(cmd.Context()); err != nil {
+				fmt.Fprintf(out, "could not read the agent's keys from the engine (%v); shares of expired or revoked keys stay in the config until the next keygen\n", err)
+			} else {
+				dropped = cfg.PruneVenueKeys(keys)
+			}
 			if err := cfg.Save(path); err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
+			if len(dropped) > 0 {
+				fmt.Fprintf(out, "dropped the shares of %s, which the engine reports expired or revoked\n", strings.Join(dropped, ", "))
+			}
+			warnRunningSigner(out, path)
 			if key.Scheme == signer.SchemeECDSA2p {
 				fmt.Fprintf(out, "generated the agent's key for %s (%s %s, trading account %s) in %s\n  approve the API wallet %s from the master wallet in the console, then verify the key.\n", o.venueKey, o.venue, o.network, o.tradingAccount, path, key.Address)
 				return nil
@@ -362,6 +378,7 @@ refused: it never belongs in this file.`,
 			if err := cfg.Save(path); err != nil {
 				return err
 			}
+			warnRunningSigner(cmd.OutOrStdout(), path)
 			fmt.Fprintf(cmd.OutOrStdout(), "stored the agent's share of %s (%s on trading account %s, %s) in %s\n", o.venueKey, o.venue, o.tradingAccount, scheme, path)
 			return nil
 		},
@@ -381,6 +398,7 @@ refused: it never belongs in this file.`,
 
 func newSignerRunCmd() *cobra.Command {
 	var config, level, local string
+	var exitOnStdinClose bool
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the signer until SIGINT or SIGTERM",
@@ -396,13 +414,28 @@ they run the signer as a child process: POST /propose turns an order or a
 cancel into a proposal signed with this agent's key (one-shot where it can),
 and the agent's reads pass through. unix:/path makes a socket only this user
 can reach; host:port must be a loopback address and needs a token in
-` + signer.EnvLocalToken + `, sent as a bearer token.`,
+` + signer.EnvLocalToken + `, sent as a bearer token.
+
+One signer runs per config: it holds a lock on <config>.lock while it runs,
+and a second one on the same config stops at once, naming the first's pid.
+Several processes of one agent share one signer through its local API.
+
+--exit-on-stdin-close is for a parent that starts the signer as its child
+(the SDKs' Signer does): give it a pipe on stdin and never write to it. The
+signer stops when the pipe closes, as on SIGTERM, which happens when the
+parent exits however it exits, SIGKILL and crashes included, so a signer
+never outlives the bot that started it.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(config)
 			if err != nil {
 				return err
 			}
+			lock, err := configlock.Acquire(path)
+			if err != nil {
+				return err
+			}
+			defer lock.Close()
 			cfg, err := signer.Load(path)
 			if err != nil {
 				return err
@@ -416,11 +449,14 @@ can reach; host:port must be a loopback address and needs a token in
 				return err
 			}
 			log.Info("signer: config loaded", "path", path, "hook", cfg.Hook != "")
-			if local == "" {
-				return s.Run(cmd.Context())
-			}
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
+			if exitOnStdinClose {
+				go untilClosed(cmd.InOrStdin(), log, cancel)
+			}
+			if local == "" {
+				return s.Run(ctx)
+			}
 			errc := make(chan error, 2)
 			go func() { errc <- s.ServeLocal(ctx, local, os.Getenv(signer.EnvLocalToken)) }()
 			go func() { errc <- s.Run(ctx) }()
@@ -433,5 +469,23 @@ can reach; host:port must be a loopback address and needs a token in
 	configFlag(cmd, &config)
 	cmd.Flags().StringVar(&level, "log-level", "info", "debug | info | warn | error")
 	cmd.Flags().StringVar(&local, "local", "", "also serve the local API at unix:/path or 127.0.0.1:port (the latter with a token in "+signer.EnvLocalToken+")")
+	cmd.Flags().BoolVar(&exitOnStdinClose, "exit-on-stdin-close", false, "stop when standard input closes: for a parent that runs the signer as its child, with a pipe it never writes to")
 	return cmd
+}
+
+// untilClosed reads r until it ends, then stops the signer: the parent that
+// started it with a pipe on stdin has gone.
+func untilClosed(r io.Reader, log *slog.Logger, stop context.CancelFunc) {
+	_, err := io.Copy(io.Discard, r)
+	log.Info("signer: standard input closed; stopping", "err", err)
+	stop()
+}
+
+// warnRunningSigner says so when a signer runs with the config just written:
+// it read the config when it started and will not see the new key until it
+// is restarted.
+func warnRunningSigner(out io.Writer, path string) {
+	if pid, held, err := configlock.Holder(path); err == nil && held {
+		fmt.Fprintf(out, "a signer is running with %s (pid %d): restart it so it uses the new key\n", path, pid)
+	}
 }

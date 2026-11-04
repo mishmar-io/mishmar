@@ -1,4 +1,4 @@
-"""The signer as a child process.
+"""The signer as a child process, or one already running.
 
 ``Signer`` starts ``mishmar signer run --local …`` with the agent's config
 and talks to it over a Unix socket (or, on Windows, localhost with a token).
@@ -13,6 +13,15 @@ the same way.
         d = s.order("ta_…", "BTC", "buy", "0.001", price="79500")
         if d["verdict"] == "require_approval":
             d = s.wait(d["id"])
+
+The child lives and dies with this process: it gets a pipe on stdin that is
+never written to and stops when the pipe closes, so it does not outlive a
+bot that crashed or was killed. A signer run on its own instead (systemd,
+launchd, Docker: ``mishmar signer run --local unix:/path``) is reached with
+``Signer.connect``, which never starts or stops it; that is the way for
+several processes of one agent, or to keep the signer connected across bot
+restarts. One signer runs per config: a second one on the same config stops
+at once and says which process holds it.
 
 The binary is found through ``MISHMAR_BIN``, the PATH, or
 ``~/.mishmar/bin/<version>/mishmar``; ``download_binary`` fetches a release
@@ -152,7 +161,9 @@ class Signer:
     ``$MISHMAR_AGENT_CONFIG`` or ``~/.mishmar/agent.json``); ``binary`` the
     mishmar binary (see ``find_binary``); ``address`` where the child listens
     (default: a private Unix socket, or localhost with a token on Windows).
-    Use it as a context manager, or call ``start`` and ``stop``."""
+    Use it as a context manager, or call ``start`` and ``stop``. The child
+    stops when this process exits, however it exits. ``Signer.connect``
+    speaks to a signer that runs on its own instead."""
 
     def __init__(
         self,
@@ -175,6 +186,33 @@ class Signer:
         self._dir: str | None = None
         self._stderr: deque[str] = deque(maxlen=40)
         self._reader: threading.Thread | None = None
+        self._attached = False
+        self._ready = False
+
+    @classmethod
+    def connect(
+        cls,
+        address: str,
+        token: str | None = None,
+        *,
+        start_timeout: float = 15.0,
+        timeout: float = 40.0,
+    ) -> Signer:
+        """Speak to a signer that already runs on its own (``mishmar signer
+        run --local ADDRESS``, kept up by systemd, launchd or Docker), and
+        wait until it answers. ``address`` is ``unix:/path``, or a loopback
+        ``host:port`` with the signer's token (``token``, default
+        ``$MISHMAR_LOCAL_TOKEN``). Nothing is started, and ``stop`` leaves the
+        signer running."""
+        s = cls(address=address, start_timeout=start_timeout, timeout=timeout)
+        s._attached = True
+        if not address.startswith("unix:"):
+            s.token = token if token is not None else os.environ.get(ENV_LOCAL_TOKEN)
+            if not s.token:
+                raise ValueError(
+                    f"{address}: a signer on a TCP port needs its token: pass token= or set {ENV_LOCAL_TOKEN}"
+                )
+        return s.start()
 
     # Lifecycle
 
@@ -186,7 +224,13 @@ class Signer:
         self.stop()
 
     def start(self) -> Signer:
-        """Start the child and wait until its local API answers."""
+        """Start the child and wait until its local API answers; for a signer
+        from ``connect``, only wait until it answers."""
+        if self._attached:
+            if not self._ready:
+                self._wait_ready(time.monotonic() + self.start_timeout)
+                self._ready = True
+            return self
         if self.process is not None:
             return self
         binary = find_binary(self.binary)
@@ -208,21 +252,27 @@ class Signer:
             self.address,
             "--log-level",
             self.log_level,
+            # The child stops when this pipe closes: when this process exits,
+            # however it exits. Nothing is ever written to it.
+            "--exit-on-stdin-close",
         ]
         if self.config:
             args += ["--config", self.config]
         self.process = subprocess.Popen(
             args,
             env=env,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
         self._reader = threading.Thread(target=self._forward_stderr, daemon=True)
         self._reader.start()
-        deadline = time.monotonic() + self.start_timeout
+        self._wait_ready(time.monotonic() + self.start_timeout)
+        return self
+
+    def _wait_ready(self, deadline: float) -> None:
         while True:
-            if self.process.poll() is not None:
+            if self.process is not None and self.process.poll() is not None:
                 status = self.process.returncode
                 if self._reader is not None:
                     self._reader.join(timeout=1)
@@ -233,8 +283,12 @@ class Signer:
                 )
             try:
                 self._request("GET", "/health", timeout=2.0)
-                return self
-            except (OSError, http.client.HTTPException, EngineError):
+                return
+            except (OSError, http.client.HTTPException, EngineError) as err:
+                # A running signer that answers with an error (a wrong token)
+                # will not answer differently in a moment.
+                if self._attached and isinstance(err, EngineError):
+                    raise
                 if time.monotonic() >= deadline:
                     self.stop()
                     raise TimeoutError(
@@ -243,11 +297,21 @@ class Signer:
                 time.sleep(0.1)
 
     def stop(self) -> None:
-        """Stop the child, gently then not."""
+        """Stop the child, gently then not: its stdin closes, which stops it,
+        and it gets SIGTERM, then SIGKILL after 5 s. A signer from ``connect``
+        keeps running; this only forgets it was ready."""
+        if self._attached:
+            self._ready = False
+            return
         p = self.process
         if p is None:
             return
         try:
+            if p.stdin is not None:
+                try:
+                    p.stdin.close()
+                except OSError:
+                    pass
             if p.poll() is None:
                 p.terminate()
                 try:
@@ -259,11 +323,13 @@ class Signer:
             self._cleanup()
 
     def _cleanup(self) -> None:
-        if self.process is not None and self.process.stderr is not None:
-            try:
-                self.process.stderr.close()
-            except OSError:
-                pass
+        if self.process is not None:
+            for pipe in (self.process.stdin, self.process.stderr):
+                if pipe is not None:
+                    try:
+                        pipe.close()
+                    except OSError:
+                        pass
         self.process = None
         if self._dir:
             shutil.rmtree(self._dir, ignore_errors=True)

@@ -1,5 +1,5 @@
 /**
- * The signer as a child process.
+ * The signer as a child process, or one already running.
  *
  * `Signer` starts `mishmar signer run --local …` with the agent's config and
  * talks to it over a Unix socket (or, on Windows, localhost with a token).
@@ -14,6 +14,15 @@
  *     let d = await s.order({ tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
  *     if (d.verdict === "require_approval") d = await s.wait(d.id);
  *     await s.stop();
+ *
+ * The child lives and dies with this process: it gets a pipe on stdin that
+ * is never written to and stops when the pipe closes, so it does not outlive
+ * a bot that crashed or was killed. A signer run on its own instead (systemd,
+ * launchd, Docker: `mishmar signer run --local unix:/path`) is reached with
+ * `Signer.connect`, which never starts or stops it; that is the way for
+ * several processes of one agent, or to keep the signer connected across bot
+ * restarts. One signer runs per config: a second one on the same config
+ * stops at once and says which process holds it.
  *
  * The binary is found through `MISHMAR_BIN`, the PATH, or
  * `~/.mishmar/bin/<version>/mishmar`; `downloadBinary` fetches a release from
@@ -147,9 +156,21 @@ export interface SignerOptions {
   onLog?: (line: string) => void;
 }
 
+/** How to reach a signer that runs on its own (`Signer.connect`). */
+export interface ConnectOptions {
+  /** The signer's token, for a loopback host:port; default $MISHMAR_LOCAL_TOKEN. */
+  token?: string;
+  startTimeoutMs?: number;
+  timeoutMs?: number;
+}
+
 type Query = Record<string, string | number | undefined>;
 
-/** The agent's signer, run as a child process and spoken to over its local API. */
+/**
+ * The agent's signer, run as a child process and spoken to over its local API.
+ * The child stops when this process exits, however it exits. `Signer.connect`
+ * speaks to a signer that runs on its own instead.
+ */
 export class Signer {
   readonly options: SignerOptions;
   address: string | undefined;
@@ -157,14 +178,39 @@ export class Signer {
   process: ChildProcess | undefined;
   #dir: string | undefined;
   #stderrTail: string[] = [];
+  #attached = false;
+  #ready = false;
 
   constructor(options: SignerOptions = {}) {
     this.options = options;
     this.address = options.address;
   }
 
-  /** Start the child and wait until its local API answers. */
+  /**
+   * Speak to a signer that already runs on its own (`mishmar signer run
+   * --local ADDRESS`, kept up by systemd, launchd or Docker), and wait until it
+   * answers. `address` is `unix:/path`, or a loopback host:port with the
+   * signer's token. Nothing is started, and `stop` leaves the signer running.
+   */
+  static async connect(address: string, options: ConnectOptions = {}): Promise<Signer> {
+    const s = new Signer({ address, startTimeoutMs: options.startTimeoutMs, timeoutMs: options.timeoutMs });
+    s.#attached = true;
+    if (!address.startsWith("unix:")) {
+      s.token = options.token ?? process.env[ENV_LOCAL_TOKEN];
+      if (!s.token) throw new Error(`${address}: a signer on a TCP port needs its token: pass { token } or set ${ENV_LOCAL_TOKEN}`);
+    }
+    return s.start();
+  }
+
+  /** Start the child and wait until its local API answers; for a signer from `connect`, only wait until it answers. */
   async start(): Promise<Signer> {
+    if (this.#attached) {
+      if (!this.#ready) {
+        await this.#waitReady(() => undefined);
+        this.#ready = true;
+      }
+      return this;
+    }
     if (this.process) return this;
     const binary = await findBinary(this.options.binary);
     const env = { ...process.env };
@@ -180,9 +226,12 @@ export class Signer {
       this.token ??= randomBytes(32).toString("base64url");
       env[ENV_LOCAL_TOKEN] = this.token;
     }
-    const args = ["signer", "run", "--local", this.address, "--log-level", this.options.logLevel ?? "info"];
+    // The child stops when its stdin closes: when this process exits, however
+    // it exits. Nothing is ever written to it.
+    const args = ["signer", "run", "--local", this.address, "--log-level", this.options.logLevel ?? "info", "--exit-on-stdin-close"];
     if (this.options.config) args.push("--config", this.options.config);
-    const child = spawn(binary, args, { env, stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(binary, args, { env, stdio: ["pipe", "ignore", "pipe"] });
+    child.stdin?.on("error", () => {}); // a child that exits first may close it under us
     this.process = child;
     let exited: { code: number | null; signal: NodeJS.Signals | null } | undefined;
     child.on("exit", (code, signal) => {
@@ -200,8 +249,14 @@ export class Signer {
         onLog(line);
       }
     });
+    await this.#waitReady(() => exited);
+    return this;
+  }
+
+  async #waitReady(exitedOf: () => { code: number | null; signal: NodeJS.Signals | null } | undefined): Promise<void> {
     const deadline = Date.now() + (this.options.startTimeoutMs ?? 15_000);
     for (;;) {
+      const exited = exitedOf();
       if (exited) {
         const tail = this.#stderrTail.join("\n");
         await this.#cleanup();
@@ -209,7 +264,7 @@ export class Signer {
       }
       try {
         await this.#request("GET", "/health", { timeoutMs: 2_000 });
-        return this;
+        return;
       } catch (err) {
         if (err instanceof EngineError) throw err;
         if (Date.now() >= deadline) {
@@ -221,11 +276,20 @@ export class Signer {
     }
   }
 
-  /** Stop the child, gently then not. */
+  /**
+   * Stop the child, gently then not: its stdin closes, which stops it, and it
+   * gets SIGTERM, then SIGKILL after 5 s. A signer from `connect` keeps
+   * running; this only forgets it was ready.
+   */
   async stop(): Promise<void> {
+    if (this.#attached) {
+      this.#ready = false;
+      return;
+    }
     const child = this.process;
     if (!child) return;
     try {
+      child.stdin?.destroy();
       if (child.exitCode === null && child.signalCode === null) {
         const gone = new Promise<void>((resolve) => child.once("exit", () => resolve()));
         child.kill("SIGTERM");

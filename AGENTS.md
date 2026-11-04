@@ -16,6 +16,7 @@ go test ./proposal -update          # regenerate spec/vectors/proposal-signing.j
 cd python && python -m pytest       # the Python SDK (needs `pip install -e .[test]`)
 cd typescript && npm test           # the TypeScript SDK on node:test (needs `npm install`; Node 22+ runs the .ts files directly)
 cd typescript && npm run typecheck
+cd docs && npm run build            # the docs site (docs.mishmar.io; needs `npm install`); `npm run dev` to write, `npx astro check` for types
 ```
 
 Run them before saying a change is done. `pre-commit install` once after
@@ -58,13 +59,17 @@ ecdsa2p/     two-party ECDSA over secp256k1 on the mishmar-io fork of Coinbase's
 venues/      per-venue request building and decoding, shared by the signer and the engine:
              binance/ (an order's and a cancel's parameter string; BuildOrder, DecodeOrder, CheckOrder,
              CheckRules, CheckFresh, BuildCancel, DecodeCancel, CheckRead, the client order id shape)
-signer/      the agent's signer as a library: config.go (the 0600 file, validation, AddVenueKey),
+signer/      the agent's signer as a library: config.go (the 0600 file, validation, AddVenueKey; a replacement
+             sits beside the key it replaces, PruneVenueKeys drops what the engine reports revoked or expired),
              client.go (the agent-facing API, every /agent call signed), checks.go (Policy.Check: the
              refusals in order, the Binance order, cancel and read checks), hook.go, signer.go (Run, Handle,
              the FROST round), oneshot.go (Prepare and Propose: the venue request built here and the agent's
-             half signed against a pre-issued engine commitment, with the channel as the fallback),
+             half signed against a pre-issued engine commitment, with the channel as the fallback; with two
+             keys on a trading account, the one GET /agent/venue-keys reports active),
              local.go (the local API an SDK or `mishmar mcp` calls: Submit turns an intent into a signed
-             proposal; `signer run --local`), service/ (the engine's signer service, `signer serve`)
+             proposal; `signer run --local`), service/ (the engine's signer service, `signer serve`),
+             configlock/ (one long-running signer per config: `signer run` and `mcp` hold <config>.lock,
+             flock or LockFileEx, no cgo)
 mcp/         the MCP server (JSON-RPC 2.0 over stdio, no dependency): ten tools over a Backend the signer implements
 cmd/mishmar/ the CLI on cobra: keygen, add-agent (operator client lives here, not in signer/),
              signer add-key, signer run, propose (one-shot with --config where it can, --cancel, --channel), version
@@ -75,7 +80,17 @@ typescript/  the TypeScript SDK: src/{canon,agentkey,proposal,client,signer,inde
 kms/         Cloud KMS encrypt and decrypt over REST with the workload's metadata-server token, no client
              library and no proxy; kmstest/ is a stand-in server for tests, used by the engine's too
 spec/        openapi.yaml, README.md (open questions), vectors/
+docs/        docs.mishmar.io: Starlight over plain-Markdown guides (src/content/docs), each page also served
+             as .md with llms.txt and llms-full.txt for agents; screenshots in public/screens; docs/README.md
+             has the page template. ecdsa-presign-review.md beside it is a design review, not a page
 ```
+
+## The docs follow the product
+
+A change to a command, a flag, its output or a console screen that a page in
+`docs/src/content/docs` shows is a change to that page too, in the same change:
+the commands and the output on the page are copied from the code. Walk through
+the steps again before moving a page's `lastUpdated`.
 
 ## Conventions
 

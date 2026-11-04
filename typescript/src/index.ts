@@ -17,4 +17,4 @@ export type { ClientOptions, Decision, DecisionPage, Retries, SignRequest, Signe
 export { fromWire, isDecimal, rfc3339, sign, signingBytes, toWire, validate } from "./proposal.ts";
 export type { Kind, OrderType, Proposal, Scheme, Side, VenueMessage, WireProposal } from "./proposal.ts";
 export { Signer, downloadBinary, findBinary, platformName, RELEASES } from "./signer.ts";
-export type { OrderIntent, SignerOptions } from "./signer.ts";
+export type { ConnectOptions, OrderIntent, SignerOptions } from "./signer.ts";

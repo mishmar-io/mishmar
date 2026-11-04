@@ -179,7 +179,10 @@ func (c *Config) Key() (*agentkey.Key, error) {
 }
 
 // AddVenueKey stores the agent's share of a venue key under its id. An id
-// already in the config is refused: remove it first.
+// already in the config is refused: remove it first. A key on a trading account
+// the config holds one on already is a replacement: both stay, the signer signs
+// with the one the engine reports active, and PruneVenueKeys drops the old one
+// once the engine has revoked it.
 func (c *Config) AddVenueKey(id string, k VenueKey) error {
 	if id == "" {
 		return errors.New("signer: config: a venue key needs an id")
@@ -195,6 +198,21 @@ func (c *Config) AddVenueKey(id string, k VenueKey) error {
 	}
 	c.VenueKeys[id] = k
 	return nil
+}
+
+// PruneVenueKeys drops the shares of the keys the engine reports revoked or
+// expired, which will never sign again, and returns their ids, sorted. A key
+// the engine does not list stays.
+func (c *Config) PruneVenueKeys(engine []api.VenueKey) []string {
+	var dropped []string
+	for _, k := range engine {
+		if _, held := c.VenueKeys[k.Id]; held && (k.Status == api.VenueKeyStatusRevoked || k.Status == api.VenueKeyStatusExpired) {
+			delete(c.VenueKeys, k.Id)
+			dropped = append(dropped, k.Id)
+		}
+	}
+	sort.Strings(dropped)
+	return dropped
 }
 
 // validate checks the entry's shape and that the share is the agent's half

@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -40,6 +41,8 @@ type oneShotEngine struct {
 	conflict bool // answer the next one-shot proposal 409, as after a restart
 	refused  int  // one-shot proposals answered 409
 	instance string
+	keys     []api.VenueKey // what GET /agent/venue-keys answers
+	keyReads int
 }
 
 // restart is the engine starting again: a new instance that knows none of
@@ -80,6 +83,16 @@ func (e *oneShotEngine) handler() http.Handler {
 		w.Header().Set(HeaderEngineInstance, e.instance)
 		e.mu.Unlock()
 		writeJSON(w, http.StatusOK, []api.SignRequest{})
+	})
+	mux.HandleFunc("GET /v1/agent/venue-keys", func(w http.ResponseWriter, r *http.Request) {
+		if !e.authed(r) {
+			writeJSON(w, http.StatusUnauthorized, api.Error{Code: "unauthorized", Message: "Invalid signature"})
+			return
+		}
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		e.keyReads++
+		writeJSON(w, http.StatusOK, e.keys)
 	})
 	mux.HandleFunc("GET /v1/agent/trading-accounts/{id}/venue-rules", func(w http.ResponseWriter, r *http.Request) {
 		if !e.authed(r) {
@@ -379,5 +392,56 @@ func TestOneShotEngineRestart(t *testing.T) {
 	}
 	if _, plain, refused := eng.counts(); plain != 0 || refused != 0 || len(eng.sigs) != 2 {
 		t.Fatalf("after the restart: %d through the channel, %d refused, %d one-shot; want 0, 0, 2", plain, refused, len(eng.sigs))
+	}
+}
+
+// TestOneShotDuringAReplacement: with a replacement pending the config holds
+// two keys on the trading account, and the one the engine reports active
+// signs. The engine is asked only when there is a choice, and its word is
+// kept for keysTTL.
+func TestOneShotDuringAReplacement(t *testing.T) {
+	next, _, err := frost.Deal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(next)
+	s, eng := newOneShot(t, func(c *Config) {
+		c.VenueKeys["vk_2"] = VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}
+	})
+	eng.keys = []api.VenueKey{{Id: "vk_1", TradingAccountId: "rt_1", Status: api.VenueKeyStatusActive}, {Id: "vk_2", TradingAccountId: "rt_1", Status: api.VenueKeyStatusPending}}
+	if _, err := s.Propose(context.Background(), limitProposal()); err != nil {
+		t.Fatal(err)
+	}
+	if len(eng.sigs) != 1 || eng.plain != 0 || !ed25519.Verify(eng.share.PublicKey(), eng.sigs[0].message, eng.sigs[0].signature) {
+		t.Fatalf("the active key vk_1 did not sign one-shot: one-shot %d, plain %d", len(eng.sigs), eng.plain)
+	}
+
+	// The replacement takes over: the old answer holds for keysTTL, then the
+	// engine is asked again.
+	eng.mu.Lock()
+	eng.keys = []api.VenueKey{{Id: "vk_1", TradingAccountId: "rt_1", Status: api.VenueKeyStatusRevoked}, {Id: "vk_2", TradingAccountId: "rt_1", Status: api.VenueKeyStatusActive}}
+	eng.mu.Unlock()
+	if id, _, err := s.venueKeyOn(context.Background(), "rt_1"); err != nil || id != "vk_1" || eng.keyReads != 1 {
+		t.Fatalf("within keysTTL: %s %v, %d reads", id, err, eng.keyReads)
+	}
+	s.Now = func() time.Time { return now.Add(keysTTL) }
+	if id, _, err := s.venueKeyOn(context.Background(), "rt_1"); err != nil || id != "vk_2" || eng.keyReads != 2 {
+		t.Fatalf("after keysTTL: %s %v, %d reads", id, err, eng.keyReads)
+	}
+
+	// Neither active (the engine down to two pending keys): no one-shot.
+	eng.mu.Lock()
+	eng.keys = []api.VenueKey{{Id: "vk_2", TradingAccountId: "rt_1", Status: api.VenueKeyStatusExpired}}
+	eng.mu.Unlock()
+	s.Now = func() time.Time { return now.Add(2 * keysTTL) }
+	var no *NoOneShot
+	if _, _, err := s.venueKeyOn(context.Background(), "rt_1"); !errors.As(err, &no) {
+		t.Fatalf("no active key: %v", err)
+	}
+
+	// One key on a trading account is used without asking.
+	s, eng = newOneShot(t, nil)
+	if _, err := s.Propose(context.Background(), limitProposal()); err != nil || eng.keyReads != 0 {
+		t.Fatalf("one key: %v, %d reads", err, eng.keyReads)
 	}
 }

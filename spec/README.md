@@ -110,15 +110,89 @@ the YAML before the engine implements it.
   so resting orders that fill after a restart, and the fills snapshot at
   reconnect, attribute correctly.
 
+## Decided on 2026-11-04 (0.17.0)
+
+Plan limits, sized to what a shared egress address can carry (plan doc,
+Pricing, "Limits").
+
+- `Entitlements` gains `maxAgents`, `maxTradingAccounts` and `venueBudgets`.
+  All three are optional, and absent means no limit. That is what a
+  self-hosted engine gets, and an engine nothing has written to. The hosted
+  control plane writes all three from its tier config. Free is one agent and
+  one trading account.
+- Past a limit, createAgent and createTradingAccount answer 403
+  `limit_reached`, a new code. Nothing already there is taken away.
+- A venue budget is a share of the venue's per-address request weight
+  (Hyperliquid 1200 a minute, Binance 2400). The engine counts it on every
+  request it makes for the account. When it is spent, polling waits and a
+  new order gets 429 `rate_limited`, which every SDK already retries after
+  `Retry-After`. Exits and cancels always go.
+- `TradingAccountRestriction.cause` gains `venue_unreachable`: there is no
+  live stream of the trading account's fills and orders. Either the venue
+  refused the subscription (Hyperliquid allows 10 users per address), or the
+  stream has been down past its grace. New risk is blocked and exits pass, as
+  under every restriction. It lifts once the stream is back and caught up.
+
+## Decided on 2026-11-04 (0.16.0)
+
+Trading keys expire, for every venue alike, and are replaced ahead of time.
+
+- A trading key lives 100 days from when it became active
+  (`VenueKey.expiresAt`), then is `expired` for good: the engine stops signing
+  with it and forgets its share, as on revocation. Mishmar sets the date
+  rather than learning it from a refused order, so the console can warn a week
+  ahead and the hosted service can email at 7, 2 and 1 days. The same lifetime
+  holds where the venue sets none (Binance keys restricted to Mishmar's
+  addresses never expire there), so a key never outlives what its holders can
+  vouch for.
+- A Hyperliquid approval carries the date (`valid_until` in the agent name),
+  so the venue drops the API wallet when Mishmar does; an earlier date the
+  venue reports caps `expiresAt`. An API wallet is approved once:
+  createWalletApproval refuses a key that is not pending or is approved
+  already, since Hyperliquid advises against approving an address again once
+  its nonces may have been pruned (replay).
+- Renewal is a new key, never the old one approved again. `VenueKeyCreate.replaces`
+  lets the new key sit beside the active one while it is generated and
+  registered or approved; the old one keeps signing and is revoked the moment
+  the new one becomes active, so the agent trades through the change. After a
+  key expired, a new key needs no `replaces`.
+- `GET /agent/venue-keys` (agentListVenueKeys): the agent's signer holds two
+  shares on one trading account while a replacement is pending and signs
+  with the one the engine reports active; `mishmar signer keygen` drops the
+  shares of keys the engine reports revoked or expired.
+
+
+From the first end-to-end agent test on the hosted testnet.
+
+- A portfolio's budget is now its allocated capital (`Portfolio.capitalUsd`,
+  `PortfolioUpdate.removeCapital`). It was only ever the base for leverage
+  (gross ÷ capital) and drawdown at portfolio and agent scope, never a cap on
+  exposure, but "budget" and the console's usage bar promised a cap. A cap is
+  a gross_exposure rule.
+- An enabled leverage or drawdown rule at portfolio or agent scope needs that
+  portfolio's capital. Without it the rule refused every order, silently: the
+  test's first run blocked everything on a leverage cap over Main, which
+  starts without capital. createRule and updateRule now refuse it (422),
+  removeCapital is refused while such a rule exists (409), and so is moving an
+  agent with such a rule into a portfolio without capital. Evaluation still
+  fails closed, for anything that slips past.
+- The `cancelled` ledger kind was listed but never written; a cancel's answer
+  was a `forwarded` event, and an order the venue or the owner pulled left no
+  trace. `cancelled` now records the end of any resting order Mishmar placed
+  that left the book without filling completely, against the decision that
+  placed it, with who ended it (`OrderCancellation.by`: agent, venue, outside,
+  unknown). `Decision.cancellation` carries the same, so a cancelled order no
+  longer reads as resting forever.
+
 ## Decided on 2026-11-03 (0.14.0)
 
 Every account has a default portfolio, so an agent always has somewhere to go.
 
 - An agent is still always in a portfolio: rules, the kill switch and PnL work
-  at the portfolio's scope, and a portfolio is where agents share a budget. On
+  at the portfolio's scope, and a portfolio is where agents share capital. On
   a new account that was a dead end, since the agent form had no portfolio to
   offer until one was made elsewhere.
-- A new account starts with a portfolio named Main, without a budget, as its
+- A new account starts with a portfolio named Main, without capital, as its
   default (`Account.defaultPortfolioId`, `Portfolio.isDefault`). An engine
   that already holds an account gives it a default at start: its oldest
   portfolio, or a new Main if it has none.
@@ -129,7 +203,7 @@ Every account has a default portfolio, so an agent always has somewhere to go.
   fund can restructure without keeping it.
 - A portfolio's budget is optional (`budgetUsd` absent means none), on create
   and on the portfolio itself; `PortfolioUpdate.removeBudget` takes one away,
-  since the generators read a null as absent.
+  since the generators read a null as absent. (Renamed to capital in 0.15.0.)
 
 ## Decided on 2026-10-30 (0.13.0)
 
