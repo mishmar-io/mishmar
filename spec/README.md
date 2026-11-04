@@ -110,6 +110,14 @@ the YAML before the engine implements it.
   so resting orders that fill after a restart, and the fills snapshot at
   reconnect, attribute correctly.
 
+## Decided on 2026-11-04 (0.17.1)
+
+- `signer_unreachable` (409) joins the Error codes. verifyVenueKey already
+  named it for a signer that is not connected, but the engine answered
+  `conflict`, and the list of codes did not have it. Now the engine sends it,
+  so a client can tell "start the signer" from any other conflict. A signer
+  that answers and refuses is still `conflict`.
+
 ## Decided on 2026-11-04 (0.17.0)
 
 Plan limits, sized to what a shared egress address can carry (plan doc,

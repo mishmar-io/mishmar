@@ -12,8 +12,8 @@ These pages walk through each setup task step by step, with the screens and comm
 An agent trades on a **trading account**: your account at a venue, added to Mishmar once. Then each agent gets its own **trading key** on that account, split between its signer and Mishmar.
 
 1. [Install the mishmar CLI](/start/install-the-cli/) on the machine your agent runs on.
-2. Add a trading account.
-3. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/).
+2. Add a trading account: [on Hyperliquid](/hyperliquid/add-a-trading-account/) or [on Binance](/binance/add-a-trading-account/).
+3. Add an agent: [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/).
 
 ## How it works
 

@@ -7,8 +7,10 @@ report it privately.
 
 ## Reporting a vulnerability
 
-Use GitHub's private reporting: the **Security** tab, then **Report a
-vulnerability**. If you can't use GitHub, email ishai@mishmar.io.
+Use GitHub's private reporting: the **Security** tab of
+[mishmar-io/mishmar](https://github.com/mishmar-io/mishmar/security), then
+**Report a vulnerability**. Only you and the maintainers see the report.
+For anything that is not a vulnerability, write to support@mishmar.io.
 
 Please include what you found, the commit or release it affects, and the
 steps or code that show it. You will hear back within a few days. We will

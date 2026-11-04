@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 
 const [consoleDir, outDir] = process.argv.slice(2)
-const { chromium } = await import(path.join(consoleDir, 'node_modules/playwright/index.mjs'))
+const { chromium } = await import(path.resolve(consoleDir, 'node_modules/playwright/index.mjs'))
 const PORT = 5181
 const base = `http://localhost:${PORT}`
 const ENGINE = 'https://api.mishmar.io/a/acc_2b7kq4xw9mzd/v1'

@@ -23,3 +23,10 @@ condition = "AND"
 paths = ['''^spec/vectors/[^/]+\.json$''']
 regexTarget = "line"
 regexes = ['''^\s*"secret": "''']
+
+[[allowlists]]
+description = "The made-up Binance read key the docs' screenshot scripts type into the console's mock engine"
+condition = "AND"
+paths = ['''^docs/scripts/shots-[a-z-]+\.mjs$''']
+regexTarget = "line"
+regexes = ['''const READ_KEY = ''']

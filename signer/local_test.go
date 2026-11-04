@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -144,5 +145,9 @@ func TestServeLocalRefusesUnsafeAddresses(t *testing.T) {
 	}
 	if err := s.ServeLocal(ctx, "127.0.0.1:0", ""); err == nil || !strings.Contains(err.Error(), "token") {
 		t.Fatalf("no token: %v", err)
+	}
+	long := "unix:" + filepath.Join(t.TempDir(), strings.Repeat("d", 120), "signer.sock")
+	if err := s.ServeLocal(ctx, long, ""); err == nil || !strings.Contains(err.Error(), "choose a shorter one") {
+		t.Fatalf("a socket path too long: %v", err)
 	}
 }

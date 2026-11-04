@@ -314,7 +314,7 @@ for every trading account of a new agent.`,
 				fmt.Fprintf(out, "generated the agent's key for %s (%s %s, trading account %s) in %s\n  approve the API wallet %s from the master wallet in the console, then verify the key.\n", o.venueKey, o.venue, o.network, o.tradingAccount, path, key.Address)
 				return nil
 			}
-			fmt.Fprintf(out, "generated the agent's key for %s (%s, trading account %s) in %s\n  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the engine):\n%s  then enter the key id the venue issued in the console (venue key → register) and verify the key with the signer running.\n", o.venueKey, o.venue, o.tradingAccount, path, o.venue, indent(frost.PublicKeyPEM(key.PublicKey)))
+			fmt.Fprintf(out, "generated the agent's key for %s (%s, trading account %s) in %s\n  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the trading account, if it shows one):\n%s  then enter the key id the venue issued in the console (the agent's Keys tab, Register key id) and verify the key with the signer running.\n", o.venueKey, o.venue, o.tradingAccount, path, o.venue, indent(frost.PublicKeyPEM(key.PublicKey)))
 			return nil
 		},
 	}

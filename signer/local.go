@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mishmar-io/mishmar/api"
@@ -255,6 +256,10 @@ func (s *Signer) ServeLocal(ctx context.Context, addr, token string) error {
 	switch {
 	case strings.HasPrefix(addr, "unix:"):
 		path := strings.TrimPrefix(addr, "unix:")
+		// The kernel says only "invalid argument" for a path that does not fit.
+		if limit := len(syscall.RawSockaddrUnix{}.Path) - 1; len(path) > limit {
+			return fmt.Errorf("signer: local API: the socket path %s is %d bytes, and a Unix socket's path takes at most %d on this system: choose a shorter one (unix:/tmp/mishmar.sock)", path, len(path), limit)
+		}
 		_ = os.Remove(path)
 		var err error
 		if ln, err = net.Listen("unix", path); err != nil {

@@ -185,9 +185,9 @@ func nextStep(tradingAccount api.TradingAccount, vk api.VenueKey, public string)
 	case api.TradingAccountKindHyperliquid:
 		return fmt.Sprintf("  approve the API wallet %s from the master wallet in the console (venue key → approval), then verify the key.\n", public)
 	default:
-		s := fmt.Sprintf("  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the engine):\n", tradingAccount.Venue)
+		s := fmt.Sprintf("  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the trading account, if it shows one):\n", tradingAccount.Venue)
 		s += indent(public)
-		s += "  then enter the key id the venue issued in the console (venue key → register) and verify the key with the signer running.\n"
+		s += "  then enter the key id the venue issued in the console (the agent's Keys tab, Register key id) and verify the key with the signer running.\n"
 		return s
 	}
 }

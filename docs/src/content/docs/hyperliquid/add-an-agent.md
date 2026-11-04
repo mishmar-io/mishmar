@@ -17,10 +17,11 @@ It takes about five minutes.
 
 ## What you need
 
-- **A Hyperliquid trading account in Mishmar**, with the status Active. Trading accounts in the console lists them.
+- **A Hyperliquid trading account in Mishmar**, with the status Active. Trading accounts in the console lists them; [Add a Hyperliquid trading account](/hyperliquid/add-a-trading-account/) has the steps.
 - **The browser wallet that holds that account's master address** (Rabby, MetaMask or similar), installed in the browser you use for the console.
 - **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/).
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
+- **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent, issuing its key, adding a trading key or approving the API wallet. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
 
 :::note[Three agents per Hyperliquid account]
 Hyperliquid lets a master account approve up to three named API wallets, and each Mishmar agent on that account uses one. Named API wallets you use for other bots count toward the three.
@@ -34,7 +35,7 @@ In the console, open **Agents** and click **Add agent**.
 - **Portfolio**: the portfolio's rules apply to the agent, alongside its own. The account's default portfolio is preselected.
 - **Description** (optional): what it trades and how.
 
-Click **Add agent**. The agent's page opens with the **Set up** dialog, which walks through the next four steps.
+Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes, so a later step may ask again. The agent's page opens with the **Set up** dialog, which walks through the next four steps.
 
 ![The Add agent dialog with a name, the default portfolio and a description filled in](/screens/hyperliquid/add-an-agent/add-agent.png)
 
@@ -56,9 +57,11 @@ On the agent's machine, run the command from the dialog. It looks like this, wit
 mishmar signer init --engine https://api.mishmar.io/a/acc_…/v1 --key-id key_… --agent agt_… --secret-stdin
 ```
 
-It waits for the secret. Paste it and press Enter. The secret is read from standard input, never from the command line, so it stays out of your shell history.
+It waits for the secret. Paste it and press Enter. The secret is read from standard input, never from the command line, so it stays out of your shell history. Before writing anything, the command checks the key with Mishmar once, so a secret pasted wrong stops here.
 
 ```text
+checking key key_… with https://api.mishmar.io/a/acc_…/v1…
+the engine accepts key key_…
 wrote /home/you/.mishmar/agent.json (mode 0600) for agent agt_…, key key_…, engine https://api.mishmar.io/a/acc_…/v1
 next, one venue key per trading account, made with the engine's signer:
   …
@@ -121,7 +124,7 @@ The agent name is `mishmar-` followed by the last eight characters of the agent'
 
 ![The approval steps all done: Approved, the key is active, with both checks passed](/screens/hyperliquid/add-an-agent/approved.png)
 
-When the panel says **Approved. The key is active.**, the agent can trade on this account. If it says **Verify the key to activate it**, open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify**.
+When the panel says **Approved. The key is active.**, the agent can trade on this account. Mishmar checks the key as soon as the approval is in, and Hyperliquid can take a moment to show it. If the panel says **not every check passes yet**, wait a moment, open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify**.
 
 You can also approve later. Until you do, the agent's page and its row in Agents show **API wallet not approved**, with an **Approve with wallet** button.
 
@@ -185,7 +188,9 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 ## When something goes wrong
 
 - **`… exists already; add venue keys to it with "mishmar signer keygen", or pass --config for another file`**: the machine already has an agent's config. Give this agent its own file with `--config`, as in step 3.
+- **`the engine does not accept key key_… (…)`**: the secret pasted is not that key's, or the key was revoked. Nothing was written. Copy the secret again and rerun the command; if it is lost, see the next item.
 - **The secret is lost before `signer init` ran.** On the **Keys** tab, revoke the key under **API keys**, then **Issue key** again.
+- **`This needs a passkey or a wallet. Add one under your profile, then try again.`**: your Mishmar login has neither. Open **Profile**, add a passkey or link a wallet, then try the step again.
 - **`--network is required for a Hyperliquid key: mainnet | testnet`**: copy the whole command from the dialog. It carries every flag.
 - **Key generation stopped partway** (the network dropped, the machine slept). The key still shows **Key generation pending**. Run the same `mishmar signer keygen` command again.
 - **The approval fails at "Check it is the master account".** The wallet is on a different address. Switch to the master address in the wallet and click **Try again**.

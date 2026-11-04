@@ -1499,8 +1499,11 @@ type Entitlements struct {
 type Error struct {
 	// Code Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
-	// `venue_rejected`, `limit_reached`, `internal`, `not_implemented` (501: in the
-	// contract, not yet in this engine).
+	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `internal`,
+	// `not_implemented` (501: in the contract, not yet in this engine).
+	// `signer_unreachable` (409) means the request needs the agent's signer and none
+	// answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
+	// signer and send the same request again.
 	// `limit_reached` (403) means the account's plan holds no more of what
 	// the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
 	// Sending it again changes nothing: delete one, or move to a larger plan.
