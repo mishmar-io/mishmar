@@ -30,6 +30,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Start here', items: [{ autogenerate: { directory: 'start' } }] },
         { label: 'Hyperliquid', items: [{ autogenerate: { directory: 'hyperliquid' } }] },
+        { label: 'How it works', items: [{ autogenerate: { directory: 'concepts' } }] },
       ],
     }),
   ],

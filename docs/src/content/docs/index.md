@@ -14,3 +14,8 @@ An agent trades on a **trading account**: your account at a venue, added to Mish
 1. [Install the mishmar CLI](/start/install-the-cli/) on the machine your agent runs on.
 2. Add a trading account.
 3. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/).
+
+## How it works
+
+- [How a trading key is split](/concepts/how-a-trading-key-is-split/): why neither your agent nor Mishmar can trade alone, and what each side checks before it signs.
+- [Portfolios](/start/portfolios/): groups of agents that share limits and allocated capital.
