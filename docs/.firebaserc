@@ -1,0 +1,8 @@
+{
+  "projects": { "default": "mishmar-511602" },
+  "targets": {
+    "mishmar-511602": {
+      "hosting": { "docs": ["mishmar-docs"] }
+    }
+  }
+}
