@@ -111,12 +111,19 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true' && !matrix.cross
         run: bash cb-mpc-go/scripts/build_cpp.sh Release
 
-      # cb-mpc's CMake picks its arm64 flags from CMAKE_OSX_ARCHITECTURES.
+      # cb-mpc's CMake picks its arm64 flags from CMAKE_OSX_ARCHITECTURES. Its unit tests are
+      # left out: the build runs the test binary to list the tests, which an Intel Mac cannot.
+      # Otherwise this is build_cpp.sh: the library, then its public install for cgo.
       - name: Build cb-mpc (cross)
         if: steps.cache.outputs.cache-hit != 'true' && matrix.cross
+        working-directory: cb-mpc-go/cb-mpc
         env:
           CMAKE_OSX_ARCHITECTURES: arm64
-        run: bash cb-mpc-go/scripts/build_cpp.sh Release
+          BUILD_TYPE: Release
+        run: |
+          make build-no-test
+          bash scripts/install.sh --mode public --build-type Release
+          lipo -archs build/install/public/lib/libcbmpc.a
 
       - name: Test
         if: ${{ !matrix.cross }}
