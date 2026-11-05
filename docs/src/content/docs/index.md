@@ -19,3 +19,7 @@ An agent trades on a **trading account**: your account at a venue, added to Mish
 
 - [How a trading key is split](/concepts/how-a-trading-key-is-split/): why neither your agent nor Mishmar can trade alone, and what each side checks before it signs.
 - [Portfolios](/start/portfolios/): groups of agents that share limits and allocated capital.
+
+## Stuck?
+
+[Get help](/start/get-help/): ask in the Mishmar Discord, or write to support@mishmar.io for anything about your account.

@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import { analyticsHead } from './src/analytics'
 
 // The docs site, docs.mishmar.io: Starlight over the Markdown in src/content/docs.
 // Every page is also served as Markdown (src/pages), for agents.
@@ -16,9 +17,11 @@ export default defineConfig({
         light: './src/assets/brand/mark-light.svg',
       },
       favicon: '/favicon.svg',
+      head: analyticsHead(),
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/mishmar-io/mishmar' },
         { icon: 'x.com', label: 'X', href: 'https://x.com/mishmar_io' },
+        { icon: 'discord', label: 'Discord', href: 'https://mishmar.io/discord' },
       ],
       editLink: { baseUrl: 'https://github.com/mishmar-io/mishmar/edit/main/docs/' },
       customCss: [

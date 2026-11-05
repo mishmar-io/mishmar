@@ -53,6 +53,21 @@ A task page goes in this order: what you end up with, **What you need**, numbere
   images by their path under `public/` (`/screens/…png`). The `.md` copies turn both into
   absolute URLs, page links pointing at the other page's `.md`.
 
+## Visit counts
+
+`src/analytics.ts` loads Umami Cloud's script on every page: cookieless and no personal data,
+so no consent banner. It counts only on docs.mishmar.io, never under `npm run dev`, `preview` or
+the web.app address, and an empty `UMAMI_WEBSITE_ID` turns it off. The free plan has one
+website, so the docs count into mishmar.io's: filter by hostname `docs.mishmar.io` to see the
+docs alone. Umami records page views with their referrer and query string, and one event:
+
+| Event  | When                                  | `step`                                                                   |
+| ------ | ------------------------------------- | ------------------------------------------------------------------------ |
+| `copy` | a click on a code block's copy button | the id of the `##` above it, e.g. `5-make-the-key-on-the-agents-machine` |
+
+The privacy policy (`mishmar-site/src/privacy.tsx`) lists these; change it with this table.
+`.md` copies and `llms.txt` run no script, so agents reading them are not counted.
+
 ## Deploy
 
 Firebase Hosting, site `mishmar-docs` (target `docs`) in the mishmar-511602 project, at
