@@ -110,6 +110,25 @@ the YAML before the engine implements it.
   so resting orders that fill after a restart, and the fills snapshot at
   reconnect, attribute correctly.
 
+## Decided on 2026-11-05 (0.17.2)
+
+How the rules value an order, found while preparing the testnet contest: a
+limit sell priced far under the market was valued at its own price, passed
+the order_size and exposure caps, and filled at the market.
+
+- `order_size`, and the projected book every exposure metric reads, value an
+  order at the higher of its price and the market (the mark; for a market buy
+  the mark moved by the venue's slippage; for a one-shot message the price in
+  it). `Proposal.notionalUsd` stays size × price, as the record of what was
+  sent; `RuleEvaluation.observed` is what was judged. A limit order that is
+  not reduce-only now needs a mark as fresh as a market order does and is
+  otherwise blocked with the same reasons (`No mark price for …`, `Mark price
+  for … is stale`). Resting orders and orders in flight that open a position
+  are valued the same way. Engine docs/rules.md, "Pricing the proposal".
+- `net_exposure` is the size of the net position whichever way it points: the
+  absolute value of the signed sum. A cap is "at most", and before this a
+  short could never breach one. Description text only; the enum is unchanged.
+
 ## Decided on 2026-11-04 (0.17.1)
 
 - `signer_unreachable` (409) joins the Error codes. verifyVenueKey already

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.17.1
+  version: 0.17.2
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -2325,6 +2325,11 @@ components:
       description: |
         gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
         leverage is a ratio. concentration and drawdown are percentages.
+        net_exposure is the size of the net position whichever way it points (the absolute
+        value of the signed sum), so a short past the cap breaches it like a long.
+        order_size, and the projected book every exposure metric reads, value an order at the
+        higher of its price and the market: a sell priced under the market fills at the market.
+        Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
         leverage is gross exposure ÷ equity at account and trading account scope, and
         gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
         portfolio and agent scope, where drawdown is measured against that capital too;
