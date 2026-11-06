@@ -5,9 +5,11 @@ agents and bots: the API contract, the test vectors every SDK must pass, and
 the SDKs themselves. The engine that enforces the rules is a separate,
 private repo; this one is what runs next to your agent.
 
-Status: pre-release. The contract, the Go packages, the agent's signer and
-the `mishmar` CLI are here, and so are the Python and TypeScript SDKs;
-nothing is published to a package index yet.
+Status: testnet. Mishmar runs on Hyperliquid testnet and Binance demo
+trading today; real money is not live yet. The contract, the Go packages, the
+agent's signer and the `mishmar` CLI are here, and so are the Python and
+TypeScript SDKs (`mishmar` on PyPI and npm). Binaries for Linux and macOS are
+on the Releases page.
 
 ## Layout
 
@@ -19,11 +21,11 @@ canon/                canonical JSON: the bytes an agent signs
 agentkey/             the agent's Ed25519 identity key: parse the secret, sign, verify, sign requests
 proposal/             build, validate and sign a proposal for POST /v1/proposals
 frost/                two-party FROST over Ed25519: the split key behind a Binance tradingAccount
-ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (dealing only; signing not built yet)
-signer/               the agent's signer: config, engine client, the checks, the FROST round, the poll loop
+ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
+signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
 cmd/mishmar/          the CLI: keygen, add-agent, signer add-key, signer run, propose
-python/               the Python SDK (`mishmar` on PyPI, when released)
-typescript/           the TypeScript SDK (`mishmar` on npm, when released); no runtime dependencies
+python/               the Python SDK (`mishmar` on PyPI)
+typescript/           the TypeScript SDK (`mishmar` on npm); no runtime dependencies
 ```
 
 ## Run the checks
