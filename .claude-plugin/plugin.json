@@ -1,0 +1,10 @@
+{
+  "name": "mishmar",
+  "description": "Trade through Mishmar, the risk management layer for trading bots and AI agents: a skill for writing bots against the SDK, and the MCP server that gives a model tools to propose orders within your limits.",
+  "version": "0.3.0",
+  "author": { "name": "Mishmar", "email": "support@mishmar.io" },
+  "homepage": "https://docs.mishmar.io/assistants/set-up-your-coding-assistant/",
+  "repository": "https://github.com/mishmar-io/mishmar",
+  "license": "Apache-2.0",
+  "keywords": ["trading", "trading-bot", "ai-agents", "risk-management", "hyperliquid", "binance", "mcp"]
+}

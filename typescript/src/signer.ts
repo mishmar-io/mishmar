@@ -33,7 +33,7 @@ import { execFile, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
-import { access, chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, open, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import * as http from "node:http";
 import * as net from "node:net";
 import { arch, homedir, platform, tmpdir } from "node:os";
@@ -42,6 +42,8 @@ import { EngineError, resolved } from "./client.ts";
 import type { Decision, DecisionPage } from "./client.ts";
 
 export const RELEASES = "https://github.com/mishmar-io/mishmar/releases/download";
+/** The release the SDK fetches when it has to (the npm bin: `npx -y mishmar …`); bumped with each release. */
+export const RELEASE = "v0.2.2";
 const ENV_BINARY = "MISHMAR_BIN";
 const ENV_LOCAL_TOKEN = "MISHMAR_LOCAL_TOKEN";
 
@@ -67,21 +69,49 @@ async function executable(p: string | undefined): Promise<boolean> {
   }
 }
 
+/** Whether the file starts with `#!`: a script, never the mishmar binary itself. */
+async function isScript(p: string): Promise<boolean> {
+  const f = await open(p, "r");
+  try {
+    const { bytesRead, buffer } = await f.read(Buffer.alloc(2), 0, 2, 0);
+    return bytesRead === 2 && buffer[0] === 0x23 && buffer[1] === 0x21;
+  } finally {
+    await f.close();
+  }
+}
+
+/** What `findBinary` passes over on the PATH; the argument and `MISHMAR_BIN` are always taken as given. */
+export interface FindBinaryOptions {
+  /** Skip a `mishmar` that is a script (starts with `#!`): the binary is native, and a script by that name is a wrapper such as the npm or PyPI one. */
+  skipScripts?: boolean;
+  /** Real paths never to return: a wrapper's own, so it does not run itself. */
+  exclude?: string[];
+}
+
 /**
  * Where the mishmar binary is: the argument, `MISHMAR_BIN`, the PATH, or a
  * release `downloadBinary` fetched. Throws with what to do when there is none.
  */
-export async function findBinary(explicit?: string): Promise<string> {
-  const candidates: (string | undefined)[] = [explicit, process.env[ENV_BINARY]];
+export async function findBinary(explicit?: string, options: FindBinaryOptions = {}): Promise<string> {
+  for (const c of [explicit, process.env[ENV_BINARY]]) if (await executable(c)) return c as string;
   const name = exe("mishmar");
-  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) if (dir) candidates.push(path.join(dir, name));
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (!dir) continue;
+    const c = path.join(dir, name);
+    if (!(await executable(c))) continue;
+    if (options.skipScripts && (await isScript(c))) continue;
+    if (options.exclude?.length && options.exclude.includes(await realpath(c).catch(() => c))) continue;
+    return c;
+  }
   const home = path.join(homedir(), ".mishmar", "bin");
   try {
-    for (const version of (await readdir(home)).sort().reverse()) candidates.push(path.join(home, version, name));
+    for (const version of (await readdir(home)).sort().reverse()) {
+      const c = path.join(home, version, name);
+      if (await executable(c)) return c;
+    }
   } catch {
     // no downloads yet
   }
-  for (const c of candidates) if (await executable(c)) return c as string;
   throw new Error(
     "no mishmar binary: install it from https://github.com/mishmar-io/mishmar/releases (or call downloadBinary(version)), put it on the PATH or in MISHMAR_BIN",
   );

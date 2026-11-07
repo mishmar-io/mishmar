@@ -1,0 +1,19 @@
+{
+  "name": "mishmar-minimal-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node agent.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "mishmar": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

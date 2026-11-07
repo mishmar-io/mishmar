@@ -1,9 +1,12 @@
 # mishmar
 
-The client side of [Mishmar](https://mishmar.io), guardrails for trading
-agents and bots: the API contract, the test vectors every SDK must pass, and
-the SDKs themselves. The engine that enforces the rules is a separate,
-private repo; this one is what runs next to your agent.
+[Mishmar](https://mishmar.io) is a risk management layer for trading bots
+and AI agents: every order is checked against your limits before it reaches
+the exchange, large orders wait for your approval, and no key can trade
+alone. This is the client side: the API contract, the test vectors every SDK
+must pass, the agent's signer, the `mishmar` CLI and MCP server, and the
+SDKs themselves. The engine that enforces the rules is a separate, private
+repo; this one is what runs next to your agent.
 
 Status: testnet. Mishmar runs on Hyperliquid testnet and Binance demo
 trading today; real money is not live yet. The contract, the Go packages, the
@@ -23,9 +26,11 @@ proposal/             build, validate and sign a proposal for POST /v1/proposals
 frost/                two-party FROST over Ed25519: the split key behind a Binance tradingAccount
 ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
 signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
-cmd/mishmar/          the CLI: keygen, add-agent, signer add-key, signer run, propose
+cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, mcp
+mcp/                  the MCP server behind `mishmar mcp`: the signer's tools for a language model, over stdio
 python/               the Python SDK (`mishmar` on PyPI)
 typescript/           the TypeScript SDK (`mishmar` on npm); no runtime dependencies
+examples/             bots to copy from: two minimal ones (Python, TypeScript) and two rule walk-throughs (Hyperliquid testnet, Binance demo trading)
 ```
 
 ## Run the checks
@@ -271,6 +276,18 @@ the command, with `--config` when the config is not at the default path:
 ```json
 { "mcpServers": { "mishmar": { "command": "mishmar", "args": ["mcp"] } } }
 ```
+
+In Claude Code, `/plugin install mishmar --marketplace mishmar-io/mishmar`
+adds the server together with a skill for writing bots against the SDK
+(`skills/mishmar/SKILL.md`; `kit/` has the same guidance as an AGENTS.md
+snippet and a Cursor rule).
+
+The npm and PyPI packages put the same command on the path, so a client
+needs no install step: `npx -y mishmar mcp` (Node 20 or later) or `uvx
+mishmar mcp` runs the binary found through `MISHMAR_BIN`, the PATH or
+`~/.mishmar/bin`, and when there is none fetches the pinned release into
+`~/.mishmar/bin` first, checked against the release's checksums. The MCP
+registry lists the server as `io.github.mishmar-io/mishmar` (`server.json`).
 
 ## The engine's signer
 

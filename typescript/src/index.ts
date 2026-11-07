@@ -16,5 +16,5 @@ export { Client, DEFAULT_RETRIES, EngineError, resolved, retryWait } from "./cli
 export type { ClientOptions, Decision, DecisionPage, Retries, SignRequest, SignerAnswer } from "./client.ts";
 export { fromWire, isDecimal, rfc3339, sign, signingBytes, toWire, validate } from "./proposal.ts";
 export type { Kind, OrderType, Proposal, Scheme, Side, VenueMessage, WireProposal } from "./proposal.ts";
-export { Signer, downloadBinary, findBinary, platformName, RELEASES } from "./signer.ts";
-export type { ConnectOptions, OrderIntent, SignerOptions } from "./signer.ts";
+export { Signer, downloadBinary, findBinary, platformName, RELEASE, RELEASES } from "./signer.ts";
+export type { ConnectOptions, FindBinaryOptions, OrderIntent, SignerOptions } from "./signer.ts";

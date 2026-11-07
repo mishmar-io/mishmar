@@ -1,0 +1,11 @@
+{
+  "name": "mishmar",
+  "owner": { "name": "Mishmar", "email": "support@mishmar.io" },
+  "plugins": [
+    {
+      "name": "mishmar",
+      "source": "./",
+      "description": "Trade through Mishmar, the risk management layer for trading bots and AI agents: a skill for writing bots against the SDK, and the MCP server that gives a model tools to propose orders within your limits."
+    }
+  ]
+}

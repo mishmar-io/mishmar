@@ -50,6 +50,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections import deque
+from collections.abc import Iterable
 from typing import Any
 
 from .client import EngineError, resolved
@@ -57,22 +58,58 @@ from .client import EngineError, resolved
 log = logging.getLogger("mishmar.signer")
 
 RELEASES = "https://github.com/mishmar-io/mishmar/releases/download"
+# The release the SDK fetches when it has to (the console script: `uvx mishmar …`); bumped with each release.
+RELEASE = "v0.2.2"
 ENV_BINARY = "MISHMAR_BIN"
 ENV_LOCAL_TOKEN = "MISHMAR_LOCAL_TOKEN"
 
 
-def find_binary(explicit: str | None = None) -> str:
+def _executable(path: str | None) -> bool:
+    return bool(path) and os.path.isfile(path) and os.access(path, os.X_OK)
+
+
+def _is_script(path: str) -> bool:
+    """Whether the file starts with ``#!``: a script, never the mishmar binary itself."""
+    with open(path, "rb") as f:
+        return f.read(2) == b"#!"
+
+
+def find_binary(
+    explicit: str | None = None,
+    *,
+    skip_scripts: bool = False,
+    exclude: Iterable[str] = (),
+) -> str:
     """Where the ``mishmar`` binary is: the argument, ``MISHMAR_BIN``, the
     PATH, or a release ``download_binary`` fetched. Raises FileNotFoundError
-    with what to do when there is none."""
-    candidates = [explicit, os.environ.get(ENV_BINARY), shutil.which("mishmar")]
+    with what to do when there is none.
+
+    The argument and ``MISHMAR_BIN`` are taken as given. On the PATH,
+    ``skip_scripts`` passes over a ``mishmar`` that is a script (starts with
+    ``#!``: a wrapper such as the PyPI or npm one, never the binary), and
+    ``exclude`` lists real paths never to return, a wrapper's own."""
+    for c in (explicit, os.environ.get(ENV_BINARY)):
+        if _executable(c):
+            return c  # type: ignore[return-value]
+    name = _exe("mishmar")
+    excluded = set(exclude)
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        if not d:
+            continue
+        c = os.path.join(d, name)
+        if not _executable(c):
+            continue
+        if skip_scripts and _is_script(c):
+            continue
+        if excluded and os.path.realpath(c) in excluded:
+            continue
+        return c
     home = os.path.join(os.path.expanduser("~"), ".mishmar", "bin")
     if os.path.isdir(home):
         for version in sorted(os.listdir(home), reverse=True):
-            candidates.append(os.path.join(home, version, _exe("mishmar")))
-    for c in candidates:
-        if c and os.path.isfile(c) and os.access(c, os.X_OK):
-            return c
+            c = os.path.join(home, version, name)
+            if _executable(c):
+                return c
     raise FileNotFoundError(
         "no mishmar binary: install it from https://github.com/mishmar-io/mishmar/releases "
         "(or call mishmar.download_binary(version)), put it on the PATH or in MISHMAR_BIN"

@@ -163,6 +163,26 @@ func TestInitializeListsTheTools(t *testing.T) {
 		if _, ok := m["inputSchema"].(map[string]any)["type"]; !ok {
 			t.Fatalf("tool %s without a schema", m["name"])
 		}
+		// Clients decide what to confirm with the person from these hints:
+		// only the two tools that reach the exchange may claim to change anything.
+		name := m["name"].(string)
+		if title, _ := m["title"].(string); title == "" {
+			t.Fatalf("tool %s without a title", name)
+		}
+		ann, ok := m["annotations"].(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s without annotations", name)
+		}
+		changes := name == "propose_order" || name == "cancel_order"
+		if ann["readOnlyHint"] != !changes || ann["openWorldHint"] != changes {
+			t.Fatalf("tool %s hints: %v", name, ann)
+		}
+		if changes && ann["destructiveHint"] != true {
+			t.Fatalf("tool %s must be marked destructive: %v", name, ann)
+		}
+		if ann["idempotentHint"] != nil && ann["idempotentHint"] != (name == "cancel_order") {
+			t.Fatalf("tool %s idempotent hint: %v", name, ann)
+		}
 	}
 	for _, want := range []string{"propose_order", "cancel_order", "get_decision", "wait_for_decision", "list_decisions", "list_positions", "get_pnl", "list_approvals", "get_trading_account", "get_venue_rules"} {
 		if !names[want] {

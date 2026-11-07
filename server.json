@@ -1,0 +1,40 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mishmar-io/mishmar",
+  "description": "Risk management for trading bots and AI agents: limits, approvals and a stop on every order.",
+  "repository": {
+    "url": "https://github.com/mishmar-io/mishmar",
+    "source": "github"
+  },
+  "version": "0.3.0",
+  "websiteUrl": "https://docs.mishmar.io/assistants/use-mishmar-from-claude-cursor-or-any-mcp-client/",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "mishmar",
+      "version": "0.3.0",
+      "runtimeHint": "npx",
+      "runtimeArguments": [
+        { "type": "positional", "value": "-y" }
+      ],
+      "packageArguments": [
+        { "type": "positional", "value": "mcp", "description": "The MCP server: the agent's signer with tools to propose orders and cancels, follow a held decision, and read positions, PnL, approvals and venue rules." },
+        { "type": "named", "name": "--config", "format": "filepath", "isRequired": false, "description": "The agent's signer config; default ~/.mishmar/agent.json, or the file MISHMAR_AGENT_CONFIG names." }
+      ],
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "mishmar",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "packageArguments": [
+        { "type": "positional", "value": "mcp", "description": "The MCP server: the agent's signer with tools to propose orders and cancels, follow a held decision, and read positions, PnL, approvals and venue rules." },
+        { "type": "named", "name": "--config", "format": "filepath", "isRequired": false, "description": "The agent's signer config; default ~/.mishmar/agent.json, or the file MISHMAR_AGENT_CONFIG names." }
+      ],
+      "transport": { "type": "stdio" }
+    }
+  ]
+}

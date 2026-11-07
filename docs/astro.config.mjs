@@ -11,7 +11,7 @@ export default defineConfig({
     starlight({
       title: 'Mishmar docs',
       description:
-        'How to set up Mishmar: trading accounts, agents and their split keys on Hyperliquid and Binance, step by step.',
+        'Risk management for trading bots and AI agents: your limits on every order, your approval on the big ones, and no key that can trade alone. The setup guides, step by step.',
       logo: {
         dark: './src/assets/brand/mark-dark.svg',
         light: './src/assets/brand/mark-light.svg',
@@ -35,6 +35,8 @@ export default defineConfig({
         { label: 'Hyperliquid', items: [{ autogenerate: { directory: 'hyperliquid' } }] },
         { label: 'Binance', items: [{ autogenerate: { directory: 'binance' } }] },
         { label: 'How it works', items: [{ autogenerate: { directory: 'concepts' } }] },
+        { label: 'AI assistants', items: [{ autogenerate: { directory: 'assistants' } }] },
+        { label: 'Questions', items: [{ autogenerate: { directory: 'questions' } }] },
       ],
     }),
   ],

@@ -235,7 +235,7 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 	case "tools/list":
 		out := make([]map[string]any, 0, len(s.tools))
 		for _, t := range s.tools {
-			out = append(out, map[string]any{"name": t.name, "description": t.description, "inputSchema": t.schema})
+			out = append(out, map[string]any{"name": t.name, "title": t.title, "description": t.description, "inputSchema": t.schema, "annotations": t.annotations()})
 		}
 		return map[string]any{"tools": out}, nil
 	case "tools/call":
@@ -273,9 +273,22 @@ func toolResult(text string, isError bool) map[string]any {
 // ---- tools ----
 
 type tool struct {
-	name, description string
-	schema            map[string]any
-	run               func(ctx context.Context, args json.RawMessage) (string, error)
+	name, title, description string
+	schema                   map[string]any
+	// readOnly tools only read this agent's own account; the others change
+	// what rests or is held at the exchange. idempotent applies to the latter.
+	readOnly, idempotent bool
+	run                  func(ctx context.Context, args json.RawMessage) (string, error)
+}
+
+// annotations are the MCP tool hints a client uses to decide which calls to
+// confirm with the person: the read tools change nothing and stay inside the
+// agent's own account, while propose_order and cancel_order reach the exchange.
+func (t tool) annotations() map[string]any {
+	if t.readOnly {
+		return map[string]any{"title": t.title, "readOnlyHint": true, "openWorldHint": false}
+	}
+	return map[string]any{"title": t.title, "readOnlyHint": false, "destructiveHint": true, "idempotentHint": t.idempotent, "openWorldHint": true}
 }
 
 func prop(typ, desc string) map[string]any { return map[string]any{"type": typ, "description": desc} }
@@ -302,6 +315,7 @@ func (s *Server) toolTable() []tool {
 	return []tool{
 		{
 			name:        "propose_order",
+			title:       "Propose an order",
 			description: "Propose an order on a trading account. The engine checks it against the account's rules and, when allowed, signs and sends it to the venue; the decision says what happened. A limit order needs a price; a market order is priced at the engine's mark. Sizes and prices are decimal strings.",
 			schema: schema(map[string]any{
 				"tradingAccountId": prop("string", "The trading account (ta_…)."),
@@ -329,6 +343,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "cancel_order",
+			title:       "Cancel an order",
+			idempotent:  true,
 			description: "Cancel a resting order this agent placed, by the clientOrderId its decision carries. No rule runs on a cancel and a stopped account still lets it through.",
 			schema: schema(map[string]any{
 				"tradingAccountId": prop("string", "The trading account (ta_…)."),
@@ -353,6 +369,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "get_decision",
+			title:       "Get a decision",
+			readOnly:    true,
 			description: "Read one decision of this agent: its verdict, every rule's evaluation, the signing outcome, the venue's acknowledgement and, if it was parked, the approval's state.",
 			schema:      schema(map[string]any{"decisionId": prop("string", "The decision (dec_…).")}, "decisionId"),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
@@ -371,6 +389,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "wait_for_decision",
+			title:       "Wait for a decision",
+			readOnly:    true,
 			description: "Follow a decision parked for a person until it is approved, rejected or expired, or until the timeout; returns the decision as it then stands.",
 			schema: schema(map[string]any{
 				"decisionId":     prop("string", "The decision (dec_…)."),
@@ -407,6 +427,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "list_decisions",
+			title:       "List decisions",
+			readOnly:    true,
 			description: "This agent's recent decisions, newest first.",
 			schema: schema(map[string]any{
 				"tradingAccountId": prop("string", "Only this trading account."),
@@ -434,6 +456,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "list_positions",
+			title:       "List positions",
+			readOnly:    true,
 			description: "This agent's open positions, with the mark price and unrealised PnL as the engine last saw them.",
 			schema:      schema(map[string]any{}),
 			run: func(ctx context.Context, _ json.RawMessage) (string, error) {
@@ -446,6 +470,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "get_pnl",
+			title:       "Get PnL",
+			readOnly:    true,
 			description: "This agent's daily PnL (realised, unrealised, fees, funding), by day.",
 			schema: schema(map[string]any{
 				"from": prop("string", "First day, YYYY-MM-DD."),
@@ -468,6 +494,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "list_approvals",
+			title:       "List approvals",
+			readOnly:    true,
 			description: "This agent's proposals that wait for a person, or were decided by one.",
 			schema:      schema(map[string]any{"status": map[string]any{"type": "string", "enum": []string{"pending", "approved", "rejected", "expired"}}}),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
@@ -486,6 +514,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "get_trading_account",
+			title:       "Get a trading account",
+			readOnly:    true,
 			description: "A trading account this agent may trade on: its venue, kind, status and setup, without any secret.",
 			schema:      schema(map[string]any{"tradingAccountId": prop("string", "The trading account (ta_…).")}, "tradingAccountId"),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
@@ -504,6 +534,8 @@ func (s *Server) toolTable() []tool {
 		},
 		{
 			name:        "get_venue_rules",
+			title:       "Get venue rules",
+			readOnly:    true,
 			description: "What the trading account's venue accepts per symbol: tick size, step size, minimums, as the engine last read them. Use it to size and price orders.",
 			schema: schema(map[string]any{
 				"tradingAccountId": prop("string", "The trading account (ta_…)."),

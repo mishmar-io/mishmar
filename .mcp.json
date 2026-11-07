@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "mishmar": { "command": "mishmar", "args": ["mcp"] }
+  }
+}

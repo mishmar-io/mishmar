@@ -8,6 +8,8 @@ export const SECTIONS: [folder: string, label: string][] = [
   ['hyperliquid', 'Hyperliquid'],
   ['binance', 'Binance'],
   ['concepts', 'How it works'],
+  ['assistants', 'AI assistants'],
+  ['questions', 'Questions'],
 ]
 
 /** The page's section: its top-level folder, or `start` for the home page. */

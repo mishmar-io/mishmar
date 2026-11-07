@@ -3,7 +3,7 @@ title: Install the mishmar CLI
 description: Download the mishmar binary for macOS or Linux, check it against the release's checksums, and put it on the PATH of the machine your agent runs on.
 sidebar:
   order: 1
-lastUpdated: 2026-11-04
+lastUpdated: 2026-11-07
 ---
 
 The `mishmar` binary is the agent's side of Mishmar. It writes the agent's signer config, makes the agent's half of each trading key with Mishmar, runs the signer, and can propose orders from the command line. The Python and TypeScript SDKs run the same binary as a child process.
@@ -20,7 +20,7 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
 1. Pick the release. The [releases page](https://github.com/mishmar-io/mishmar/releases) lists them; the archives are named `mishmar_<version>_<os>_<arch>.tar.gz`.
 
    ```sh
-   VERSION=v0.2.0
+   VERSION=v0.2.2
    OS=$(uname -s | tr '[:upper:]' '[:lower:]')            # darwin or linux
    ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')  # amd64 or arm64
    NAME=mishmar_${VERSION}_${OS}_${ARCH}.tar.gz
@@ -40,7 +40,7 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
    ```
 
    ```text
-   mishmar_v0.2.0_darwin_arm64.tar.gz: OK
+   mishmar_v0.2.2_darwin_arm64.tar.gz: OK
    ```
 
 4. Unpack it and put the binary on your PATH.
