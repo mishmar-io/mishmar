@@ -2233,6 +2233,11 @@ type Rule struct {
 
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// net_exposure is the size of the net position whichever way it points (the absolute
+	// value of the signed sum), so a short past the cap breaches it like a long.
+	// order_size, and the projected book every exposure metric reads, value an order at the
+	// higher of its price and the market: a sell priced under the market fills at the market.
+	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
 	// leverage is gross exposure ÷ equity at account and trading account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
@@ -2268,6 +2273,11 @@ type RuleCreate struct {
 
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// net_exposure is the size of the net position whichever way it points (the absolute
+	// value of the signed sum), so a short past the cap breaches it like a long.
+	// order_size, and the projected book every exposure metric reads, value an order at the
+	// higher of its price and the market: a sell priced under the market fills at the market.
+	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
 	// leverage is gross exposure ÷ equity at account and trading account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
@@ -2295,6 +2305,11 @@ type RuleCreate struct {
 type RuleEvaluation struct {
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// net_exposure is the size of the net position whichever way it points (the absolute
+	// value of the signed sum), so a short past the cap breaches it like a long.
+	// order_size, and the projected book every exposure metric reads, value an order at the
+	// higher of its price and the market: a sell priced under the market fills at the market.
+	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
 	// leverage is gross exposure ÷ equity at account and trading account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
@@ -2334,6 +2349,11 @@ type RuleEvaluation struct {
 
 // RuleMetric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 // leverage is a ratio. concentration and drawdown are percentages.
+// net_exposure is the size of the net position whichever way it points (the absolute
+// value of the signed sum), so a short past the cap breaches it like a long.
+// order_size, and the projected book every exposure metric reads, value an order at the
+// higher of its price and the market: a sell priced under the market fills at the market.
+// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
 // leverage is gross exposure ÷ equity at account and trading account scope, and
 // gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 // portfolio and agent scope, where drawdown is measured against that capital too;
@@ -2358,6 +2378,11 @@ type RuleUpdate struct {
 
 	// Metric gross_exposure, net_exposure, daily_loss, daily_realized_loss, order_size are in USD.
 	// leverage is a ratio. concentration and drawdown are percentages.
+	// net_exposure is the size of the net position whichever way it points (the absolute
+	// value of the signed sum), so a short past the cap breaches it like a long.
+	// order_size, and the projected book every exposure metric reads, value an order at the
+	// higher of its price and the market: a sell priced under the market fills at the market.
+	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
 	// leverage is gross exposure ÷ equity at account and trading account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
