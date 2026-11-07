@@ -40,6 +40,41 @@ type Backend interface {
 	VenueRules(ctx context.Context, id, symbol string) (api.VenueRules, error)
 }
 
+// SetupURL is where a person learns to make the agent's config.
+const SetupURL = "https://docs.mishmar.io/assistants/use-mishmar-from-claude-cursor-or-any-mcp-client/"
+
+// Unconfigured is the Backend of a server started before the agent's config
+// exists: the tools are listed, so a client (or a directory's check) can see
+// them, and every call says where the config was looked for and how to make it.
+func Unconfigured(path string) Backend { return unconfigured{path} }
+
+type unconfigured struct{ path string }
+
+func (u unconfigured) err() error {
+	return fmt.Errorf("no agent config at %s: add an agent and make its trading key first (%s), then restart this server", u.path, SetupURL)
+}
+
+func (u unconfigured) Submit(context.Context, signer.ProposeRequest) (api.Decision, error) {
+	return api.Decision{}, u.err()
+}
+func (u unconfigured) Decision(context.Context, string) (api.Decision, error) {
+	return api.Decision{}, u.err()
+}
+func (u unconfigured) Decisions(context.Context, signer.DecisionQuery) (api.DecisionPage, error) {
+	return api.DecisionPage{}, u.err()
+}
+func (u unconfigured) Approvals(context.Context, string) ([]api.Approval, error) { return nil, u.err() }
+func (u unconfigured) Positions(context.Context) ([]api.Position, error)         { return nil, u.err() }
+func (u unconfigured) Pnl(context.Context, string, string) (api.PnlSeries, error) {
+	return api.PnlSeries{}, u.err()
+}
+func (u unconfigured) TradingAccount(context.Context, string) (api.TradingAccount, error) {
+	return api.TradingAccount{}, u.err()
+}
+func (u unconfigured) VenueRules(context.Context, string, string) (api.VenueRules, error) {
+	return api.VenueRules{}, u.err()
+}
+
 // SignerBackend is the signer as a Backend.
 func SignerBackend(s *signer.Signer) Backend { return signerBackend{s} }
 
@@ -249,6 +284,9 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 		for _, t := range s.tools {
 			if t.name != p.Name {
 				continue
+			}
+			if u, ok := s.backend.(unconfigured); ok {
+				return toolResult("Error: "+u.err().Error(), true), nil // before the arguments: the config is what is missing
 			}
 			args := p.Arguments
 			if len(args) == 0 {

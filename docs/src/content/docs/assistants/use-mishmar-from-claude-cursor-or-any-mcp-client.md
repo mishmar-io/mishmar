@@ -3,7 +3,7 @@ title: Use Mishmar from Claude, Cursor or any MCP client
 description: mishmar mcp is Mishmar's MCP server, ten tools to propose orders and cancels, follow a held decision and read positions, PnL, approvals and venue rules, with the agent's signer built in so the model never sees a key. Setup for Claude Code, Claude Desktop, Cursor, VS Code and any other client.
 sidebar:
   order: 2
-lastUpdated: 2026-11-06
+lastUpdated: 2026-11-07
 ---
 
 `mishmar mcp` is Mishmar's MCP server. It runs on the machine where the agent's signer config lives, speaks the Model Context Protocol on stdin and stdout, and gives the model ten tools: propose an order or a cancel, follow a decision that waits for a person, and read decisions, positions, PnL, approvals, the trading account and the exchange's rules for sizing and pricing. The agent's signer runs inside the same process with the config's key and shares, so the model never sees a key, every order it proposes is checked against your rules, and nothing reaches the exchange without both halves of the trading key.
@@ -14,7 +14,7 @@ lastUpdated: 2026-11-06
 2. Add an agent and make its trading key, [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). That leaves the signer config at `~/.mishmar/agent.json`.
 3. Set the rules first. [How do I let an AI agent trade for me safely?](/questions/how-do-i-let-an-ai-agent-trade-for-me-safely/) has a first set.
 
-The server holds the config's lock while it runs, like `mishmar signer run`, so it does not start next to a signer on the same config: stop that signer first, or give the model its own agent. With a config elsewhere, add `--config /path/to/agent.json` after `mcp` in every snippet below.
+The server holds the config's lock while it runs, like `mishmar signer run`, so it does not start next to a signer on the same config: stop that signer first, or give the model its own agent. With a config elsewhere, add `--config /path/to/agent.json` after `mcp` in every snippet below. Without a config at the path yet, the server still starts and lists its tools, and every call returns an error that names the path it looked for.
 
 ## Claude Code
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -28,12 +30,24 @@ Point an MCP client at it with the command "mishmar mcp" (and --config when
 the config is not at the default path). The protocol runs on stdin and
 stdout; this process logs to stderr only. Like "signer run", it holds the
 config's lock while it runs, so it does not start next to another signer on
-the same config.`,
+the same config. With no config at the path yet, it still starts and lists
+its tools, and every call says where the config was looked for.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(config)
 			if err != nil {
 				return err
+			}
+			log, err := newLogger(level)
+			if err != nil {
+				return err
+			}
+			if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+				// Before the agent exists, a client (or a directory's check) can
+				// still start the server and see its tools; every call says why
+				// it cannot run.
+				log.Warn("mcp: no agent config, so every tool call fails until it exists", "config", path, "setup", mcp.SetupURL)
+				return mcp.New(mcp.Unconfigured(path), version, log).Serve(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			}
 			lock, err := configlock.Acquire(path)
 			if err != nil {
@@ -41,10 +55,6 @@ the same config.`,
 			}
 			defer lock.Close()
 			cfg, err := signer.Load(path)
-			if err != nil {
-				return err
-			}
-			log, err := newLogger(level)
 			if err != nil {
 				return err
 			}
@@ -57,7 +67,9 @@ the same config.`,
 			defer cancel()
 			errc := make(chan error, 2)
 			go func() { errc <- s.Run(ctx) }()
-			go func() { errc <- mcp.New(mcp.SignerBackend(s), version, log).Serve(ctx, os.Stdin, os.Stdout) }()
+			go func() {
+				errc <- mcp.New(mcp.SignerBackend(s), version, log).Serve(ctx, cmd.InOrStdin(), cmd.OutOrStdout())
+			}()
 			err = <-errc
 			cancel()
 			<-errc

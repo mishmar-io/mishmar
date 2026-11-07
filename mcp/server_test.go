@@ -194,6 +194,23 @@ func TestInitializeListsTheTools(t *testing.T) {
 	}
 }
 
+func TestWithoutAConfigTheToolsAreListedAndEveryCallSaysWhy(t *testing.T) {
+	s := start(t, Unconfigured("/home/x/.mishmar/agent.json"))
+	s.call("initialize", map[string]any{"protocolVersion": ProtocolVersion})
+	tools := s.call("tools/list", nil)["result"].(map[string]any)["tools"].([]any)
+	if len(tools) != 10 {
+		t.Fatalf("%d tools listed without a config, want 10", len(tools))
+	}
+	for _, tl := range tools {
+		name := tl.(map[string]any)["name"].(string)
+		res := s.call("tools/call", map[string]any{"name": name, "arguments": map[string]any{}})["result"].(map[string]any)
+		text := res["content"].([]any)[0].(map[string]any)["text"].(string)
+		if res["isError"] != true || !strings.Contains(text, "no agent config at /home/x/.mishmar/agent.json") || !strings.Contains(text, SetupURL) {
+			t.Fatalf("%s without a config: %v", name, res)
+		}
+	}
+}
+
 func TestProposeOrderAndCancel(t *testing.T) {
 	ack := api.VenueAck{Status: "filled", OrderId: "77"}
 	b := &fakeBackend{decision: api.Decision{Id: "dec_1", Verdict: api.VerdictAllow, Proposal: api.Proposal{Venue: api.VenueHyperliquid, NotionalUsd: "79.5"}, VenueAck: &ack}}
