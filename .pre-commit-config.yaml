@@ -45,6 +45,16 @@ repos:
         pass_filenames: false
         files: ^(go\.mod|go\.sum|.*\.go)$
 
+      # CI's "The generated code is current": a spec change has to be
+      # committed with the code make gen makes from it. On a mismatch the
+      # regenerated files are left in the tree to review and stage.
+      - id: generated-code
+        name: the generated code is current (make gen, as CI checks)
+        entry: bash -c 'make gen >/dev/null && git diff --exit-code --stat -- api signerapi'
+        language: system
+        pass_filenames: false
+        files: ^(spec/openapi\.yaml|spec/signer-service\.yaml|api/|signerapi/)
+
       - id: go-lint
         name: go vet + gofmt (through the cgo wrapper)
         entry: make lint
