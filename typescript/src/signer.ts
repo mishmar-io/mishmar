@@ -15,6 +15,12 @@
  *     if (d.verdict === "require_approval") d = await s.wait(d.id);
  *     await s.stop();
  *
+ * The first time, the agent's API key from the console is all the child
+ * needs: with `MISHMAR_API_KEY` set (or `new Signer({ apiKey })`) and no
+ * config yet, it writes the config from the key, and while it runs it
+ * generates the trading keys the console adds for the agent, logging what to
+ * approve or register at the venue.
+ *
  * The child lives and dies with this process: it gets a pipe on stdin that
  * is never written to and stops when the pipe closes, so it does not outlive
  * a bot that crashed or was killed. A signer run on its own instead (systemd,
@@ -43,9 +49,10 @@ import type { Decision, DecisionPage } from "./client.ts";
 
 export const RELEASES = "https://github.com/mishmar-io/mishmar/releases/download";
 /** The release the SDK fetches when it has to (the npm bin: `npx -y mishmar …`); bumped with each release. */
-export const RELEASE = "v0.2.2";
+export const RELEASE = "v0.2.3";
 const ENV_BINARY = "MISHMAR_BIN";
 const ENV_LOCAL_TOKEN = "MISHMAR_LOCAL_TOKEN";
+const ENV_API_KEY = "MISHMAR_API_KEY";
 
 /** The release asset's os_arch for this machine: linux_amd64, darwin_arm64, … */
 export function platformName(): string {
@@ -175,6 +182,12 @@ export interface OrderIntent {
 export interface SignerOptions {
   /** The signer's config file; default $MISHMAR_AGENT_CONFIG or ~/.mishmar/agent.json. */
   config?: string;
+  /**
+   * The agent's API key from the console (msk_…), which the child writes the
+   * config from when there is none yet; default $MISHMAR_API_KEY, which the
+   * child reads itself.
+   */
+  apiKey?: string;
   /** The mishmar binary; default what findBinary finds. */
   binary?: string;
   /** Where the child listens: unix:/path, or host:port on a loopback address (with a token); default a private socket. */
@@ -256,6 +269,7 @@ export class Signer {
       this.token ??= randomBytes(32).toString("base64url");
       env[ENV_LOCAL_TOKEN] = this.token;
     }
+    if (this.options.apiKey) env[ENV_API_KEY] = this.options.apiKey;
     // The child stops when its stdin closes: when this process exits, however
     // it exits. Nothing is ever written to it.
     const args = ["signer", "run", "--local", this.address, "--log-level", this.options.logLevel ?? "info", "--exit-on-stdin-close"];

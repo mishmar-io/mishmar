@@ -163,8 +163,9 @@ func (s *Signer) proposalOf(r ProposeRequest) (api.ProposalSubmit, error) {
 func (s *Signer) LocalHandler(token string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		ids := make([]string, 0, len(s.Config.VenueKeys))
-		for id := range s.Config.VenueKeys {
+		keys := s.venueKeys()
+		ids := make([]string, 0, len(keys))
+		for id := range keys {
 			ids = append(ids, id)
 		}
 		sort.Strings(ids)

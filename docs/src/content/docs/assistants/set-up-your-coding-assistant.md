@@ -3,7 +3,7 @@ title: Set up your coding assistant
 description: "Give Claude Code, Cursor, Codex or any other coding assistant what it needs to write a bot against Mishmar correctly, in one line each: a skill, a rule file or an AGENTS.md snippet, and a link that opens Claude with the docs loaded."
 sidebar:
   order: 1
-lastUpdated: 2026-11-06
+lastUpdated: 2026-11-08
 ---
 
 An assistant that has never seen Mishmar will write a bot that holds an exchange key, treats a decision as a fill and sends prices as floats. The files on this page tell it the three things that matter (the bot holds no key, an order comes back with one of three verdicts, numbers are decimal strings) and where the docs are as Markdown. Each is a few lines. Add the one for your assistant to the bot's repo.
@@ -50,7 +50,7 @@ This is what it says:
 This bot trades through [Mishmar](https://mishmar.io), a risk management layer for trading bots and AI agents: every order is checked against the owner's limits before it reaches the exchange, large orders wait for the owner's approval, and no key can trade alone.
 
 - The bot holds no exchange key. Orders go through the Mishmar SDK's `Signer` (Python: `from mishmar import Signer`; TypeScript: `import { Signer } from "mishmar"`), which runs the agent's signer as a child process from `~/.mishmar/agent.json` (or the file named in `MISHMAR_AGENT_CONFIG`). Never put an exchange API key, an agent secret (`msk_…`) or the signer config into this repo, a log line or a prompt.
-- An order comes back as a decision with a `verdict`: `allow`, `require_approval` or `block`. Handle all three. On `require_approval`, wait for the decision (`wait`) or carry on and read it later. On `block`, read the rule evaluations on the decision and do not resend the same order.
+- An order comes back as a decision with a `verdict`: `allow`, `require_approval` or `block`. Handle all three. On `require_approval`, wait for the decision (`wait`) or carry on and read it later. A held order expires at its own deadline (`valid_for` in Python, `validForSeconds` in TypeScript; 60 seconds by default) or after 30 minutes, whichever is first, so give an order that may wait for a person a longer deadline. On `block`, read the rule evaluations on the decision and do not resend the same order.
 - Sizes and prices are decimal strings, never floats. Size and price from the venue rules the signer returns (`venue_rules` / `venueRules`: tick size, step size, minimums).
 - Never call the exchange's order endpoints directly; every order goes through the signer. The signer and Mishmar each hold half of the trading key, so a direct call could not be signed anyway.
 - `mishmar mcp` is the same signer as an MCP server, for an agent that is a language model.

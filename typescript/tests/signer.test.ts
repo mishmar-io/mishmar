@@ -26,7 +26,7 @@ const srv = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
-    if (req.method === "GET" && p === "/health") return send(res, 200, { agentId: "agt_1", keyId: "key_1", engine: "http://e/v1", venueKeys: ["vk_1"], config, args });
+    if (req.method === "GET" && p === "/health") return send(res, 200, { agentId: "agt_1", keyId: "key_1", engine: "http://e/v1", venueKeys: ["vk_1"], config, args, apiKey: process.env.MISHMAR_API_KEY || "" });
     if (req.method === "GET" && p === "/positions") return send(res, 200, [{ symbol: "BTC", size: "0.001" }]);
     if (req.method === "GET" && p === "/decisions/dec_bad") return send(res, 422, { code: "validation", message: "no such decision" });
     if (req.method === "GET" && p.startsWith("/decisions/")) return send(res, 200, { id: p.slice("/decisions/".length), verdict: "allow", query: req.url });
@@ -279,5 +279,27 @@ test("connect over TCP needs the token", async () => {
     }
   } finally {
     if (saved !== undefined) process.env.MISHMAR_LOCAL_TOKEN = saved;
+  }
+});
+
+test("the Signer hands the API key to the child", async () => {
+  const saved = process.env.MISHMAR_API_KEY;
+  delete process.env.MISHMAR_API_KEY;
+  const key = "msk_self_main_abcdefgh2345_" + "A".repeat(43);
+  const withKey = new Signer({ binary: fake, apiKey: key, startTimeoutMs: 10_000 });
+  await withKey.start();
+  try {
+    assert.equal(((await withKey.health()) as unknown as { apiKey?: string }).apiKey, key);
+  } finally {
+    await withKey.stop();
+  }
+  // Without the option the child's environment is this process's: nothing set.
+  const without = new Signer({ binary: fake, startTimeoutMs: 10_000 });
+  await without.start();
+  try {
+    assert.equal(((await without.health()) as unknown as { apiKey?: string }).apiKey, "");
+  } finally {
+    await without.stop();
+    if (saved !== undefined) process.env.MISHMAR_API_KEY = saved;
   }
 });

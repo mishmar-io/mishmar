@@ -410,7 +410,7 @@ def main() -> int:
     ap.add_argument(
         "--config",
         default=os.environ.get("MISHMAR_AGENT_CONFIG"),
-        help="the signer's config, written by `mishmar signer init` (default ~/.mishmar/agent.json)",
+        help="the signer's config, written by the signer's first start with MISHMAR_API_KEY, or `mishmar signer init` (default ~/.mishmar/agent.json)",
     )
     ap.add_argument(
         "--connect",

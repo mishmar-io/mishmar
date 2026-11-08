@@ -9,7 +9,8 @@
 #     signer serve --listen 0.0.0.0:8091 --store /var/lib/mishmar/signer-keys.json --engine-key <base64>
 #
 # Plain HTTP is for a private network only: in front of the engine over a
-# network, give it --tls-cert, --tls-key and --client-ca.
+# network, give it --tls-cert, --tls-key and --client-ca. Port 9103 is
+# GET /metrics (MISHMAR_SIGNER_METRICS_LISTEN), counts and a version only.
 
 FROM golang:1.26-bookworm AS build
 ARG CBMPC_REF
@@ -38,6 +39,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=build /out/mishmar /usr/local/bin/mishmar
 USER mishmar
 VOLUME /var/lib/mishmar
-EXPOSE 8091
+EXPOSE 8091 9103
 ENTRYPOINT ["mishmar"]
 CMD ["signer", "serve", "--listen", "0.0.0.0:8091", "--store", "/var/lib/mishmar/signer-keys.json"]

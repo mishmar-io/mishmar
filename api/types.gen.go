@@ -72,6 +72,33 @@ func (e CosignerCallbackSetupKind) Valid() bool {
 	}
 }
 
+// Defines values for DecisionValuationSource.
+const (
+	DecisionValuationSourceBook         DecisionValuationSource = "book"
+	DecisionValuationSourceLimit        DecisionValuationSource = "limit"
+	DecisionValuationSourceMark         DecisionValuationSource = "mark"
+	DecisionValuationSourceMarkSlippage DecisionValuationSource = "mark_slippage"
+	DecisionValuationSourceOneShot      DecisionValuationSource = "one_shot"
+)
+
+// Valid indicates whether the value is a known member of the DecisionValuationSource enum.
+func (e DecisionValuationSource) Valid() bool {
+	switch e {
+	case DecisionValuationSourceBook:
+		return true
+	case DecisionValuationSourceLimit:
+		return true
+	case DecisionValuationSourceMark:
+		return true
+	case DecisionValuationSourceMarkSlippage:
+		return true
+	case DecisionValuationSourceOneShot:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DiscrepancyRestricts.
 const (
 	DiscrepancyRestrictsAsset          DiscrepancyRestricts = "asset"
@@ -746,7 +773,6 @@ const (
 	TierEnterprise Tier = "enterprise"
 	TierFree       Tier = "free"
 	TierPro        Tier = "pro"
-	TierTeam       Tier = "team"
 )
 
 // Valid indicates whether the value is a known member of the Tier enum.
@@ -757,8 +783,6 @@ func (e Tier) Valid() bool {
 	case TierFree:
 		return true
 	case TierPro:
-		return true
-	case TierTeam:
 		return true
 	default:
 		return false
@@ -1061,14 +1085,17 @@ type Account struct {
 
 // Agent defines model for Agent.
 type Agent struct {
-	CreatedAt      time.Time   `json:"createdAt"`
-	Description    *string     `json:"description,omitempty"`
-	Id             string      `json:"id"`
-	Keys           []AgentKey  `json:"keys"`
-	LastDecisionAt *time.Time  `json:"lastDecisionAt,omitempty"`
-	Name           string      `json:"name"`
-	PortfolioId    string      `json:"portfolioId"`
-	Status         AgentStatus `json:"status"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	Description    *string    `json:"description,omitempty"`
+	Id             string     `json:"id"`
+	Keys           []AgentKey `json:"keys"`
+	LastDecisionAt *time.Time `json:"lastDecisionAt,omitempty"`
+	Name           string     `json:"name"`
+	PortfolioId    string     `json:"portfolioId"`
+
+	// Signer Whether the agent's signer is reaching the engine. Absent when the engine does not track it (no signer channel).
+	Signer *SignerPresence `json:"signer,omitempty"`
+	Status AgentStatus     `json:"status"`
 
 	// TradingAccountIds The trading accounts the agent holds an unrevoked venue key on. Derived from `venueKeys`.
 	TradingAccountIds []string  `json:"tradingAccountIds"`
@@ -1085,6 +1112,15 @@ type AgentCreate struct {
 
 	// PortfolioId Absent for the account's default portfolio (Account.defaultPortfolioId).
 	PortfolioId *string `json:"portfolioId,omitempty"`
+}
+
+// AgentIdentity Who an agent key belongs to, as `GET /agent/me` answers the key.
+type AgentIdentity struct {
+	AccountId   string `json:"accountId"`
+	AgentId     string `json:"agentId"`
+	AgentName   string `json:"agentName"`
+	KeyId       string `json:"keyId"`
+	PortfolioId string `json:"portfolioId"`
 }
 
 // AgentKey defines model for AgentKey.
@@ -1118,9 +1154,20 @@ type AgentKeyIssued struct {
 	PublicKey *string    `json:"publicKey,omitempty"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 
-	// Secret The agent's Ed25519 private key seed, base64. Shown once. The
-	// engine keeps only the public key, so a leaked engine database
-	// cannot sign as the agent.
+	// Secret The agent's API key, shown once:
+	// `msk_<environment>_<account suffix>_<key random part>_<seed>`.
+	// The seed is the agent's Ed25519 private key, base64url; before
+	// it, what names the engine and the key: the environment
+	// (`testnet`, `prod`, … for hosted Mishmar, which the CLI and the
+	// SDKs map to the API host; anything else means `MISHMAR_ENGINE`
+	// names the engine) and the key id's two parts
+	// (`key_<account suffix>_<random part>`). An agent needs nothing
+	// else: `mishmar signer run` with the key in `MISHMAR_API_KEY`
+	// writes its config, learns its agent from `GET /agent/me` and
+	// generates the trading keys added for it. The engine keeps only
+	// the public key, so a leaked engine database cannot sign as the
+	// agent. A key issued before 0.19.0 is `msk_<6 characters>_<seed>`
+	// and keeps working, with the engine URL and key id given by hand.
 	Secret string `json:"secret"`
 }
 
@@ -1136,20 +1183,60 @@ type AgentUpdate struct {
 
 // Approval defines model for Approval.
 type Approval struct {
-	Comment     *string        `json:"comment,omitempty"`
-	DecidedAt   *time.Time     `json:"decidedAt,omitempty"`
-	DecidedBy   *string        `json:"decidedBy,omitempty"`
-	Decision    Decision       `json:"decision"`
-	DecisionId  string         `json:"decisionId"`
-	ExpiresAt   time.Time      `json:"expiresAt"`
-	Id          string         `json:"id"`
-	RequestedAt time.Time      `json:"requestedAt"`
-	Status      ApprovalStatus `json:"status"`
+	Comment    *string    `json:"comment,omitempty"`
+	DecidedAt  *time.Time `json:"decidedAt,omitempty"`
+	DecidedBy  *string    `json:"decidedBy,omitempty"`
+	Decision   Decision   `json:"decision"`
+	DecisionId string     `json:"decisionId"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	Id         string     `json:"id"`
+
+	// Now The parked proposal evaluated again against the account as it is at the
+	// time of the read: present on a pending approval read one at a time
+	// (GET /approvals/{approvalId}), absent on decided and expired approvals and
+	// on the list. The decision's own `evaluations` are what was true when the
+	// proposal was parked.
+	Now         *ApprovalEvaluation `json:"now,omitempty"`
+	RequestedAt time.Time           `json:"requestedAt"`
+	Status      ApprovalStatus      `json:"status"`
 }
 
 // ApprovalDecide defines model for ApprovalDecide.
 type ApprovalDecide struct {
 	Comment *string `json:"comment,omitempty"`
+
+	// Revision The `revision` of the `now` evaluation the approver saw (Approval.now). The
+	// engine evaluates once more as it approves: a different revision is refused
+	// with 409 `evaluation_changed` and the current `now` in `details.now`, so the
+	// approver confirms what is true now. Absent, only a `block` now refuses.
+	Revision *string `json:"revision,omitempty"`
+}
+
+// ApprovalEvaluation The rules re-run for a pending approval: the verdict the proposal would get
+// if it were submitted now, each rule's observed value and threshold against
+// the current book (with the orders in flight and resting), marks, PnL,
+// statuses and restrictions, the account-level numbers before the proposal,
+// and a `revision` of the outcome.
+type ApprovalEvaluation struct {
+	EvaluatedAt time.Time        `json:"evaluatedAt"`
+	Evaluations []RuleEvaluation `json:"evaluations"`
+
+	// Reason One line for a person, as on a decision; absent when allowed cleanly.
+	Reason *string `json:"reason,omitempty"`
+
+	// Revision A hash of the outcome: the verdict, the reason and each rule's id, pass or
+	// fail, outcome and waiver. The observed values move with the market and are
+	// not in it, so a drift that flips no rule keeps the revision. Send it with the
+	// approve (ApprovalDecide.revision); a different revision at that moment is
+	// 409 `evaluation_changed`.
+	Revision string        `json:"revision"`
+	State    StateSnapshot `json:"state"`
+
+	// Valuation What the order was valued at for this evaluation (the current mark; a market order's book is not read again).
+	Valuation *DecisionValuation `json:"valuation,omitempty"`
+
+	// Verdict allow or require_approval: the approver may co-sign. block: a rule, status or restriction refuses it now, and approve answers 409 until that changes.
+	Verdict Verdict `json:"verdict"`
 }
 
 // ApprovalOutcome defines model for ApprovalOutcome.
@@ -1271,8 +1358,13 @@ type Decision struct {
 	// proposal (`targetClientOrderId`).
 	Submission       *DecisionSubmission `json:"submission,omitempty"`
 	TradingAccountId string              `json:"tradingAccountId"`
-	VenueAck         *VenueAck           `json:"venueAck,omitempty"`
-	Verdict          Verdict             `json:"verdict"`
+
+	// Valuation What the rules valued the order at and where that price came from. Present
+	// on orders; absent on cancels and on decisions from before it was recorded.
+	// Not covered by engineSignature.
+	Valuation *DecisionValuation `json:"valuation,omitempty"`
+	VenueAck  *VenueAck          `json:"venueAck,omitempty"`
+	Verdict   Verdict            `json:"verdict"`
 }
 
 // DecisionPage defines model for DecisionPage.
@@ -1312,6 +1404,49 @@ type DecisionSubmission struct {
 	// asks the signer through the channel.
 	VenueMessage *ProposalVenueMessage `json:"venueMessage,omitempty"`
 }
+
+// DecisionValuation The price the rules valued the order at (the `order_size` metric and the
+// projected book), which is the highest of the order's own price, the symbol's
+// mark and what the engine knows it could fill at beyond both. For a market
+// order that is not reduce-only the engine fetches the venue's order book and
+// walks 105% of the order's size through it on the order's side: the worst
+// price reached is the valuation, and on Hyperliquid the bound the order is
+// sent with when it is tighter than the slippage bound. Exits (reduce-only)
+// keep the mark. See docs/rules.md in the engine, "Pricing the proposal".
+type DecisionValuation struct {
+	// BookAsOf When the venue's book snapshot was taken. Only when a book was walked.
+	BookAsOf *time.Time `json:"bookAsOf,omitempty"`
+
+	// BookLevels How many price levels of the book the walk consumed. Only when a book was walked.
+	BookLevels *int `json:"bookLevels,omitempty"`
+
+	// BookPrice The worst price the walk through the book reached, before it is compared with the order's price and the mark (a market sell walks below the mark, and the rules still value it at the mark). The IOC bound the order is sent with (on Hyperliquid its IOC limit, on Binance a LIMIT IOC) is tightened to it. Present whenever a book was walked.
+	BookPrice *Decimal `json:"bookPrice,omitempty"`
+
+	// BookShort True when the book held less than 105% of the order's size: the last level's price was used and the real fill could be worse. Only when a book was walked.
+	BookShort *bool `json:"bookShort,omitempty"`
+
+	// Detail Why the book was not used when a market order was valued without one: the venue's error, a stale book, or an adapter that cannot read books. One line.
+	Detail *string `json:"detail,omitempty"`
+
+	// Price A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	Price Decimal `json:"price"`
+
+	// Source limit: the order's own price was the highest. mark: the symbol's mark.
+	// mark_slippage: the mark moved by the venue's market-order slippage (a market
+	// buy where no book was read). book: the worst price of the walk through the
+	// venue's order book. one_shot: the price in the agent's one-shot venue message.
+	Source DecisionValuationSource `json:"source"`
+}
+
+// DecisionValuationSource limit: the order's own price was the highest. mark: the symbol's mark.
+// mark_slippage: the mark moved by the venue's market-order slippage (a market
+// buy where no book was read). book: the worst price of the walk through the
+// venue's order book. one_shot: the price in the agent's one-shot venue message.
+type DecisionValuationSource string
 
 // Discrepancy defines model for Discrepancy.
 type Discrepancy struct {
@@ -1483,7 +1618,10 @@ type Entitlements struct {
 
 	// SignerTransports The transports the signer channel may use. long_poll is in every tier.
 	SignerTransports []SignerTransport `json:"signerTransports"`
-	Tier             Tier              `json:"tier"`
+
+	// Tier The account's plan: free, pro, or enterprise (by contact; billing never
+	// puts an account on it by itself). There is no team plan (7 November 2026).
+	Tier Tier `json:"tier"`
 
 	// VenueBudgets The account's share of each venue's request budget. A venue limits
 	// requests per address, and accounts may share an address, so each
@@ -1499,8 +1637,12 @@ type Entitlements struct {
 type Error struct {
 	// Code Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
-	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `internal`,
-	// `not_implemented` (501: in the contract, not yet in this engine).
+	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
+	// `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+	// `evaluation_changed` (409) answers an approve whose `revision` is not the
+	// current evaluation's: the rules now say something else than what the approver
+	// saw. `details.now` is the current ApprovalEvaluation; show it and approve again
+	// with its `revision`. Nothing was decided.
 	// `signer_unreachable` (409) means the request needs the agent's signer and none
 	// answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
 	// signer and send the same request again.
@@ -1508,7 +1650,9 @@ type Error struct {
 	// the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
 	// Sending it again changes nothing: delete one, or move to a larger plan.
 	// `unavailable` (503) means the request did nothing: the engine cannot read its
-	// state, or it is restarting. Send the same request again in a moment.
+	// state, it is starting or waiting for its account, or it is stopping. Send the
+	// same request again after the seconds in the `Retry-After` header (one, while
+	// an engine starts or stops).
 	// `rate_limited` (429) also means the request did nothing: this caller has sent
 	// too many requests. Wait the seconds in the `Retry-After` header, then send the
 	// same request again. `too_large` (413) means the body was over the limit the
@@ -1516,6 +1660,15 @@ type Error struct {
 	Code    string                  `json:"code"`
 	Details *map[string]interface{} `json:"details,omitempty"`
 	Message string                  `json:"message"`
+}
+
+// ExchangeReadKey An exchange account's read-only key, for `setReadKey`. Both write-only.
+type ExchangeReadKey struct {
+	ReadApiKey    string `json:"readApiKey"`
+	ReadApiSecret string `json:"readApiSecret"`
+
+	// Subaccount Replaces the account's subaccount name when given.
+	Subaccount *string `json:"subaccount,omitempty"`
 }
 
 // ExchangeSetup defines model for ExchangeSetup.
@@ -1547,8 +1700,10 @@ type HyperliquidSetup struct {
 
 	// MasterAddress The customer's Hyperliquid master account. Reads need no key: the info
 	// API is public by address. Each agent's API wallet (its VenueKey) is
-	// approved by this account.
-	MasterAddress string                  `json:"masterAddress"`
+	// approved by this account. Absent until known: an account added
+	// without one learns it from the first of its agents' API wallets the
+	// master approves at Hyperliquid.
+	MasterAddress *string                 `json:"masterAddress,omitempty"`
 	Network       HyperliquidSetupNetwork `json:"network"`
 }
 
@@ -2554,6 +2709,17 @@ type SignerPoll struct {
 	WaitSeconds *int `json:"waitSeconds,omitempty"`
 }
 
+// SignerPresence Whether the agent's signer is reaching this engine: `connected` while
+// it holds a poll open or made a signer call within the last half
+// minute. `lastSeenAt` is its last signer call since the engine started;
+// absent when there was none. Kept in memory, so an engine restart
+// forgets it until the signer polls again, which a running signer does
+// within seconds.
+type SignerPresence struct {
+	Connected  bool       `json:"connected"`
+	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
+}
+
 // SignerTransport How the engine reaches an agent's signer. The messages are the same on every transport.
 type SignerTransport string
 
@@ -2667,7 +2833,8 @@ type SymbolRules struct {
 	TickSize *Decimal `json:"tickSize,omitempty"`
 }
 
-// Tier defines model for Tier.
+// Tier The account's plan: free, pro, or enterprise (by contact; billing never
+// puts an account on it by itself). There is no team plan (7 November 2026).
 type Tier string
 
 // TradingAccount defines model for TradingAccount.
@@ -2705,20 +2872,27 @@ type TradingAccount struct {
 
 // TradingAccountCreate defines model for TradingAccountCreate.
 type TradingAccountCreate struct {
-	// Exchange An exchange account. The trading keys come later, one per agent (VenueKey).
+	// Exchange An exchange account. The trading keys come later, one per agent
+	// (VenueKey). The read-only key may come later too (`setReadKey`):
+	// without it the account is created with `readKeyRegistered` false
+	// and cannot verify or stream until it has one.
 	Exchange *struct {
 		// ReadApiKey A key with read permissions only, for the account's margin, positions and fills. Write-only.
-		ReadApiKey string `json:"readApiKey"`
+		ReadApiKey *string `json:"readApiKey,omitempty"`
 
 		// ReadApiSecret The read-only key's secret (HMAC). Write-only and stored whole; it cannot trade or withdraw.
-		ReadApiSecret string  `json:"readApiSecret"`
+		ReadApiSecret *string `json:"readApiSecret,omitempty"`
 		Subaccount    *string `json:"subaccount,omitempty"`
 	} `json:"exchange,omitempty"`
 	Fireblocks *struct {
 		ApiUserId string `json:"apiUserId"`
 	} `json:"fireblocks,omitempty"`
 	Hyperliquid *struct {
-		MasterAddress string `json:"masterAddress"`
+		// MasterAddress The master account. Absent, the engine learns it from the first
+		// API wallet an agent gets on this account that the master approves
+		// at Hyperliquid (`userRole` names the approving account), and
+		// verifies the account then; until that the account is pending.
+		MasterAddress *string `json:"masterAddress,omitempty"`
 
 		// Network A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
 		Network TradingAccountCreateHyperliquidNetwork `json:"network"`
@@ -3194,6 +3368,9 @@ type OpenMaintenanceJSONRequestBody = MaintenanceOpen
 
 // ReassignPositionJSONRequestBody defines body for ReassignPosition for application/json ContentType.
 type ReassignPositionJSONRequestBody = PositionReassign
+
+// SetReadKeyJSONRequestBody defines body for SetReadKey for application/json ContentType.
+type SetReadKeyJSONRequestBody = ExchangeReadKey
 
 // AsHyperliquidSetup returns the union data inside the TradingAccountSetup as a HyperliquidSetup
 func (t TradingAccountSetup) AsHyperliquidSetup() (HyperliquidSetup, error) {

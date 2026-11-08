@@ -14,6 +14,10 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "A made-up agent API key's prefix in the SDK tests, msk_<environment>_<account>_<12 random>_ with the seed appended at run time; a whole key, seed and all, does not match"
+regexes = ['''^msk_[a-z]+_[a-z0-9]+_[a-z0-9]{12}_?$''']
+
+[[allowlists]]
 description = "The names of Mishmar's environment variables, MISHMAR_S3_SECRET_KEY and the like; the values never appear in source"
 regexes = ['''^MISHMAR_[A-Z0-9_]+$''']
 

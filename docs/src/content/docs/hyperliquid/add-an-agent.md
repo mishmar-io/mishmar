@@ -1,144 +1,96 @@
 ---
 title: Add an agent on Hyperliquid
-description: Give an agent its own trading key on a Hyperliquid trading account, split between the agent's signer and Mishmar. Console steps, two commands on the agent's machine, the master wallet's approval and a test order.
+description: Give an agent its Mishmar API key, start it with that one key, and approve the API wallet its signer generates at Hyperliquid's own API page. Four steps in one dialog, one command on the agent's machine, nothing signed in the console.
 sidebar:
   order: 2
-lastUpdated: 2026-11-04
+lastUpdated: 2026-11-08
 ---
 
 When you are done, the agent has two keys:
 
-- **Its API key**, which it signs every proposal with. Mishmar keeps only the public half.
-- **A trading key on your Hyperliquid account**: a Hyperliquid API wallet that your master wallet approves. Its private key is never whole anywhere. One half lives with the agent's signer, the other with Mishmar. An order reaches Hyperliquid only when Mishmar's rules allow it and both halves sign it.
+- **Its Mishmar API key**, which it signs every proposal with. Mishmar keeps only the public half.
+- **A trading key on your Hyperliquid account**: a Hyperliquid API wallet that you approve at Hyperliquid. Its private key is never whole anywhere. One half lives with the agent's signer, the other with Mishmar. An order reaches Hyperliquid only when Mishmar's rules allow it and both halves sign it.
 
-Your master wallet only signs the approval. Its key never leaves your wallet, and the API wallet cannot withdraw.
+You approve the API wallet on Hyperliquid's own API page, with your own wallet, the way you would approve any bot's. The console never asks your master wallet to sign anything, and the API wallet cannot withdraw.
 
 It takes about five minutes.
 
 ## What you need
 
-- **A Hyperliquid trading account in Mishmar**, with the status Active. Trading accounts in the console lists them; [Add a Hyperliquid trading account](/hyperliquid/add-a-trading-account/) has the steps.
-- **The browser wallet that holds that account's master address** (Rabby, MetaMask or similar), installed in the browser you use for the console.
-- **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/).
+- **Your Hyperliquid master account** with USDC in it: the account you trade from on Hyperliquid, not an API wallet. On testnet ([app.hyperliquid-testnet.xyz](https://app.hyperliquid-testnet.xyz)) for the alpha: the console sets the network from the Mishmar it is connected to, testnet here, mainnet on a live Mishmar. You don't need to have added it to Mishmar as a trading account yet: the dialog can.
+- **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
-- **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent, issuing its key, adding a trading key or approving the API wallet. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
+- **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
+- **Room on your plan.** The free plan holds one agent and one trading account.
 
 :::note[Three agents per Hyperliquid account]
-Hyperliquid lets a master account approve up to three named API wallets, and each Mishmar agent on that account uses one. Named API wallets you use for other bots count toward the three.
+Hyperliquid lets a master account approve up to three named API wallets, and each Mishmar agent on that account uses one. Named API wallets you use for other bots count toward the three. Mishmar names every key of one agent the same (`mishmar-` and the last eight characters of the agent's id), so a replacement key takes over the slot of the one it replaces.
 :::
 
 ## 1. Add the agent
 
-In the console, open **Agents** and click **Add agent**.
+In the console, open **Agents** and click **Add agent**. The dialog has four steps and moves on by itself as the agent and the venue do their part.
 
 - **Name**: what you call the agent everywhere in Mishmar.
 - **Portfolio**: the portfolio's rules apply to the agent, alongside its own. The account's default portfolio is preselected.
 - **Description** (optional): what it trades and how.
+- **Trades on**: the trading account the agent gets its trading key on. Pick your Hyperliquid trading account if you added one already, or **New Hyperliquid account**. For a new one, give it a **name**, answer **Does anything other than your agents trade on this account?** (choose **No, only my agents** if Mishmar's agents are the only thing that trades there), and either paste your **master address**, click **Use my wallet**, or leave it empty: Mishmar learns the address when you approve the agent's API wallet in step 3.
 
-Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes, so a later step may ask again. The agent's page opens with the **Set up** dialog, which walks through the next four steps.
+Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes. Mishmar creates the agent, issues its Mishmar API key and sets a trading key aside on the account, all at once.
 
-![The Add agent dialog with a name, the default portfolio and a description filled in](/screens/hyperliquid/add-an-agent/add-agent.png)
+## 2. Start the agent
 
-## 2. Issue its API key
+The dialog shows the **Mishmar API key**. **It is shown once.** Copy it before you close the dialog; if you lose it, revoke it on the agent's **Keys** tab and issue another.
 
-Click **Issue key**.
-
-![Setup step 1, Issue its key, with the Issue key button](/screens/hyperliquid/add-an-agent/setup-issue-key.png)
-
-## 3. Set up the agent's signer
-
-The dialog shows the key's secret (it starts with `msk_`) and a command. **The secret is shown once.** Copy it before you close the dialog.
-
-![Setup step 2: the secret, masked here, and the mishmar signer init command with its copy button](/screens/hyperliquid/add-an-agent/setup-signer-init.png)
-
-On the agent's machine, run the command from the dialog. It looks like this, with your own values:
+On the machine the agent runs on, start the signer with the key. The dialog shows the command for your Mishmar; on hosted Mishmar it is just this, with your own key:
 
 ```sh
-mishmar signer init --engine https://api.mishmar.io/a/acc_…/v1 --key-id key_… --agent agt_… --secret-stdin
+MISHMAR_API_KEY=msk_testnet_… mishmar signer run
 ```
 
-It waits for the secret. Paste it and press Enter. The secret is read from standard input, never from the command line, so it stays out of your shell history. Before writing anything, the command checks the key with Mishmar once, so a secret pasted wrong stops here.
+A self-hosted engine is named in `MISHMAR_ENGINE` as well; the dialog includes it when it applies. The key names the engine and the key id, so the signer needs nothing else: with no config at `~/.mishmar/agent.json` yet, it checks the key with Mishmar, writes the config (mode 0600) and starts.
 
 ```text
-checking key key_… with https://api.mishmar.io/a/acc_…/v1…
-the engine accepts key key_…
-wrote /home/you/.mishmar/agent.json (mode 0600) for agent agt_…, key key_…, engine https://api.mishmar.io/a/acc_…/v1
-next, one venue key per trading account, made with the engine's signer:
-  …
-then: mishmar signer run
+level=INFO msg="signer: no config yet; setting the agent up from MISHMAR_API_KEY" path=/home/you/.mishmar/agent.json
+level=INFO msg="signer: config written" path=/home/you/.mishmar/agent.json agent=agt_… name="Trend follower" keyId=key_… engine=https://api.testnet.mishmar.io/a/acc_…/v1
+level=INFO msg="signer: polling" engine=https://api.testnet.mishmar.io/a/acc_…/v1 keyId=key_… venueKeys=0
+level=INFO msg="signer: generating a trading key with the engine's signer" venueKey=vk_… tradingAccount=ta_… venue=hyperliquid scheme=ecdsa-2p
+level=INFO msg="signer: trading key made; approve its API wallet at the venue" venueKey=vk_… tradingAccount=ta_… venue=hyperliquid network=testnet apiWallet=0x… name=mishmar-… where="https://app.hyperliquid-testnet.xyz/API (paste the address, give it the name), or the console"
 ```
 
-Back in the dialog, click **Done**.
+Within a few seconds the signer finds the trading key the dialog set aside and generates it with Mishmar's signer: each side makes a half and they run two rounds together, so neither ever sees the other's half. What comes out is an ordinary Hyperliquid address, the API wallet. The dialog shows **Agent connected**, then **Trading key generated**, and moves on.
 
-:::tip[More than one agent on the same machine]
-Each agent has its own config file, and `signer init` will not overwrite one that exists. For a second agent, add `--config ~/.mishmar/agents/<name>.json` to this command and to every `mishmar` command for that agent, or set `MISHMAR_AGENT_CONFIG` to the file.
+Leave the signer running: it signs only orders this agent proposed and Mishmar allowed, and orders that wait for your approval need it running, because their second signature comes later.
+
+:::tip[From your agent's code]
+The Python and TypeScript SDKs start the signer for you as a child process, with the same key: set `MISHMAR_API_KEY` in the bot's environment, or pass it (`Signer(api_key=…)`, `new Signer({ apiKey })`). For an LLM agent, `mishmar mcp` does the same; put the key in the MCP server's env. More than one agent on the same machine: give each its own config file with `--config ~/.mishmar/agents/<name>.json` (or `MISHMAR_AGENT_CONFIG`), since a config holds one agent's key.
 :::
 
-## 4. Add a trading key
+## 3. Approve the API wallet at Hyperliquid
 
-Pick your Hyperliquid trading account and click **Add key**. The list shows only trading accounts where this agent has no key yet.
+The dialog shows the **API wallet address** and the **name** to give it, each with a copy button, and a button that opens Hyperliquid's API page for the right network ([app.hyperliquid-testnet.xyz/API](https://app.hyperliquid-testnet.xyz/API) on testnet, [app.hyperliquid.xyz/API](https://app.hyperliquid.xyz/API) on mainnet).
 
-![Setup step 3: the Hyperliquid trading account picked, and the Add key button](/screens/hyperliquid/add-an-agent/setup-trading-key.png)
+On that page, connected with your master account:
 
-## 5. Make the key on the agent's machine
+1. Paste the address into **Address of API wallet**. Don't click **Generate**: that would make a different wallet, whose private key your browser would hold.
+2. Paste the name into **The name for the API wallet**. Another name works too, but uses up another of the account's three named slots when the key is later replaced.
+3. Click **Authorize API Wallet** and sign in your wallet.
 
-The dialog shows a second command. Run it on the agent's machine:
+Mishmar asks Hyperliquid about the wallet every ten seconds while the dialog is open, and once a minute otherwise. When Hyperliquid lists it under your account, the dialog says **Approved. The key is active.** A trading account that was still pending is verified at the same time (its three checks run, and it turns **Active**), after Mishmar learns its address from the approval if it was added without one.
 
-```sh
-mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network mainnet
-```
+The key expires 100 days after it becomes active, or when Hyperliquid's own expiry for the wallet comes first. [When the key expires](#when-the-key-expires) has the replacement.
 
-The console fills in `--network` from the trading account (`testnet` for a testnet account). Add `--config` if you used one in step 3.
+:::tip[Approving from the console instead]
+The dialog's **Or approve from this browser's wallet** does the same approval from the console: it connects your browser wallet, checks it is the master account, asks it to sign Hyperliquid's `HyperliquidTransaction:ApproveAgent` typed data and sends the signature to Hyperliquid. It needs the trading account's master address to be known. Before you sign, check that `agentAddress` is the API wallet the dialog showed and `hyperliquidChain` is the account's network.
+:::
 
-![Setup step 4: the mishmar signer keygen command, the dialog waiting for key generation, and a warning that the trading account can't trade until this runs and the master wallet approves](/screens/hyperliquid/add-an-agent/setup-keygen.png)
+## 4. Ready
 
-The agent's signer and Mishmar's signer each generate a half and run two rounds together. Neither ever sees the other's half. What comes out is an ordinary Hyperliquid address, the API wallet, whose private key exists only as the two halves.
+The dialog says the agent is ready. Click **Finish**: the agent's page opens.
 
-```text
-generated the agent's key for vk_… (hyperliquid mainnet, trading account ta_…) in /home/you/.mishmar/agent.json
-  approve the API wallet 0x… from the master wallet in the console, then verify the key.
-```
+## Place a test order
 
-The dialog notices by itself and shows the API wallet's address.
-
-If the agent's machine isn't ready yet, click **Skip for now**. The command stays on the agent's **Keys** tab, and the agent cannot trade on this account until it has run and the API wallet is approved.
-
-## 6. Approve the API wallet with your master wallet
-
-![All four setup steps done, the API wallet's address shown, and the Approve with wallet button](/screens/hyperliquid/add-an-agent/setup-approve.png)
-
-Click **Approve with wallet**, then **Approve with wallet** again in the panel that opens. The console then:
-
-1. Connects to your browser wallet.
-2. Checks that the connected address is the trading account's master address.
-3. Gets the approval message from Mishmar.
-4. Asks your wallet to sign it.
-5. Sends the signature to Hyperliquid.
-
-Your wallet shows a typed-data signature request from Hyperliquid (`HyperliquidTransaction:ApproveAgent`). Before you sign, check two fields:
-
-- `agentAddress` is the API wallet address the console showed.
-- `hyperliquidChain` is `Mainnet`, or `Testnet` for a testnet account.
-
-The agent name is `mishmar-` followed by the last eight characters of the agent's id, then `valid_until` and the moment the key expires, in milliseconds: Hyperliquid drops the API wallet when Mishmar does, 100 days out. The agent's next API wallet gets the same name, so approving it takes over this one's slot instead of using another of the three. You do not need to switch networks in the wallet: the message is signed for the chain the wallet is on.
-
-![The approval steps all done: Approved, the key is active, with both checks passed](/screens/hyperliquid/add-an-agent/approved.png)
-
-When the panel says **Approved. The key is active.**, the agent can trade on this account. Mishmar checks the key as soon as the approval is in, and Hyperliquid can take a moment to show it. If the panel says **not every check passes yet**, wait a moment, open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify**.
-
-You can also approve later. Until you do, the agent's page and its row in Agents show **API wallet not approved**, with an **Approve with wallet** button.
-
-## 7. Run the signer and place a test order
-
-On the agent's machine, start the signer and leave it running:
-
-```sh
-mishmar signer run
-```
-
-It signs only orders this agent proposed and Mishmar allowed. Orders that wait for your approval need it running, because their second signature comes later.
-
-In a second terminal, propose a small limit buy far below the market, so it rests on the book and does not fill. Use your trading account's id (`ta_…`, on its page in the console):
+With the signer running, in a second terminal on the agent's machine, propose a small limit buy far below the market, so it rests on the book and does not fill. Use your trading account's id (`ta_…`, on its page in the console):
 
 ```sh
 mishmar propose --config ~/.mishmar/agent.json --trading-account ta_… --symbol BTC --side buy --size 0.0003 --price 50000
@@ -164,12 +116,12 @@ Hyperliquid refuses orders worth less than $10. If BTC trades below $50,000, low
 
 ### From your agent's code
 
-The Python and TypeScript SDKs start the signer for you as a child process, with the same config file. The bot itself never holds a key. Only one signer runs per config file, so stop the `mishmar signer run` from above first.
+The SDKs start the signer and turn an order into a proposal; the bot itself never holds a key. Only one signer runs per config file, so stop the `mishmar signer run` from step 2 first.
 
 ```python
 from mishmar import Signer
 
-with Signer() as s:  # ~/.mishmar/agent.json, or Signer("path/to/config.json")
+with Signer() as s:  # MISHMAR_API_KEY in the environment, or ~/.mishmar/agent.json from before
     d = s.order("ta_…", "BTC", "buy", "0.0003", price="50000")
     if d["verdict"] == "require_approval":
         d = s.wait(d["id"])
@@ -179,24 +131,23 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 
 ## Check it worked
 
-- The agent's page shows no **Setup isn't finished** and no **API wallet not approved** warning.
-- On the agent's **Keys** tab, **API keys** lists the `msk_…` key as Active, and **Trading keys** lists the Hyperliquid trading account as Active, **Approved** under **At the venue**, and the date the key expires under **Expires**.
-- On Hyperliquid, the API page ([app.hyperliquid.xyz/API](https://app.hyperliquid.xyz/API), or [app.hyperliquid-testnet.xyz/API](https://app.hyperliquid-testnet.xyz/API) on testnet) lists the API wallet under the name `mishmar-…`.
-
-![The agent's Keys tab: one active API key, and an active ECDSA trading key on the Hyperliquid trading account, approved, with the date it expires](/screens/hyperliquid/add-an-agent/agent-keys.png)
+- The agent's page shows no **Setup isn't finished** and no **API wallet not approved** warning, and **Signer** reads **Connected** under **Overview**.
+- On the agent's **Keys** tab, **Mishmar API keys** lists the `msk_…` key as Active, and **Trading keys** lists the Hyperliquid trading account as Active, **Approved** under **At the venue**, and the date the key expires under **Expires**.
+- On Hyperliquid's API page, the API wallet is listed under the name `mishmar-…` with its **Valid Until**.
+- **Trading accounts** lists the account as **Active**; one added without an address now shows the master address under **Setup**.
 
 ## When something goes wrong
 
-- **`… exists already; add venue keys to it with "mishmar signer keygen", or pass --config for another file`**: the machine already has an agent's config. Give this agent its own file with `--config`, as in step 3.
-- **`the engine does not accept key key_… (…)`**: the secret pasted is not that key's, or the key was revoked. Nothing was written. Copy the secret again and rerun the command; if it is lost, see the next item.
-- **The secret is lost before `signer init` ran.** On the **Keys** tab, revoke the key under **API keys**, then **Issue key** again.
+- **`no config at …: put the agent's API key from the console in MISHMAR_API_KEY and start again`**: the signer found neither a config nor the key. Export `MISHMAR_API_KEY` in the shell that runs it, or pass it on the command line as in step 2.
+- **`… does not accept this key (…): it may have been revoked; issue a new one in the console`**: the key pasted is not one Mishmar knows, or was revoked. Copy it again, or revoke it on the **Keys** tab and issue another.
+- **`the key names environment "…", which is not a hosted one; set MISHMAR_ENGINE`**: the key came from a self-hosted engine. Add `MISHMAR_ENGINE=<its API base URL, with /v1>` to the command; the dialog shows it when it applies.
+- **`… holds another key than MISHMAR_API_KEY; remove the file to set the agent up again`**: the machine already has a config for another agent. Give this agent its own file with `--config`, or remove the old file.
+- **The dialog stays at *Waiting for the agent to start…***: the signer is not reaching Mishmar. Check its output; a signer that started shows `signer: polling`. On hosted Mishmar the first call may take up to a minute while a stopped account wakes.
 - **`This needs a passkey or a wallet. Add one under your profile, then try again.`**: your Mishmar login has neither. Open **Profile**, add a passkey or link a wallet, then try the step again.
-- **`--network is required for a Hyperliquid key: mainnet | testnet`**: copy the whole command from the dialog. It carries every flag.
-- **Key generation stopped partway** (the network dropped, the machine slept). The key still shows **Key generation pending**. Run the same `mishmar signer keygen` command again.
-- **The approval fails at "Check it is the master account".** The wallet is on a different address. Switch to the master address in the wallet and click **Try again**.
-- **No browser wallet found.** Install Rabby or MetaMask in this browser with the master account, then reload the page.
-- **`a signer is running with … : restart it so it uses the new key`**: you added a key while the agent's signer was running. Stop it and start it again.
-- **An order comes back with `signing: unreachable`.** The order needed the signer and none was running. Start `mishmar signer run` (or the SDK's `Signer`) and propose again.
+- **The signer logs `the engine lists an active trading key this signer holds no share of`**: the config file with the agent's half is gone (a container without a persistent volume, a reinstalled machine). Restore it, or revoke the key on the **Keys** tab and add a new one, which the running signer generates.
+- **Key generation stopped partway** (the network dropped, the machine slept): the signer runs it again on its next look, within a few seconds. Nothing to do.
+- **The approval does not show up.** Check the address you pasted is the one the dialog showed, and that you approved on the account's network (testnet or mainnet). Mishmar looks once a minute; open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify** to look now.
+- **You clicked Generate at Hyperliquid.** That made another wallet, which Mishmar does not hold half of. Remove it there and paste the dialog's address instead.
 - **`Agent …'s key on trading account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
 - **`The account's plan holds 1 agent; delete one or move to a larger plan`**, or the same for a trading account. The free plan holds one agent and one trading account, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
 - **An order comes back `rate_limited`: `The account's request budget for hyperliquid is spent for now; send it again in … s`.** Each plan has a share of what Hyperliquid lets one address send. The SDKs and `mishmar signer run` send the order again after the wait. Closing positions and cancels always go.
@@ -204,14 +155,14 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 
 ## When the key expires
 
-Every trading key expires 100 days after it became active, on every venue. The date is under **Expires** on the agent's **Keys** tab. In the key's last week the date turns amber, the agent's page and its row in **Agents** warn, and Mishmar emails the account's owner and admins 7, 2 and 1 days before. Once the date passes, the key is **Expired**: Mishmar never signs with it again, and the agent can't trade on this account. Hyperliquid drops the API wallet at the same moment, since the approval named the date.
+Every trading key expires 100 days after it became active, on every venue, or earlier when Hyperliquid's own expiry for the wallet comes first. The date is under **Expires** on the agent's **Keys** tab. In the key's last week the date turns amber, the agent's page and its row in **Agents** warn, and Mishmar emails the account's owner and admins 7, 2 and 1 days before. Once the date passes, the key is **Expired**: Mishmar never signs with it again, and the agent can't trade on this account.
 
 Replace the key before then:
 
 1. On the agent's page, click **Replace key**, in the warning or under **⋯** on the key's row.
 2. Click **Add new key**. The current key keeps working.
-3. On the agent's machine, run the `mishmar signer keygen` command the dialog shows. If the agent's signer is running, restart it so it has the new key.
-4. Click **Approve with wallet** and approve the new API wallet as in step 6.
+3. The agent's running signer generates the new key within a few seconds and logs its API wallet.
+4. Approve the new API wallet at Hyperliquid as in step 3, under the same name: Hyperliquid then drops the old wallet from the slot.
 
 The moment the new key is active, Mishmar revokes the old one, and the agent trades on through the change. An order the agent built with the old key in the seconds after can be refused; propose it again.
 
@@ -221,4 +172,4 @@ A new key always means a new API wallet. Hyperliquid [strongly advises against a
 
 ## Taking the key away
 
-On the agent's **Keys** tab, click **⋯** on the trading key's row and choose **Revoke**. Mishmar stops signing with it at once, and without Mishmar's half the API wallet can sign nothing. Hyperliquid keeps listing it until its approval runs out.
+On the agent's **Keys** tab, click **⋯** on the trading key's row and choose **Revoke**. Mishmar stops signing with it at once, and without Mishmar's half the API wallet can sign nothing. Hyperliquid keeps listing it until its approval runs out; remove it on the API page to free the slot.

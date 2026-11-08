@@ -192,6 +192,14 @@ func (c *Client) Positions(ctx context.Context) ([]api.Position, error) {
 	return out, err
 }
 
+// Me is who the key belongs to: the agent, its account and the key id. The
+// engine answers only a key it knows, so this is the read that proves one.
+func (c *Client) Me(ctx context.Context) (api.AgentIdentity, error) {
+	var out api.AgentIdentity
+	err := c.agentCall(ctx, http.MethodGet, "/agent/me", nil, nil, &out, c.timeout())
+	return out, err
+}
+
 // VenueKeys lists this agent's venue keys as the engine holds them: which
 // one is active on each trading account, and which were revoked or expired.
 func (c *Client) VenueKeys(ctx context.Context) ([]api.VenueKey, error) {

@@ -61,6 +61,11 @@ venues/      per-venue request building and decoding, shared by the signer and t
              CheckRules, CheckFresh, BuildCancel, DecodeCancel, CheckRead, the client order id shape)
 signer/      the agent's signer as a library: config.go (the 0600 file, validation, AddVenueKey; a replacement
              sits beside the key it replaces, PruneVenueKeys drops what the engine reports revoked or expired),
+             setup.go (Setup: the config from the agent's API key alone, MISHMAR_API_KEY, the engine from the
+             key's environment via HostedAPI or MISHMAR_ENGINE, the agent from GET /agent/me),
+             sync.go (SyncKeys, run by Run every KeySyncInterval when ConfigPath is set: generates the keys
+             the console added without a share, adopts keys another command wrote into the file, drops
+             revoked ones, all without a restart; the map is replaced whole under the mutex, readers snapshot it),
              client.go (the agent-facing API, every /agent call signed), checks.go (Policy.Check: the
              refusals in order, the Binance order, cancel and read checks), hook.go, signer.go (Run, Handle,
              the FROST round), oneshot.go (Prepare and Propose: the venue request built here and the agent's

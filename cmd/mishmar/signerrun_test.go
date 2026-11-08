@@ -134,7 +134,7 @@ func TestAddKeyWarnsWhenASignerRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add-key: %v\n%s", err, out)
 	}
-	if want := fmt.Sprintf("a signer is running with %s (pid %d): restart it", path, os.Getpid()); !strings.Contains(out, want) {
+	if want := fmt.Sprintf("a signer is running with %s (pid %d): it picks the new key up", path, os.Getpid()); !strings.Contains(out, want) {
 		t.Fatalf("output %q lacks %q", out, want)
 	}
 }

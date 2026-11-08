@@ -30,8 +30,11 @@ Point an MCP client at it with the command "mishmar mcp" (and --config when
 the config is not at the default path). The protocol runs on stdin and
 stdout; this process logs to stderr only. Like "signer run", it holds the
 config's lock while it runs, so it does not start next to another signer on
-the same config. With no config at the path yet, it still starts and lists
-its tools, and every call says where the config was looked for.`,
+the same config, and it keeps the agent's trading keys in line with the
+engine's (generating the ones the console adds). With no config at the path
+yet, the agent's API key in MISHMAR_API_KEY (the client's env block) sets
+the agent up; without that too, it still starts and lists its tools, and
+every call says where the config was looked for.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(config)
@@ -42,11 +45,17 @@ its tools, and every call says where the config was looked for.`,
 			if err != nil {
 				return err
 			}
-			if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+			if os.Getenv(signer.EnvAPIKey) != "" {
+				// The agent's API key in the client's environment: the config
+				// is written from it when there is none yet.
+				if err := ensureConfig(cmd.Context(), path, log); err != nil {
+					return err
+				}
+			} else if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 				// Before the agent exists, a client (or a directory's check) can
 				// still start the server and see its tools; every call says why
 				// it cannot run.
-				log.Warn("mcp: no agent config, so every tool call fails until it exists", "config", path, "setup", mcp.SetupURL)
+				log.Warn("mcp: no agent config, so every tool call fails until it exists", "config", path, "apiKey", signer.EnvAPIKey, "setup", mcp.SetupURL)
 				return mcp.New(mcp.Unconfigured(path), version, log).Serve(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			}
 			lock, err := configlock.Acquire(path)
@@ -62,6 +71,7 @@ its tools, and every call says where the config was looked for.`,
 			if err != nil {
 				return err
 			}
+			s.ConfigPath = path
 			s.CommitmentBatch = 8
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()

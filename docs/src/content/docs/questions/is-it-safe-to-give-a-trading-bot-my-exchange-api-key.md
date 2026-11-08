@@ -3,7 +3,7 @@ title: Is it safe to give a trading bot my exchange API key?
 description: What an exchange API key lets a bot do, what the exchanges' own restrictions cover and what they leave open, and how a split key with limits in front of the exchange changes the answer.
 sidebar:
   order: 1
-lastUpdated: 2026-11-06
+lastUpdated: 2026-11-08
 ---
 
 Not as the exchange hands it out. An API key with trading enabled lets whoever holds it place any order the account can carry: the whole balance, at the highest leverage the exchange allows, on any market. The restrictions the exchanges offer protect the balance from being withdrawn and the key from being used from another machine. None of them limits what the key trades.
@@ -36,7 +36,7 @@ That is what Mishmar is: a risk management layer for trading bots and AI agents.
 - **The trading key is split in two.** One half is in the bot's signer, on the bot's machine; the other is with Mishmar. The exchange sees an ordinary key and ordinary signatures, but the private key never exists in one place. On Binance the two halves sign with FROST, the IETF's threshold signing standard ([RFC 9591](https://www.rfc-editor.org/rfc/rfc9591)); on Hyperliquid with two-party ECDSA from Coinbase's open-source [cb-mpc](https://github.com/coinbase/cb-mpc). [How a trading key is split](/concepts/how-a-trading-key-is-split/) has the details.
 - **Every order is checked first.** Eight kinds of limit: order size, gross exposure, net exposure, leverage, concentration, drawdown, daily loss and daily realised loss. Each one either blocks the order or holds it for you. [How do I limit what my trading bot can do?](/questions/how-do-i-limit-what-my-trading-bot-can-do/) goes through them.
 - **Large orders wait for you.** A held order shows in the console and you get an email; approving it takes a passkey.
-- **There is a stop button.** Stop all trading on the account, a portfolio, one agent or one trading account. Cancels still go through, so a bot can flatten.
+- **There is a stop button.** Stop all trading on the account, a portfolio, one agent or one trading account, and nothing more is signed but cancels, so a bot can still pull its resting orders. Pause instead, and orders that close a position still pass.
 - **Keys expire.** Every trading key expires 100 days after it becomes active, and you replace it from the console before then.
 - **Every decision is recorded.** Each one is signed and chained to the one before it, and the ledger can be exported and verified.
 

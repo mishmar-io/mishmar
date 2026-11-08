@@ -20,7 +20,9 @@ try {
   const rules = ((await s.venueRules(tradingAccountId, symbol)).symbols as Record<string, unknown>[])[0];
   console.log(`${account.name} on ${account.venue}: ${symbol} step ${rules?.stepSize}, min notional ${rules?.minNotional}`);
 
-  let d = await s.order({ tradingAccountId, symbol, side: "buy", size, price });
+  // A held order expires at its own deadline (60 seconds by default) or after
+  // 30 minutes, whichever is first, so give a person the ten minutes waited below.
+  let d = await s.order({ tradingAccountId, symbol, side: "buy", size, price, validForSeconds: 600 });
   console.log(`decision ${d.id}: ${d.verdict}${d.reason ? ` (${d.reason})` : ""}`);
   if (d.verdict === "require_approval") {
     console.log("parked for a person: approve or reject it in the console (waiting up to 10 minutes)");

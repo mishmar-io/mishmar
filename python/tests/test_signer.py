@@ -62,7 +62,7 @@ FAKE = textwrap.dedent(
                 return
             path = self.path.split("?")[0]
             if path == "/health":
-                self._send(200, {"agentId": "agt_1", "keyId": "key_1", "engine": "http://e/v1", "venueKeys": ["vk_1"], "config": config, "args": args})
+                self._send(200, {"agentId": "agt_1", "keyId": "key_1", "engine": "http://e/v1", "venueKeys": ["vk_1"], "config": config, "args": args, "apiKey": os.environ.get("MISHMAR_API_KEY", "")})
             elif path == "/positions":
                 self._send(200, [{"symbol": "BTC", "size": "0.001"}])
             elif path == "/decisions/dec_bad":
@@ -349,3 +349,13 @@ def test_connect_over_tcp_needs_the_token(fake_binary, monkeypatch):
     finally:
         running.kill()
         running.wait(timeout=5)
+
+
+def test_signer_hands_the_api_key_to_the_child(fake_binary, monkeypatch):
+    monkeypatch.delenv("MISHMAR_API_KEY", raising=False)
+    key = "msk_self_main_abcdefgh2345_" + "A" * 43
+    with Signer(binary=fake_binary, api_key=key, start_timeout=10) as s:
+        assert s.health()["apiKey"] == key
+    # Without the option the child's environment is this process's: nothing set.
+    with Signer(binary=fake_binary, start_timeout=10) as s:
+        assert s.health()["apiKey"] == ""

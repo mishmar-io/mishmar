@@ -3,7 +3,7 @@ title: How do I limit what my trading bot can do?
 description: The eight limits you can put on a bot or agent (order size, gross and net exposure, leverage, concentration, drawdown, daily loss), what each does when crossed, where it applies, and why it has to be enforced outside the bot.
 sidebar:
   order: 2
-lastUpdated: 2026-11-06
+lastUpdated: 2026-11-08
 ---
 
 Put the limits outside the bot, in front of the exchange, where the bot cannot skip them, and give each limit one of two outcomes: block the order, or hold it until a person approves it. A limit inside the bot's own code is a suggestion: a bug, a bad prompt or whoever controls the machine can go around it. A limit enforced by the party that holds half of the trading key cannot be gone around, because without that half nothing gets signed.
@@ -52,10 +52,12 @@ So a portfolio can cap the total, each agent inside it its own share, and a sing
 
 ## Stopping everything
 
-Two buttons:
+Two levels, both outside the bot:
 
-- **Pause all trading** holds new orders, on the account, an agent or a trading account.
-- **Stop all trading** is the kill switch, on the account, a portfolio, an agent or a trading account. Nothing new is signed. Cancels still go through, so a bot can pull its resting orders and flatten.
+- **Pause all trading**, on the account, an agent or a trading account: only reduce-only orders that close a position pass, so a bot can wind down. Everything else is refused.
+- **Stop all trading** is the kill switch, on the account, a portfolio, an agent or a trading account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
+
+[How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) goes through both.
 
 ## Beyond the limits
 

@@ -6,14 +6,14 @@
     "url": "https://github.com/mishmar-io/mishmar",
     "source": "github"
   },
-  "version": "0.3.0",
+  "version": "0.3.1",
   "websiteUrl": "https://docs.mishmar.io/assistants/use-mishmar-from-claude-cursor-or-any-mcp-client/",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "mishmar",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "runtimeHint": "npx",
       "runtimeArguments": [
         { "type": "positional", "value": "-y" }
@@ -28,7 +28,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mishmar",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "runtimeHint": "uvx",
       "packageArguments": [
         { "type": "positional", "value": "mcp", "description": "The MCP server: the agent's signer with tools to propose orders and cancels, follow a held decision, and read positions, PnL, approvals and venue rules." },

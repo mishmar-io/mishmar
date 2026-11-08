@@ -3,7 +3,7 @@ title: Mishmar compared with exchange key restrictions, agent wallets and policy
 description: Where Mishmar sits next to what Hyperliquid and Binance offer on a key, next to agent wallets (Cobo Agentic Wallet, Turnkey, Coinbase AgentKit, Privy, Crossmint) and next to an institutional policy engine (Fireblocks), in each product's own words, with links. As of 6 November 2026.
 sidebar:
   order: 4
-lastUpdated: 2026-11-06
+lastUpdated: 2026-11-08
 ---
 
 Most of the products a search for "wallet for AI agents" turns up are on-chain wallets with policies on transactions: how much a transfer may move, to which addresses, on which contracts. Mishmar is a different layer. It puts limits on **exchange orders**, on Hyperliquid and Binance accounts, where the question is not "may this transfer leave" but "may this order be placed: at this size, with this leverage, given what is already open and what was lost today". The two can sit side by side. This page says what each product does in its own words, as of 6 November 2026, with the source linked, so you can check.
@@ -54,5 +54,7 @@ In US equities the check Mishmar makes is required by rule. SEC Rule 15c3-5, the
 - The agent **pays, swaps or moves tokens on-chain**: an agent wallet with policies, from the list above.
 - The bot **trades perpetuals on an exchange account**, and you want limits on what it trades, a person on large orders and a stop: Mishmar.
 - Both: an agent wallet for the on-chain side and Mishmar for the exchange side. Nothing in either depends on the other.
+
+For MCP servers that trade on Hyperliquid and Binance (Binance's own, Senpi, Coinrule and the community servers), see [Is there an MCP server for trading on Hyperliquid or Binance with limits?](/questions/is-there-an-mcp-server-for-trading-on-hyperliquid-or-binance-with-limits/)
 
 Mishmar's client side is open source under Apache-2.0 ([github.com/mishmar-io/mishmar](https://github.com/mishmar-io/mishmar)); the hosted testnet is free for one agent and one trading account. Found an error on this page? [Edit it on GitHub](https://github.com/mishmar-io/mishmar/edit/main/docs/src/content/docs/questions/mishmar-compared.md).

@@ -98,12 +98,15 @@ key and, for each request, refuses unless, in this order:
   message is the parameter string the venue verifies: it may carry only the
   parameters the engine sends; `newClientOrderId` is the request's;
   `symbol` is the request's and starts with the proposal's; `side` is the
-  proposal's; `type` is `MARKET` for a market proposal and `LIMIT` for a
-  limit one; `quantity` is a decimal with `0 < quantity <= size` (the engine
-  floors to the lot step, never more); a limit `price` is within 1 % of the
-  proposal's price and on its passive side (at most the price for a buy, at
-  least for a sell), and a market order carries none; `reduceOnly` is the
-  proposal's. A `verify` message must decode to a read and not an order: no
+  proposal's; `type` is `LIMIT` with `GTC` for a limit proposal, and for a
+  market proposal either `MARKET` (an exit, or an older engine) or `LIMIT`
+  with `IOC` at the engine's bound; `quantity` is a decimal with
+  `0 < quantity <= size` (the engine floors to the lot step, never more); a
+  limit `price` is within 1 % of the proposal's price and on its passive
+  side (at most the price for a buy, at least for a sell), a `MARKET` order
+  carries none, and the bound of an `IOC` is a positive decimal the signer
+  does not judge (the engine read it off the venue's order book; the same
+  on Hyperliquid); `reduceOnly` is the proposal's. A `verify` message must decode to a read and not an order: no
   symbol, side, type, quantity, price or client order id. On Hyperliquid the
   message is the EIP-712 digest, which cannot be read, so the request's body
   carries the action and nonce it came from: the signer decodes them with
@@ -125,9 +128,10 @@ and answers `{"kind":"share","share":…,"engineCommitmentId":<the slot>}`;
 the engine's signer verifies that message and finishes the signature alone.
 On both venues an order the signer can build itself goes one-shot instead:
 the venue request and the signer's half travel inside the proposal
-(`venueMessage`), so an allowed order needs no round trip back. On
-Hyperliquid that is limit orders and cancels; a market order is priced by
-the engine at its mark and signed over the channel. A refusal is
+(`venueMessage`), so an allowed order needs no round trip back. That is
+limit orders, cancels and, on Binance, exits (reduce-only market orders);
+any other market order is bounded by the engine from the venue's order book
+and signed over the channel. A refusal is
 `{"kind":"refusal","refusal":{"reason":…}}` with a stable code first
 (`message_mismatch: side "SELL" is not the proposed BUY`), which the engine
 records on the decision's `signing`. Decimals are compared exactly; no float
@@ -140,9 +144,10 @@ with mode 0600:
 
 ```json
 {
-  "engine": "http://localhost:8080/v1",
-  "keyId": "key_acc1_abcdefghijkl",
-  "secret": "msk_abcdef_…",
+  "engine": "https://api.testnet.mishmar.io/a/acc_k7f2q9x1m3n4/v1",
+  "keyId": "key_k7f2q9x1m3n4_abcdefghijkl",
+  "secret": "msk_testnet_k7f2q9x1m3n4_abcdefghijkl_…",
+  "agentId": "agt_…",
   "venueKeys": {
     "vk_…": {
       "tradingAccountId": "ta_…",
@@ -159,10 +164,30 @@ with mode 0600:
 keygen` wrote it). The file holds the identity secret and the agent's shares
 only; an engine share in it is refused on load.
 
+The secret is the agent's API key, and since contract 0.19.0 it names its
+engine and key id: `msk_<environment>_<account suffix>_<key random part>_<seed>`.
+`testnet`, `stage` and `prod` are hosted Mishmar's environments, mapped to
+the API host (`signer.HostedAPI`); any other environment is a self-hosted
+engine, whose URL `MISHMAR_ENGINE` gives. A key issued before 0.19.0
+(`msk_<6 characters>_<seed>`) still works, with the engine URL and key id
+given by hand (`mishmar signer init`).
+
 ### The commands
 
 ```
 go build ./cmd/mishmar
+
+# The usual way: the agent's API key from the console (the agent's page) is
+# all the signer needs. With no config at the path yet, "signer run" writes
+# one from the key (the engine and key id are in the key; the agent comes
+# from GET /agent/me) and starts. While it runs it keeps its trading keys in
+# line with the engine's: a key the console adds for the agent is generated
+# here, two rounds with the engine's signer, and the log says what the venue
+# needs next (the API wallet to approve at Hyperliquid, under the name
+# mishmar-<last 8 of the agent id>; the public key to register at Binance).
+# No restart, no second command. MISHMAR_ENGINE names a self-hosted engine.
+export MISHMAR_API_KEY=msk_testnet_…
+mishmar signer run
 
 # Everything for a new agent in one go, with an operator token: create the
 # agent, issue its key, make a venue key per trading account by two-party
@@ -173,13 +198,12 @@ go build ./cmd/mishmar
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
   --name momentum-1 --trading-account ta_…
 
-# Or by hand, for an agent and key issued in the console: write the config
-# from the key (the secret from MISHMAR_AGENT_SECRET or piped in), then add
-# the venue key in the console without a share and run the key generation
-# from this signer. Binance prints the public key to register at the
-# exchange, Hyperliquid the API wallet address to approve from the master
-# wallet.
-echo "$MSK_SECRET" | mishmar signer init --engine http://localhost:8080/v1 --key-id key_… --agent agt_… --secret-stdin
+# Or step by step: write the config first (from MISHMAR_API_KEY, or the key
+# piped in; a key from before 0.19.0 also takes --engine, --key-id and
+# --agent), then make each trading key yourself instead of leaving it to the
+# running signer. Binance prints the public key to register at the exchange,
+# Hyperliquid the API wallet address to approve.
+echo "$MSK_SECRET" | mishmar signer init --secret-stdin
 mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance
 mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network testnet
 
@@ -193,9 +217,9 @@ mishmar signer add-key --venue-key vk_… --trading-account ta_… --venue binan
 # Run the signer; then register the key at the venue and verify it in the
 # console (the verification is a read the signer co-signs). One signer runs
 # per config: it holds <config>.lock while it runs, and a second one on the
-# same config stops at once, naming the first one's pid. "signer keygen" and
-# "signer add-key" say so when a signer is running, since it reads the config
-# only when it starts: restart it to use the new key.
+# same config stops at once, naming the first one's pid. A key "signer
+# keygen" or "signer add-key" writes while a signer runs is picked up by it
+# within a few seconds.
 mishmar signer run
 
 # Drive one order end to end with the signer running.
@@ -329,7 +353,11 @@ presigned nonce would sign two messages and give the key away. Back up
 the store and the master key separately: losing either
 means every agent generates its key again and every owner approves again,
 nothing more, since the agent's half is useless alone and these keys hold
-no funds.
+no funds. `GET /metrics` (Prometheus text format) is on a plain HTTP
+listener of its own, `MISHMAR_SIGNER_METRICS_LISTEN` (default `:9103`;
+empty for none): `mishmar_signer_ready`, `mishmar_signer_pending_requests`,
+`mishmar_signer_oldest_pending_seconds` and `mishmar_signer_build_info`,
+never a key, which is what the hosted tier's cell alerts watch.
 
 ```
 export MISHMAR_SIGNER_KEY=$(openssl rand -hex 32)   # keep it: it seals the shares

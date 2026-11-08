@@ -3,7 +3,7 @@ title: How a trading key is split
 description: Why every trading key in Mishmar is split in two between the agent's signer and Mishmar, how the halves are made and sign an order together, what each side checks before it signs, and what happens if either side is lost or stolen.
 sidebar:
   order: 1
-lastUpdated: 2026-11-04
+lastUpdated: 2026-11-08
 ---
 
 Every agent trades with its own **trading key** on each trading account: on Hyperliquid an API wallet, on Binance an Ed25519 API key. The venue sees an ordinary key and checks ordinary signatures. But the private key behind it never exists in one place. It is split in two: one half lives with the agent's signer, on the machine your agent runs on, and the other with Mishmar's signer. The venue accepts a signature only if both halves made it.
@@ -33,14 +33,14 @@ Agent's machine                       Mishmar
 
 An agent has two kinds of key, for two different jobs:
 
-- **Its API key** (`msk_…`) is its identity with Mishmar. It signs every proposal the agent sends and every read it makes. Mishmar keeps only its public half. It can sign nothing for a venue.
+- **Its Mishmar API key** (`msk_…`) is its identity with Mishmar. It signs every proposal the agent sends and every read it makes. Mishmar keeps only its public half. It can sign nothing for a venue. It is also all the agent's signer needs to set itself up: the key names the engine and the key id.
 - **A trading key** on each trading account is what the venue knows. This is the key that is split.
 
 ## How the key is made
 
-You never see or handle the trading key's private key. When you run `mishmar signer keygen` on the agent's machine (step 5 of [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/)), the agent's signer and Mishmar's signer each pick a random half of their own, then exchange two rounds of messages. Neither sees the other's half. What comes out is only the public side:
+You never see or handle the trading key's private key. When the agent's signer finds a trading key waiting for it (within seconds of the console setting one aside, step 2 of [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/); or when you run `mishmar signer keygen` by hand), the agent's signer and Mishmar's signer each pick a random half of their own, then exchange two rounds of messages. Neither sees the other's half. What comes out is only the public side:
 
-- on Hyperliquid, an address, which your master wallet approves as an API wallet;
+- on Hyperliquid, an address, which you approve as an API wallet at Hyperliquid;
 - on Binance, an Ed25519 public key, which you register at Binance as an API key.
 
 The private key that matches it is never put together, not while it is made and not afterwards.
@@ -63,7 +63,7 @@ Most of the exchange between the signers happens ahead of time, so an allowed or
 - **On Hyperliquid**, the two signers run the first three of the protocol's four messages for a batch of future orders in advance. An order then carries only the agent's last message, and Mishmar's signer finishes the signature. Each prepared slot is used once and then thrown away, because using one twice would give the key away. Slots live only in memory.
 - **On Binance**, Mishmar hands out its first-round FROST values in advance, so the agent's half of the signature travels inside the proposal.
 
-When the agent's signer can't prepare its half up front, for example a Hyperliquid market order, which Mishmar prices at the mark, Mishmar asks the agent's signer for its half once the order is allowed.
+When the agent's signer can't prepare its half up front, for example a market order, which Mishmar bounds from the venue's order book before it goes out (an exit is the exception: it leaves as a true market order), Mishmar asks the agent's signer for its half once the order is allowed.
 
 ## What each side checks before it signs
 

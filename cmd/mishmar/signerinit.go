@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/mishmar-io/mishmar/agentkey"
 	"github.com/mishmar-io/mishmar/signer"
 )
 
@@ -30,21 +31,26 @@ func newSignerInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Write the signer's config for an agent key issued in the console",
-		Long: `Start a signer config from an agent key the console issued (the agent's
+		Long: `Write a signer config from an agent key the console issued (the agent's
 page: issue a key; the secret, msk_…, is shown once). The file holds the
-engine URL, the key id and its secret, and the agent id; venue keys are
-added next with "mishmar signer keygen" (one per trading account). "mishmar
-add-agent" does all of this in one go with an operator token; init is for
-an agent and key someone created in the console.
+engine URL, the key id and its secret, and the agent id. "mishmar signer
+run" does this by itself when it finds no config and MISHMAR_API_KEY is
+set, and then generates the trading keys the console adds; init is the
+explicit step for anyone who wants to see the config written first.
 
-The secret is read from MISHMAR_AGENT_SECRET, or from standard input with
---secret-stdin, never from the command line, so it stays out of the shell's
-history and the process list.
+A key issued at contract 0.19.0 or later names its engine and key id, so
+init needs no flags: the agent is read from the engine. A key from before
+takes --engine, --key-id and --agent. MISHMAR_ENGINE, or --engine, names a
+self-hosted engine's API base URL, with /v1, when the key does not name a
+hosted one.
+
+The secret is read from MISHMAR_API_KEY (or MISHMAR_AGENT_SECRET), or from
+standard input with --secret-stdin, never from the command line, so it
+stays out of the shell's history and the process list.
 
 Before writing, init makes one signed read with the key, so a mistyped
-secret or key id shows here rather than at keygen: a key the engine
-refuses writes nothing. An engine that cannot be reached is only a
-warning; --no-check skips the read.`,
+secret or key id shows here rather than later: a key the engine refuses
+writes nothing. --no-check skips the read; it then needs --agent.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(o.config)
@@ -52,9 +58,12 @@ warning; --no-check skips the read.`,
 				return err
 			}
 			if _, err := os.Stat(path); err == nil {
-				return fmt.Errorf("%s exists already; add venue keys to it with \"mishmar signer keygen\", or pass --config for another file", path)
+				return fmt.Errorf("%s exists already; run \"mishmar signer run\" with it, or pass --config for another file", path)
 			}
-			secret := strings.TrimSpace(os.Getenv("MISHMAR_AGENT_SECRET"))
+			secret := strings.TrimSpace(os.Getenv(signer.EnvAPIKey))
+			if secret == "" {
+				secret = strings.TrimSpace(os.Getenv("MISHMAR_AGENT_SECRET"))
+			}
 			if o.secretStdin {
 				line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
 				if err != nil && line == "" {
@@ -63,38 +72,66 @@ warning; --no-check skips the read.`,
 				secret = strings.TrimSpace(line)
 			}
 			if secret == "" {
-				return errors.New("no secret: set MISHMAR_AGENT_SECRET, or pipe it in with --secret-stdin")
+				return errors.New("no secret: set " + signer.EnvAPIKey + ", or pipe it in with --secret-stdin")
+			}
+			parsed, err := agentkey.ParseSecret(secret)
+			if err != nil {
+				return err
+			}
+			if o.engine == "" {
+				if o.engine, err = signer.EngineURL(parsed, os.Getenv(signer.EnvEngine)); err != nil {
+					return fmt.Errorf("%w (or pass --engine)", err)
+				}
+			}
+			if o.keyID == "" {
+				if parsed.KeyID == "" {
+					return errors.New("--key-id is required: the key was issued before 0.19.0 and does not name it")
+				}
+				o.keyID = parsed.KeyID
 			}
 			cfg := &signer.Config{Engine: o.engine, KeyID: o.keyID, Secret: secret, AgentID: o.agent, VenueKeys: map[string]signer.VenueKey{}}
 			if err := cfg.Validate(); err != nil {
 				return err
 			}
-			if !o.noCheck {
-				if err := checkAgentKey(cmd.Context(), cfg, cmd.OutOrStdout()); err != nil {
+			out := cmd.OutOrStdout()
+			switch {
+			case o.noCheck && o.agent == "":
+				return errors.New("--agent is required with --no-check: the agent is otherwise read from the engine")
+			case o.noCheck:
+			case o.agent == "":
+				// The agent from the engine, which proves the key at the same time.
+				fmt.Fprintf(out, "checking key %s with %s…\n", cfg.KeyID, cfg.Engine)
+				setup, me, err := signer.Setup(cmd.Context(), secret, cfg.Engine)
+				if err != nil {
+					return fmt.Errorf("%w; nothing written", err)
+				}
+				if setup.KeyID != cfg.KeyID {
+					return fmt.Errorf("--key-id %s is not the key's id %s; nothing written", cfg.KeyID, setup.KeyID)
+				}
+				cfg.AgentID = me.AgentId
+				fmt.Fprintf(out, "the engine accepts key %s: agent %s (%s)\n", cfg.KeyID, me.AgentId, me.AgentName)
+			default:
+				if err := checkAgentKey(cmd.Context(), cfg, out); err != nil {
 					return err
 				}
 			}
 			if err := cfg.Save(path); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s (mode 0600) for agent %s, key %s, engine %s\n", path, o.agent, o.keyID, o.engine)
-			fmt.Fprint(cmd.OutOrStdout(), "next, one venue key per trading account, made with the engine's signer:\n"+
-				"  mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance\n"+
-				"  mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network mainnet|testnet\n"+
-				"then: mishmar signer run\n")
+			fmt.Fprintf(out, "wrote %s (mode 0600) for agent %s, key %s, engine %s\n", path, cfg.AgentID, cfg.KeyID, cfg.Engine)
+			fmt.Fprint(out, "next: mishmar signer run\n"+
+				"  it generates the trading keys the console adds for this agent and logs what to approve or register at the venue;\n"+
+				"  or make one by hand: mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance|hyperliquid [--network mainnet|testnet]\n")
 			return nil
 		},
 	}
 	f := cmd.Flags()
 	configFlag(cmd, &o.config)
-	f.StringVar(&o.engine, "engine", "", "the engine's API base URL, with /v1: https://engine.example/v1")
-	f.StringVar(&o.keyID, "key-id", "", "the agent key's id (key_…), from the console")
-	f.StringVar(&o.agent, "agent", "", "the agent the key belongs to (agt_…)")
-	f.BoolVar(&o.secretStdin, "secret-stdin", false, "read the key's secret (msk_…) from standard input instead of MISHMAR_AGENT_SECRET")
-	f.BoolVar(&o.noCheck, "no-check", false, "write the config without checking the key with the engine first")
-	for _, name := range []string{"engine", "key-id", "agent"} {
-		_ = cmd.MarkFlagRequired(name)
-	}
+	f.StringVar(&o.engine, "engine", "", "the engine's API base URL, with /v1 (default: what the key names, or "+signer.EnvEngine+")")
+	f.StringVar(&o.keyID, "key-id", "", "the agent key's id (key_…); default: what the key names")
+	f.StringVar(&o.agent, "agent", "", "the agent the key belongs to (agt_…); default: read from the engine")
+	f.BoolVar(&o.secretStdin, "secret-stdin", false, "read the key (msk_…) from standard input instead of "+signer.EnvAPIKey)
+	f.BoolVar(&o.noCheck, "no-check", false, "write the config without checking the key with the engine first (needs --agent)")
 	return cmd
 }
 

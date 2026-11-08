@@ -310,8 +310,9 @@ func (s *Signer) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 // reports active signs; with neither active, the proposal goes without
 // one-shot and the engine's sign request names the key.
 func (s *Signer) venueKeyOn(ctx context.Context, tradingAccountID string) (string, VenueKey, error) {
+	keys := s.venueKeys()
 	var ids []string
-	for id, k := range s.Config.VenueKeys {
+	for id, k := range keys {
 		if k.TradingAccountID == tradingAccountID {
 			ids = append(ids, id)
 		}
@@ -320,12 +321,12 @@ func (s *Signer) venueKeyOn(ctx context.Context, tradingAccountID string) (strin
 	case 0:
 		return "", VenueKey{}, noOneShot("no venue key on %s in the config", tradingAccountID)
 	case 1:
-		return ids[0], s.Config.VenueKeys[ids[0]], nil
+		return ids[0], keys[ids[0]], nil
 	}
 	active := s.activeKeys(ctx)
 	for _, id := range ids {
 		if active[id] {
-			return id, s.Config.VenueKeys[id], nil
+			return id, keys[id], nil
 		}
 	}
 	sort.Strings(ids)

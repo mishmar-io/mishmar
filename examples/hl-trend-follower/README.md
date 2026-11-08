@@ -39,8 +39,10 @@ The bot checks the decisions against these names, so keep them as they are.
    trading account and an agent
    (https://docs.mishmar.io/hyperliquid/add-a-trading-account/ and
    https://docs.mishmar.io/hyperliquid/add-an-agent/), and install the
-   `mishmar` binary (https://docs.mishmar.io/start/install-the-cli/). The
-   `mishmar signer init` command the console shows writes the agent's config.
+   `mishmar` binary (https://docs.mishmar.io/start/install-the-cli/). Put the
+   agent's Mishmar API key, shown once when the agent is added, in
+   `MISHMAR_API_KEY`: the signer writes its config from it the first time it
+   runs and generates the agent's trading key.
 2. Add the rules above.
 3. Install the SDK and run the bot:
 

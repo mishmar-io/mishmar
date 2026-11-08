@@ -336,9 +336,10 @@ func TestFrost(t *testing.T) {
 	}
 	commitments := *cs.JSON200
 
-	// An order the agent built and half-signed.
+	// An order the agent built and half-signed: an exit, the one market
+	// order the signer still builds itself.
 	id := binance.ClientOrderID("agt_test")
-	message, err := binance.BuildOrder(binance.Intent{Symbol: "BTCUSDT", Side: "buy", OrderType: "market", Size: "0.001"}, binance.Rules{Step: "0.001"}, id, h.now)
+	message, err := binance.BuildOrder(binance.Intent{Symbol: "BTCUSDT", Side: "buy", OrderType: "market", Size: "0.001", ReduceOnly: true}, binance.Rules{Step: "0.001"}, id, h.now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +353,7 @@ func TestFrost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proposal := api.Proposal{Kind: api.ProposalKindOrder, Venue: api.VenueBinance, Symbol: "BTCUSDT", Side: api.SideBuy, OrderType: api.ProposalOrderTypeMarket, Size: "0.001", ClientOrderId: id, NotionalUsd: "80", ExpiresAt: h.now.Add(time.Minute)}
+	proposal := api.Proposal{Kind: api.ProposalKindOrder, Venue: api.VenueBinance, Symbol: "BTCUSDT", Side: api.SideBuy, OrderType: api.ProposalOrderTypeMarket, Size: "0.001", ReduceOnly: true, ClientOrderId: id, NotionalUsd: "80", ExpiresAt: h.now.Add(time.Minute)}
 	r, err := h.client.FrostSignWithResponse(ctx, "vk_bn", signerapi.FrostSignRequest{
 		CommitmentId: commitments[0].Id, AgentCommitment: b64(ac.Bytes()), AgentShare: b64(as.Bytes()), Decision: h.decision(proposal),
 		VenueAction: signerapi.VenueAction{Venue: signerapi.VenueActionVenueBinance, Action: b64(message)},

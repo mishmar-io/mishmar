@@ -17,7 +17,7 @@ The package also puts `mishmar` on the path, so `npx -y mishmar mcp` runs
 the MCP server and `npx -y mishmar signer run` the signer without the CLI
 installed: the command runs the binary found through `MISHMAR_BIN`, the
 PATH or `~/.mishmar/bin`, and when there is none fetches the pinned release
-(v0.2.2) into `~/.mishmar/bin` first, checked against the release's
+(v0.2.3) into `~/.mishmar/bin` first, checked against the release's
 checksums.
 
 ```ts

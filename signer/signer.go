@@ -42,6 +42,13 @@ type Signer struct {
 	// one-shot signing per venue key, refilled when half are spent; 0 or 1
 	// takes one per proposal, which suits a process that sends one and exits.
 	CommitmentBatch int
+	// ConfigPath is the file the config came from. Set, Run keeps the
+	// signer's trading keys in line with the engine's (SyncKeys: keys the
+	// console added are generated here and saved there, keys another command
+	// wrote into the file are picked up, revoked ones dropped) every
+	// KeySyncInterval (DefaultKeySyncInterval). Empty, Run syncs nothing.
+	ConfigPath      string
+	KeySyncInterval time.Duration
 
 	key       *agentkey.Key
 	pub       string
@@ -50,6 +57,8 @@ type Signer struct {
 	ecdsaKeys map[string]*ecdsa2p.Key
 	answered  *idSet
 	os        *oneShotState
+	warned    map[string]bool
+	fileSeen  fileStamp
 }
 
 // New makes a signer for the config. A nil client is made from the config;
@@ -79,7 +88,7 @@ func New(cfg *Config, client *Client, log *slog.Logger) (*Signer, error) {
 
 // Policy is what the signer checks a request against.
 func (s *Signer) Policy() Policy {
-	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.Config.VenueKeys, Now: s.now, Answered: s.answered.has, Rules: s.cachedHLRules}
+	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.venueKeys(), Now: s.now, Answered: s.answered.has, Rules: s.cachedHLRules}
 }
 
 // Handle answers one request: the checks, then the hook, then the agent's
@@ -212,9 +221,16 @@ func (s *Signer) Run(ctx context.Context) error {
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 	defer wg.Wait()
+	if s.ConfigPath != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.syncLoop(ctx)
+		}()
+	}
 	backoff := minBackoff
 	quick := true
-	s.Logger.Info("signer: polling", "engine", s.Client.Engine, "keyId", s.Config.KeyID, "venueKeys", len(s.Config.VenueKeys))
+	s.Logger.Info("signer: polling", "engine", s.Client.Engine, "keyId", s.Config.KeyID, "venueKeys", len(s.venueKeys()))
 	for {
 		w := wait
 		if quick {

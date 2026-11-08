@@ -20,7 +20,7 @@ def main() -> None:
     ap.add_argument(
         "--config",
         default=os.environ.get("MISHMAR_AGENT_CONFIG"),
-        help="the signer's config, written by `mishmar signer init` (default ~/.mishmar/agent.json)",
+        help="the signer's config, written by the signer's first start with MISHMAR_API_KEY, or `mishmar signer init` (default ~/.mishmar/agent.json)",
     )
     ap.add_argument(
         "--trading-account",
@@ -49,8 +49,15 @@ def main() -> None:
             f"{account['name']} on {account['venue']}: {args.symbol} step {rules.get('stepSize')},"
             f" min notional {rules.get('minNotional')}"
         )
+        # A held order expires at its own deadline (60 seconds by default) or after
+        # 30 minutes, whichever is first, so give a person the ten minutes waited below.
         d = s.order(
-            args.trading_account, args.symbol, args.side, args.size, price=args.price
+            args.trading_account,
+            args.symbol,
+            args.side,
+            args.size,
+            price=args.price,
+            valid_for=600,
         )
         print(
             f"decision {d['id']}: {d['verdict']}"

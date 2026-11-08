@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.17.2
+  version: 0.19.0
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -654,6 +654,32 @@ paths:
       responses:
         '204': { description: Deleted }
         default: { $ref: '#/components/responses/Error' }
+  /trading-accounts/{tradingAccountId}/read-key:
+    parameters:
+      - $ref: '#/components/parameters/tradingAccountId'
+    put:
+      tags: [trading-accounts]
+      operationId: setReadKey
+      summary: Give an exchange account its read-only key
+      description: |
+        For an exchange account added without one (or whose key the venue
+        refused before it was ever verified): the key is stored whole, like at
+        creation, `readKeyRegistered` turns true, and the account can be
+        verified. Refused (409 `conflict`) for a trading account that is not an
+        exchange account, or one already active: an active account's key is
+        not replaced; delete the account and add it again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExchangeReadKey' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TradingAccount' }
+        default: { $ref: '#/components/responses/Error' }
   /trading-accounts/{tradingAccountId}/verify:
     parameters:
       - $ref: '#/components/parameters/tradingAccountId'
@@ -1014,6 +1040,14 @@ paths:
     get:
       tags: [approvals]
       operationId: getApproval
+      summary: One approval, with the rules re-run against the account as it is now
+      description: |
+        A pending approval carries `now`: the parked proposal evaluated again
+        against the current book, marks, PnL, statuses and restrictions, with
+        each rule's observed value and threshold, the verdict that would fall
+        today, and a `revision` of it. Show it to the approver, and send the
+        `revision` with the approve so the engine knows what they saw. A
+        decided or expired approval has no `now`.
       responses:
         '200':
           description: OK
@@ -1028,6 +1062,17 @@ paths:
       tags: [approvals]
       operationId: approveApproval
       summary: Co-sign. The engine forwards the proposal to its trading account.
+      description: |
+        The engine checks the statuses first (a stop, a pause, a stopped agent,
+        portfolio or trading account, a lost grant, a restriction: 409
+        `conflict`, the approval stays pending), then runs the rules once more
+        against the account as it is now. A verdict of `block` now refuses the
+        approve (409 `conflict`, `details.now` says which rule); `require_approval`
+        or `allow` is the approver's call. When the request names the `revision`
+        the approver saw and the evaluation now has another, the answer is 409
+        `evaluation_changed` with `details.now`, for the approver to confirm
+        again with the new `revision`. Without a `revision` only the block check
+        applies. Nothing is decided on a 409.
       requestBody:
         content:
           application/json:
@@ -1038,6 +1083,15 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Approval' }
+        '409':
+          description: >-
+            Not approved and still pending: the approval is no longer pending (`conflict`),
+            a status or restriction refuses it (`conflict`), the rules block it now
+            (`conflict`, with `details.now`), or the evaluation moved since the approver
+            read it (`evaluation_changed`, with `details.now`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         default: { $ref: '#/components/responses/Error' }
   /approvals/{approvalId}/reject:
     parameters:
@@ -1095,6 +1149,13 @@ paths:
         One-shot (`venueMessage`): the agent's signer has already built the
         venue request and signed its half, so an allowed order is co-signed
         and forwarded with no round trip to the signer.
+
+        Sent again: a proposal whose `nonce` the engine already decided under
+        the same `keyId` gets that decision back, as it stands now (its venue
+        ack and approval included), with nothing decided, written or forwarded
+        again. That is what an SDK retrying the same body after a lost answer
+        receives. The nonce is remembered for twice the proposal age limit
+        (two minutes); past that the proposal is stale anyway (401).
       requestBody:
         required: true
         content:
@@ -1107,12 +1168,34 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Decision' }
         '401':
-          description: Unknown or revoked key, bad signature, stale `proposedAt` or replayed `nonce`.
+          description: >-
+            Unknown or revoked key, bad signature, stale `proposedAt`, or a `nonce` already
+            spent whose decision the engine no longer holds (the same body again gets its
+            decision, 200, while it does).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         default: { $ref: '#/components/responses/Error' }
 
+  /agent/me:
+    get:
+      tags: [agent]
+      operationId: agentGetIdentity
+      security: [{ agentAuth: [] }]
+      summary: Who the calling key belongs to
+      description: |
+        The agent, account and key id the key was issued for, so a signer
+        set up from the key alone (`MISHMAR_API_KEY`) learns its agent without
+        an operator token or a flag. An unknown or revoked key is 401 like
+        any agent call, which makes this the one read that proves a key.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentIdentity' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
   /agent/decisions:
     get:
       tags: [agent]
@@ -1675,8 +1758,12 @@ components:
           description: |
             Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
             `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
-            `venue_rejected`, `limit_reached`, `signer_unreachable`, `internal`,
-            `not_implemented` (501: in the contract, not yet in this engine).
+            `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
+            `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+            `evaluation_changed` (409) answers an approve whose `revision` is not the
+            current evaluation's: the rules now say something else than what the approver
+            saw. `details.now` is the current ApprovalEvaluation; show it and approve again
+            with its `revision`. Nothing was decided.
             `signer_unreachable` (409) means the request needs the agent's signer and none
             answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
             signer and send the same request again.
@@ -1684,7 +1771,9 @@ components:
             the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
             Sending it again changes nothing: delete one, or move to a larger plan.
             `unavailable` (503) means the request did nothing: the engine cannot read its
-            state, or it is restarting. Send the same request again in a moment.
+            state, it is starting or waiting for its account, or it is stopping. Send the
+            same request again after the seconds in the `Retry-After` header (one, while
+            an engine starts or stops).
             `rate_limited` (429) also means the request did nothing: this caller has sent
             too many requests. Wait the seconds in the `Retry-After` header, then send the
             same request again. `too_large` (413) means the body was over the limit the
@@ -1745,7 +1834,10 @@ components:
 
     Tier:
       type: string
-      enum: [free, pro, team, enterprise]
+      enum: [free, pro, enterprise]
+      description: |
+        The account's plan: free, pro, or enterprise (by contact; billing never
+        puts an account on it by itself). There is no team plan (7 November 2026).
     SignerTransport:
       type: string
       enum: [long_poll, websocket, webhook, queue]
@@ -1911,9 +2003,43 @@ components:
             secret:
               type: string
               description: |
-                The agent's Ed25519 private key seed, base64. Shown once. The
-                engine keeps only the public key, so a leaked engine database
-                cannot sign as the agent.
+                The agent's API key, shown once:
+                `msk_<environment>_<account suffix>_<key random part>_<seed>`.
+                The seed is the agent's Ed25519 private key, base64url; before
+                it, what names the engine and the key: the environment
+                (`testnet`, `prod`, … for hosted Mishmar, which the CLI and the
+                SDKs map to the API host; anything else means `MISHMAR_ENGINE`
+                names the engine) and the key id's two parts
+                (`key_<account suffix>_<random part>`). An agent needs nothing
+                else: `mishmar signer run` with the key in `MISHMAR_API_KEY`
+                writes its config, learns its agent from `GET /agent/me` and
+                generates the trading keys added for it. The engine keeps only
+                the public key, so a leaked engine database cannot sign as the
+                agent. A key issued before 0.19.0 is `msk_<6 characters>_<seed>`
+                and keeps working, with the engine URL and key id given by hand.
+    AgentIdentity:
+      type: object
+      description: Who an agent key belongs to, as `GET /agent/me` answers the key.
+      required: [agentId, agentName, accountId, keyId, portfolioId]
+      properties:
+        agentId: { type: string }
+        agentName: { type: string }
+        accountId: { type: string }
+        keyId: { type: string }
+        portfolioId: { type: string }
+    SignerPresence:
+      type: object
+      description: |
+        Whether the agent's signer is reaching this engine: `connected` while
+        it holds a poll open or made a signer call within the last half
+        minute. `lastSeenAt` is its last signer call since the engine started;
+        absent when there was none. Kept in memory, so an engine restart
+        forgets it until the signer polls again, which a running signer does
+        within seconds.
+      required: [connected]
+      properties:
+        connected: { type: boolean }
+        lastSeenAt: { type: string, format: date-time }
     Agent:
       type: object
       required: [id, name, portfolioId, status, keys, venueKeys, tradingAccountIds, createdAt, updatedAt]
@@ -1934,6 +2060,9 @@ components:
           type: array
           description: The trading accounts the agent holds an unrevoked venue key on. Derived from `venueKeys`.
           items: { type: string }
+        signer:
+          $ref: '#/components/schemas/SignerPresence'
+          description: Whether the agent's signer is reaching the engine. Absent when the engine does not track it (no signer channel).
         lastDecisionAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -2159,7 +2288,7 @@ components:
           cosigner_callback: '#/components/schemas/CosignerCallbackSetup'
     HyperliquidSetup:
       type: object
-      required: [kind, network, masterAddress]
+      required: [kind, network]
       properties:
         kind: { type: string, enum: [hyperliquid] }
         network: { type: string, enum: [mainnet, testnet] }
@@ -2168,7 +2297,9 @@ components:
           description: |
             The customer's Hyperliquid master account. Reads need no key: the info
             API is public by address. Each agent's API wallet (its VenueKey) is
-            approved by this account.
+            approved by this account. Absent until known: an account added
+            without one learns it from the first of its agents' API wallets the
+            master approves at Hyperliquid.
     ExchangeSetup:
       type: object
       required: [kind, environment, readKeyRegistered]
@@ -2226,17 +2357,26 @@ components:
           description: Default agents_only.
         hyperliquid:
           type: object
-          required: [masterAddress, network]
+          required: [network]
           properties:
-            masterAddress: { type: string }
+            masterAddress:
+              type: string
+              description: |
+                The master account. Absent, the engine learns it from the first
+                API wallet an agent gets on this account that the master approves
+                at Hyperliquid (`userRole` names the approving account), and
+                verifies the account then; until that the account is pending.
             network:
               type: string
               enum: [mainnet, testnet]
               description: A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
         exchange:
           type: object
-          required: [readApiKey, readApiSecret]
-          description: An exchange account. The trading keys come later, one per agent (VenueKey).
+          description: |
+            An exchange account. The trading keys come later, one per agent
+            (VenueKey). The read-only key may come later too (`setReadKey`):
+            without it the account is created with `readKeyRegistered` false
+            and cannot verify or stream until it has one.
           properties:
             subaccount: { type: string }
             readApiKey:
@@ -2255,6 +2395,16 @@ components:
       properties:
         name: { type: string, minLength: 1 }
         mode: { $ref: '#/components/schemas/TradingAccountMode' }
+    ExchangeReadKey:
+      type: object
+      required: [readApiKey, readApiSecret]
+      description: An exchange account's read-only key, for `setReadKey`. Both write-only.
+      properties:
+        readApiKey: { type: string, minLength: 1 }
+        readApiSecret: { type: string, minLength: 1 }
+        subaccount:
+          type: string
+          description: Replaces the account's subaccount name when given.
     VenueRules:
       type: object
       required: [tradingAccountId, venue, asOf, symbols]
@@ -2543,6 +2693,59 @@ components:
             engine knows (the `cancelled` ledger event). Absent while it rests, after it
             filled completely, and on orders that never rested. Not covered by
             engineSignature: it arrives later, as a chained event.
+        valuation:
+          $ref: '#/components/schemas/DecisionValuation'
+          description: |
+            What the rules valued the order at and where that price came from. Present
+            on orders; absent on cancels and on decisions from before it was recorded.
+            Not covered by engineSignature.
+    DecisionValuation:
+      type: object
+      required: [price, source]
+      description: |
+        The price the rules valued the order at (the `order_size` metric and the
+        projected book), which is the highest of the order's own price, the symbol's
+        mark and what the engine knows it could fill at beyond both. For a market
+        order that is not reduce-only the engine fetches the venue's order book and
+        walks 105% of the order's size through it on the order's side: the worst
+        price reached is the valuation, and on Hyperliquid the bound the order is
+        sent with when it is tighter than the slippage bound. Exits (reduce-only)
+        keep the mark. See docs/rules.md in the engine, "Pricing the proposal".
+      properties:
+        price: { $ref: '#/components/schemas/Decimal' }
+        source:
+          type: string
+          enum: [limit, mark, mark_slippage, book, one_shot]
+          description: |
+            limit: the order's own price was the highest. mark: the symbol's mark.
+            mark_slippage: the mark moved by the venue's market-order slippage (a market
+            buy where no book was read). book: the worst price of the walk through the
+            venue's order book. one_shot: the price in the agent's one-shot venue message.
+        bookPrice:
+          $ref: '#/components/schemas/Decimal'
+          description: >-
+            The worst price the walk through the book reached, before it is compared with
+            the order's price and the mark (a market sell walks below the mark, and the
+            rules still value it at the mark). The IOC bound the order is sent with (on
+            Hyperliquid its IOC limit, on Binance a LIMIT IOC) is tightened to it. Present
+            whenever a book was walked.
+        bookShort:
+          type: boolean
+          description: >-
+            True when the book held less than 105% of the order's size: the last level's
+            price was used and the real fill could be worse. Only when a book was walked.
+        bookLevels:
+          type: integer
+          description: How many price levels of the book the walk consumed. Only when a book was walked.
+        bookAsOf:
+          type: string
+          format: date-time
+          description: When the venue's book snapshot was taken. Only when a book was walked.
+        detail:
+          type: string
+          description: >-
+            Why the book was not used when a market order was valued without one: the
+            venue's error, a stale book, or an adapter that cannot read books. One line.
     OrderCancellation:
       type: object
       required: [at, by, filledSize]
@@ -2680,10 +2883,59 @@ components:
         decidedBy: { type: string }
         comment: { type: string }
         decision: { $ref: '#/components/schemas/Decision' }
+        now:
+          $ref: '#/components/schemas/ApprovalEvaluation'
+          description: |
+            The parked proposal evaluated again against the account as it is at the
+            time of the read: present on a pending approval read one at a time
+            (GET /approvals/{approvalId}), absent on decided and expired approvals and
+            on the list. The decision's own `evaluations` are what was true when the
+            proposal was parked.
+    ApprovalEvaluation:
+      type: object
+      required: [evaluatedAt, verdict, evaluations, state, revision]
+      description: |
+        The rules re-run for a pending approval: the verdict the proposal would get
+        if it were submitted now, each rule's observed value and threshold against
+        the current book (with the orders in flight and resting), marks, PnL,
+        statuses and restrictions, the account-level numbers before the proposal,
+        and a `revision` of the outcome.
+      properties:
+        evaluatedAt: { type: string, format: date-time }
+        verdict:
+          $ref: '#/components/schemas/Verdict'
+          description: >-
+            allow or require_approval: the approver may co-sign. block: a rule, status or
+            restriction refuses it now, and approve answers 409 until that changes.
+        reason:
+          type: string
+          description: One line for a person, as on a decision; absent when allowed cleanly.
+        evaluations:
+          type: array
+          items: { $ref: '#/components/schemas/RuleEvaluation' }
+        state: { $ref: '#/components/schemas/StateSnapshot' }
+        valuation:
+          $ref: '#/components/schemas/DecisionValuation'
+          description: What the order was valued at for this evaluation (the current mark; a market order's book is not read again).
+        revision:
+          type: string
+          description: |
+            A hash of the outcome: the verdict, the reason and each rule's id, pass or
+            fail, outcome and waiver. The observed values move with the market and are
+            not in it, so a drift that flips no rule keeps the revision. Send it with the
+            approve (ApprovalDecide.revision); a different revision at that moment is
+            409 `evaluation_changed`.
     ApprovalDecide:
       type: object
       properties:
         comment: { type: string }
+        revision:
+          type: string
+          description: |
+            The `revision` of the `now` evaluation the approver saw (Approval.now). The
+            engine evaluates once more as it approves: a different revision is refused
+            with 409 `evaluation_changed` and the current `now` in `details.now`, so the
+            approver confirms what is true now. Absent, only a `block` now refuses.
 
     ProposalSubmit:
       type: object

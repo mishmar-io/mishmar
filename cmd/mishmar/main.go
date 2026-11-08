@@ -62,7 +62,10 @@ This binary is the agent's side:
                signer built in
 
 The signer's config (the agent's secret and its shares) lives in
-~/.mishmar/agent.json, or the file MISHMAR_AGENT_CONFIG names, mode 0600.`,
+~/.mishmar/agent.json, or the file MISHMAR_AGENT_CONFIG names, mode 0600.
+With no config yet, "mishmar signer run" and "mishmar mcp" write it from the
+agent's API key in MISHMAR_API_KEY (MISHMAR_ENGINE names a self-hosted
+engine), and the running signer generates the agent's trading keys itself.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

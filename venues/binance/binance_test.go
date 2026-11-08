@@ -42,6 +42,7 @@ func TestBuildOrder(t *testing.T) {
 		in   Intent
 		id   string
 	}{
+		{"a market order that is not an exit: the engine bounds it", Intent{Symbol: "BTCUSDT", Side: "buy", OrderType: "market", Size: "1"}, "msh-a-abcdef"},
 		{"below the step", Intent{Symbol: "BTCUSDT", Side: "buy", OrderType: "market", Size: "0.0009"}, "msh-a-abcdef"},
 		{"no side", Intent{Symbol: "BTCUSDT", OrderType: "market", Size: "1"}, "msh-a-abcdef"},
 		{"limit without a price", Intent{Symbol: "BTCUSDT", Side: "buy", OrderType: "limit", Size: "1"}, "msh-a-abcdef"},
@@ -115,13 +116,55 @@ func TestCheckOrderRefusesWhatTheProposalDidNotSay(t *testing.T) {
 	}
 }
 
+// TestCheckOrderMarketProposal: a market proposal goes out either as a true
+// MARKET order (an exit, or an older engine) or as the engine's LIMIT IOC at
+// its bound, whose price the signer does not judge; anything else is refused.
+func TestCheckOrderMarketProposal(t *testing.T) {
+	in := Intent{Symbol: "BTC", Side: "buy", OrderType: "market", Size: "0.5"}
+	const ioc = "newClientOrderId=msh-a-abcdef&newOrderRespType=RESULT&price=60600.5&quantity=0.500&recvWindow=10000&side=BUY&symbol=BTCUSDT&timeInForce=IOC&timestamp=1793178000000&type=LIMIT"
+	const market = "newClientOrderId=msh-a-abcdef&newOrderRespType=RESULT&quantity=0.500&recvWindow=10000&side=BUY&symbol=BTCUSDT&timestamp=1793178000000&type=MARKET"
+	for _, c := range []struct{ name, msg string }{
+		{"a market order", market},
+		{"an IOC limit at the engine's bound", ioc},
+		{"an IOC limit at a bound far from anything", strings.Replace(ioc, "price=60600.5", "price=1", 1)},
+	} {
+		o, err := DecodeOrder([]byte(c.msg))
+		if err != nil {
+			t.Fatalf("%s: decode: %v", c.name, err)
+		}
+		if err := CheckOrder(o, in, "BTCUSDT", "msh-a-abcdef"); err != nil {
+			t.Errorf("%s: %v", c.name, err)
+		}
+		if err := CheckRules(o, btc); err != nil {
+			t.Errorf("%s: rules: %v", c.name, err)
+		}
+	}
+	for _, c := range []struct{ name, msg string }{
+		{"a resting limit", strings.Replace(ioc, "timeInForce=IOC", "timeInForce=GTC", 1)},
+		{"a fill-or-kill limit", strings.Replace(ioc, "timeInForce=IOC", "timeInForce=FOK", 1)},
+		{"a limit without a price", strings.Replace(ioc, "price=60600.5&", "", 1)},
+		{"a limit at a zero bound", strings.Replace(ioc, "price=60600.5", "price=0", 1)},
+		{"a market order with a price", strings.Replace(market, "quantity=0.500", "price=60600.5&quantity=0.500", 1)},
+		{"a market order with a timeInForce", strings.Replace(market, "symbol=BTCUSDT", "symbol=BTCUSDT&timeInForce=IOC", 1)},
+		{"a stop", strings.Replace(ioc, "type=LIMIT", "type=STOP", 1)},
+	} {
+		o, err := DecodeOrder([]byte(c.msg))
+		if err != nil {
+			t.Fatalf("%s: decode: %v", c.name, err)
+		}
+		if err := CheckOrder(o, in, "BTCUSDT", "msh-a-abcdef"); !IsMismatch(err) {
+			t.Errorf("%s: %v, want a mismatch", c.name, err)
+		}
+	}
+}
+
 func TestCheckRules(t *testing.T) {
 	base := "newClientOrderId=msh-a-abcdef&newOrderRespType=RESULT&price=60000.5&quantity=0.500&recvWindow=10000&side=BUY&symbol=BTCUSDT&timeInForce=GTC&timestamp=1793178000000&type=LIMIT"
 	for _, c := range []struct{ name, from, to string }{
 		{"off the step", "quantity=0.500", "quantity=0.5005"},
 		{"off the tick", "price=60000.5", "price=60000.55"},
 		{"below the minimum", "quantity=0.500", "quantity=0.000"},
-		{"not GTC", "timeInForce=GTC", "timeInForce=IOC"},
+		{"neither GTC nor IOC", "timeInForce=GTC", "timeInForce=FOK"},
 		{"no RESULT", "newOrderRespType=RESULT&", ""},
 	} {
 		o, err := DecodeOrder([]byte(strings.Replace(base, c.from, c.to, 1)))

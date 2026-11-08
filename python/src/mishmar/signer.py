@@ -14,6 +14,12 @@ the same way.
         if d["verdict"] == "require_approval":
             d = s.wait(d["id"])
 
+The first time, the agent's API key from the console is all the child needs:
+with ``MISHMAR_API_KEY`` set (or ``Signer(api_key=…)``) and no config yet, it
+writes the config from the key, and while it runs it generates the trading
+keys the console adds for the agent, logging what to approve or register at
+the venue.
+
 The child lives and dies with this process: it gets a pipe on stdin that is
 never written to and stops when the pipe closes, so it does not outlive a
 bot that crashed or was killed. A signer run on its own instead (systemd,
@@ -59,9 +65,10 @@ log = logging.getLogger("mishmar.signer")
 
 RELEASES = "https://github.com/mishmar-io/mishmar/releases/download"
 # The release the SDK fetches when it has to (the console script: `uvx mishmar …`); bumped with each release.
-RELEASE = "v0.2.2"
+RELEASE = "v0.2.3"
 ENV_BINARY = "MISHMAR_BIN"
 ENV_LOCAL_TOKEN = "MISHMAR_LOCAL_TOKEN"
+ENV_API_KEY = "MISHMAR_API_KEY"
 
 
 def _executable(path: str | None) -> bool:
@@ -195,17 +202,21 @@ class _UnixConnection(http.client.HTTPConnection):
 class Signer:
     """The agent's signer, run as a child process and spoken to over its
     local API. ``config`` is the signer's config file (default
-    ``$MISHMAR_AGENT_CONFIG`` or ``~/.mishmar/agent.json``); ``binary`` the
-    mishmar binary (see ``find_binary``); ``address`` where the child listens
-    (default: a private Unix socket, or localhost with a token on Windows).
-    Use it as a context manager, or call ``start`` and ``stop``. The child
-    stops when this process exits, however it exits. ``Signer.connect``
-    speaks to a signer that runs on its own instead."""
+    ``$MISHMAR_AGENT_CONFIG`` or ``~/.mishmar/agent.json``); ``api_key`` the
+    agent's API key from the console (``msk_…``), which the child writes the
+    config from when there is none yet (default ``$MISHMAR_API_KEY``, which
+    the child reads itself); ``binary`` the mishmar binary (see
+    ``find_binary``); ``address`` where the child listens (default: a private
+    Unix socket, or localhost with a token on Windows). Use it as a context
+    manager, or call ``start`` and ``stop``. The child stops when this
+    process exits, however it exits. ``Signer.connect`` speaks to a signer
+    that runs on its own instead."""
 
     def __init__(
         self,
         config: str | None = None,
         *,
+        api_key: str | None = None,
         binary: str | None = None,
         address: str | None = None,
         start_timeout: float = 15.0,
@@ -213,6 +224,7 @@ class Signer:
         log_level: str = "info",
     ):
         self.config = config
+        self.api_key = api_key
         self.binary = binary
         self.address = address
         self.start_timeout = start_timeout
@@ -281,6 +293,8 @@ class Signer:
         if not self.address.startswith("unix:"):
             self.token = self.token or secrets.token_urlsafe(32)
             env[ENV_LOCAL_TOKEN] = self.token
+        if self.api_key:
+            env[ENV_API_KEY] = self.api_key
         args = [
             binary,
             "signer",

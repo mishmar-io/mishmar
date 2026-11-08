@@ -1,14 +1,14 @@
 ---
 title: Add an agent on Binance
-description: Give an agent its own trading key on a Binance trading account, an Ed25519 API key split between the agent's signer and Mishmar. Console steps, two commands on the agent's machine, registering the public key at Binance, and a test order.
+description: Give an agent its Mishmar API key, start it with that one key, and register the Ed25519 trading key its signer generates at Binance, with the account's read-only key in the same visit. Four steps in one dialog, one command on the agent's machine.
 sidebar:
   order: 2
-lastUpdated: 2026-11-04
+lastUpdated: 2026-11-08
 ---
 
 When you are done, the agent has two keys:
 
-- **Its API key**, which it signs every proposal with. Mishmar keeps only the public half.
+- **Its Mishmar API key**, which it signs every proposal with. Mishmar keeps only the public half.
 - **A trading key on your Binance account**: a self-generated Ed25519 API key that you register at Binance. Its private key is never whole anywhere. One half lives with the agent's signer, the other with Mishmar. An order reaches Binance only when Mishmar's rules allow it and both halves sign it.
 
 Binance sees an ordinary API key, and you decide at Binance what it may do: let it trade futures, and leave withdrawals off.
@@ -17,133 +17,71 @@ It takes about ten minutes.
 
 ## What you need
 
-- **A Binance trading account in Mishmar**, with the status Active. [Add a Binance trading account](/binance/add-a-trading-account/) has the steps.
-- **A browser signed in to that Binance account** on [demo.binance.com](https://demo.binance.com), the same account or subaccount whose read-only key Mishmar has, to register the agent's key.
-- **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/).
+- **A Binance account on demo trading** ([demo.binance.com](https://demo.binance.com)) for the alpha, with its USDⓈ-M Futures account **opened and funded** (open it under Derivatives, then transfer USDT or USDC from the spot wallet into the futures wallet: verification needs margin there, and a futures account that was never opened or funded reads as empty) and the futures position mode set to **One-way**. On a live Mishmar the console points you to [binance.com](https://binance.com) instead. You don't need to have added it to Mishmar as a trading account yet: the dialog can, and asks for its read-only key in step 3, in the same visit to Binance as the agent's key.
+- **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
-- **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent, issuing its key, adding a trading key or saving a key id. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
+- **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
+- **Room on your plan.** The free plan holds one agent and one trading account.
 
 ## 1. Add the agent
 
-In the console, open **Agents** and click **Add agent**.
+In the console, open **Agents** and click **Add agent**. The dialog has four steps and moves on by itself as the agent and the venue do their part.
 
 - **Name**: what you call the agent everywhere in Mishmar.
 - **Portfolio**: the portfolio's rules apply to the agent, alongside its own. The account's default portfolio is preselected.
 - **Description** (optional): what it trades and how.
+- **Trades on**: the trading account the agent gets its trading key on. Pick your Binance trading account if you added one already, or **New Binance account**. For a new one, give it a **name** and answer **Does anything other than your agents trade on this account?** (choose **No, only my agents** if Mishmar's agents are the only thing that trades there). Its read-only key comes in step 3.
 
-Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes, so a later step may ask again. The agent's page opens with the **Set up** dialog, which walks through the next four steps.
+Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes. Mishmar creates the agent, issues its Mishmar API key and sets a trading key aside on the account, all at once.
 
-![The Add agent dialog with a name, the default portfolio and a description filled in](/screens/binance/add-an-agent/add-agent.png)
+## 2. Start the agent
 
-## 2. Issue its API key
+The dialog shows the **Mishmar API key**. **It is shown once.** Copy it before you close the dialog; if you lose it, revoke it on the agent's **Keys** tab and issue another.
 
-Click **Issue key**.
-
-![Setup step 1, Issue its key, with the Issue key button](/screens/binance/add-an-agent/setup-issue-key.png)
-
-## 3. Set up the agent's signer
-
-The dialog shows the key's secret (it starts with `msk_`) and a command. **The secret is shown once.** Copy it before you close the dialog.
-
-![Setup step 2: the secret, masked here, and the mishmar signer init command with its copy button](/screens/binance/add-an-agent/setup-signer-init.png)
-
-On the agent's machine, run the command from the dialog. It looks like this, with your own values:
+On the machine the agent runs on, start the signer with the key. The dialog shows the command for your Mishmar; on hosted Mishmar it is just this, with your own key:
 
 ```sh
-mishmar signer init --engine https://api.testnet.mishmar.io/a/acc_…/v1 --key-id key_… --agent agt_… --secret-stdin
+MISHMAR_API_KEY=msk_testnet_… mishmar signer run
 ```
 
-It waits for the secret. Paste it and press Enter. The secret is read from standard input, never from the command line, so it stays out of your shell history. Before writing anything, the command checks the key with Mishmar once, so a secret pasted wrong stops here.
+A self-hosted engine is named in `MISHMAR_ENGINE` as well; the dialog includes it when it applies. The key names the engine and the key id, so the signer needs nothing else: with no config at `~/.mishmar/agent.json` yet, it checks the key with Mishmar, writes the config (mode 0600) and starts.
 
 ```text
-checking key key_… with https://api.testnet.mishmar.io/a/acc_…/v1…
-the engine accepts key key_…
-wrote /home/you/.mishmar/agent.json (mode 0600) for agent agt_…, key key_…, engine https://api.testnet.mishmar.io/a/acc_…/v1
-next, one venue key per trading account, made with the engine's signer:
-  mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance
-  mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network mainnet|testnet
-then: mishmar signer run
+level=INFO msg="signer: no config yet; setting the agent up from MISHMAR_API_KEY" path=/home/you/.mishmar/agent.json
+level=INFO msg="signer: config written" path=/home/you/.mishmar/agent.json agent=agt_… name="Reversion" keyId=key_… engine=https://api.testnet.mishmar.io/a/acc_…/v1
+level=INFO msg="signer: polling" engine=https://api.testnet.mishmar.io/a/acc_…/v1 keyId=key_… venueKeys=0
+level=INFO msg="signer: generating a trading key with the engine's signer" venueKey=vk_… tradingAccount=ta_… venue=binance scheme=frost-ed25519
+level=INFO msg="signer: trading key made; register its public key at the venue" venueKey=vk_… tradingAccount=ta_… venue=binance publicKey="-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA…\n-----END PUBLIC KEY-----\n" then="enter the key id the venue issues in the console (the agent's Keys tab), with this signer running"
 ```
 
-Back in the dialog, click **Done**.
+Within a few seconds the signer finds the trading key the dialog set aside and generates it with Mishmar's signer (FROST, the IETF's threshold signing standard): each side makes a half and they run two rounds together, so neither ever sees the other's half. What comes out is an ordinary Ed25519 public key, whose private key exists only as the two halves. The dialog shows **Agent connected**, then **Trading key generated**, and moves on.
 
-:::tip[More than one agent on the same machine]
-Each agent has its own config file, and `signer init` will not overwrite one that exists. For a second agent, add `--config ~/.mishmar/agents/<name>.json` to this command and to every `mishmar` command for that agent, or set `MISHMAR_AGENT_CONFIG` to the file.
+Leave the signer running: it signs only orders this agent proposed and Mishmar allowed, the read that proves the key in step 3, and the orders that wait for your approval, whose second signature comes later.
+
+:::tip[From your agent's code]
+The Python and TypeScript SDKs start the signer for you as a child process, with the same key: set `MISHMAR_API_KEY` in the bot's environment, or pass it (`Signer(api_key=…)`, `new Signer({ apiKey })`). For an LLM agent, `mishmar mcp` does the same; put the key in the MCP server's env. More than one agent on the same machine: give each its own config file with `--config ~/.mishmar/agents/<name>.json` (or `MISHMAR_AGENT_CONFIG`), since a config holds one agent's key.
 :::
 
-## 4. Add a trading key
+## 3. Register the key at Binance
 
-Pick your Binance trading account and click **Add key**. The list shows only trading accounts where this agent has no key yet.
+The dialog lists what to do at Binance, each step with the field it fills in right under it. Both keys you make there are used from Mishmar's address only, the **IP to allowlist** the dialog shows: on a live Mishmar restrict each of them to it (**Restrict access to trusted IPs only**); on demo trading the restriction is optional. On [demo.binance.com](https://demo.binance.com), signed in to the account (or subaccount) the agent trades:
 
-![Setup step 3: the Binance trading account picked, and the Add key button](/screens/binance/add-an-agent/setup-trading-key.png)
+1. **If the trading account is new**, or has no read-only key yet: set the futures position mode to **One-way** (Futures, Preferences, Position mode).
+2. **The read-only key**, for a trading account that has none: create an API key, **System generated**, with **Enable Reading** on and every other permission off. Binance shows an **API key** and a **secret key** for it: paste both into the dialog, under this step, as **Read-only API key** and **Its secret key**. Mishmar reads the account's margin, positions and fills with it and never trades with it.
+3. **The trading key**: create another API key, **Self-generated**, and paste the dialog's public key, all of it, from `-----BEGIN PUBLIC KEY-----` to `-----END PUBLIC KEY-----`. Turn on **Enable Futures**. Leave withdrawals off; Mishmar does not check that setting yet, so check it yourself.
+4. Binance shows one **API key** for the new key and no secret key: a self-generated key has no secret at Binance, because its private key is the split one. That string of letters and digits is the key id Mishmar needs. Paste it into **Key id issued by Binance**.
 
-## 5. Make the key on the agent's machine
+Click **Save and verify**. Mishmar stores the read-only key, verifies the trading account (four checks: the read-only key accepted, margin, one-way mode, the environment), then proves the trading key end to end: it asks the agent's signer to co-sign a read of the account and sends it to Binance under the new key. When Binance accepts it, the key is **Active**.
 
-The dialog shows a second command. Run it on the agent's machine:
+The dialog says **Start the agent first** while the agent's signer is not connected: the verification needs it. Start the agent as in step 2, then click **Save and verify** again.
 
-```sh
-mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance
-```
+## 4. Ready
 
-A Binance key takes no `--network`: the trading account is on demo trading or live, as the Mishmar it belongs to. Add `--config` if you used one in step 3.
+The dialog says the agent is ready. Click **Finish**: the agent's page opens.
 
-![Setup step 4: the mishmar signer keygen command, the dialog waiting for key generation, and a warning that the trading account can't trade until this runs and the public key is registered at Binance](/screens/binance/add-an-agent/setup-keygen.png)
+## Place a test order
 
-The agent's signer and Mishmar's signer each generate a half and run two rounds together (FROST, the IETF's threshold signing standard). Neither ever sees the other's half. What comes out is an ordinary Ed25519 public key, whose private key exists only as the two halves. The command prints it:
-
-```text
-generated the agent's key for vk_… (binance, trading account ta_…) in /home/you/.mishmar/agent.json
-  register this public key at binance as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the trading account, if it shows one):
-    -----BEGIN PUBLIC KEY-----
-    MCowBQYDK2VwAyEA…
-    -----END PUBLIC KEY-----
-  then enter the key id the venue issued in the console (the agent's Keys tab, Register key id) and verify the key with the signer running.
-```
-
-The dialog notices by itself: the step shows the public key, and the dialog says **Register the public key at Binance, enter the key id it issues, then verify.** Click **Finish**: the rest happens at Binance and on the agent's **Keys** tab.
-
-![Setup done: the public key to register at Binance with a copy button, and the next step, register it and enter the key id Binance issues](/screens/binance/add-an-agent/setup-done.png)
-
-If the agent's machine isn't ready yet, click **Skip for now**. The command stays on the agent's **Keys** tab, and the agent cannot trade on this account until it has run and the key is registered.
-
-## 6. Register the public key at Binance
-
-You can copy the public key from the terminal, or from the console: on the agent's **Keys** tab, under **Trading keys**, click **›** at the start of the Binance row, then the copy button next to **Public key**.
-
-![The Binance trading key's details on the Keys tab: Pending, Register the public key under At the venue, the public key with its copy button, and the check still failing until the key is registered](/screens/binance/add-an-agent/key-details.png)
-
-On [demo.binance.com](https://demo.binance.com), signed in to the account (or subaccount) whose read-only key Mishmar has:
-
-1. Under API Management, click Create API and choose **Self-generated**.
-2. Paste the public key, all of it, from `-----BEGIN PUBLIC KEY-----` to `-----END PUBLIC KEY-----`.
-3. Give the key permission to trade futures. Leave withdrawals off. Mishmar does not check the withdrawal setting yet, so check it yourself.
-4. On demo trading, leave the key's IP access unrestricted: Mishmar shows no address to allowlist there. On a live Mishmar, restrict it to the **IP to allowlist** on the trading account's page.
-
-Binance then shows the new key's API key: a string of letters and digits. That is the key id Mishmar needs. It is an identifier, not a secret: a self-generated key has no secret at Binance, because its private key is the split one.
-
-## 7. Start the signer
-
-On the agent's machine, start the signer and leave it running:
-
-```sh
-mishmar signer run
-```
-
-It signs only orders this agent proposed and Mishmar allowed, and the read that proves the key in the next step. Orders that wait for your approval need it running, because their second signature comes later.
-
-## 8. Enter the key id
-
-In the console, on the agent's **Keys** tab, click **⋯** on the Binance row under **Trading keys** and choose **Register key id**. Paste the key id into **Key id issued by Binance** and click **Save and verify**.
-
-![The Register the key id dialog with the key id pasted in and the Save and verify button](/screens/binance/add-an-agent/register-key-id.png)
-
-Mishmar saves the key id, then proves the key end to end: it asks the agent's signer to co-sign a read of the account and sends it to Binance under the new key. When Binance accepts it, the key is **Active** and the toast says `…: key id saved and verified`. The agent can trade on this account.
-
-If the signer wasn't running, the key id stays saved and the toast says `…: key id saved, not verified.` with the reason. Start the signer, then click **⋯** on the row and choose **Verify**.
-
-## 9. Place a test order
-
-In a second terminal on the agent's machine, propose a small limit buy a few percent under the market, so it rests on the book and does not fill. Use your trading account's id (`ta_…`, on its page in the console) and a price about 3% under BTCUSDT's current price:
+With the signer running, in a second terminal on the agent's machine, propose a small limit buy a few percent under the market, so it rests on the book and does not fill. Use your trading account's id (`ta_…`, on its page in the console) and a price about 3% under BTCUSDT's current price:
 
 ```sh
 mishmar propose --config ~/.mishmar/agent.json --trading-account ta_… --symbol BTCUSDT --side buy --size 0.001 --price 75000
@@ -169,12 +107,12 @@ Binance refuses an order worth less than its minimum for the symbol, $50 on BTCU
 
 ### From your agent's code
 
-The Python and TypeScript SDKs start the signer for you as a child process, with the same config file. The bot itself never holds a key. Only one signer runs per config file, so stop the `mishmar signer run` from above first.
+The SDKs start the signer and turn an order into a proposal; the bot itself never holds a key. Only one signer runs per config file, so stop the `mishmar signer run` from step 2 first.
 
 ```python
 from mishmar import Signer
 
-with Signer() as s:  # ~/.mishmar/agent.json, or Signer("path/to/config.json")
+with Signer() as s:  # MISHMAR_API_KEY in the environment, or ~/.mishmar/agent.json from before
     d = s.order("ta_…", "BTCUSDT", "buy", "0.001", price="75000")
     if d["verdict"] == "require_approval":
         d = s.wait(d["id"])
@@ -184,24 +122,26 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 
 ## Check it worked
 
-- The agent's page shows no **Setup isn't finished** warning.
-- On the agent's **Keys** tab, **API keys** lists the `msk_…` key as Active, and **Trading keys** lists the Binance trading account with key type **Ed25519**, **Active**, **Key id entered** under **At the venue**, and the date the key expires under **Expires**.
-- On Binance, API Management lists the self-generated key.
-
-![The agent's Keys tab: one active API key, and an active Ed25519 trading key on the Binance trading account, with its key id entered and the date it expires](/screens/binance/add-an-agent/agent-keys.png)
+- The agent's page shows no **Setup isn't finished** warning, and **Signer** reads **Connected** under **Overview**.
+- On the agent's **Keys** tab, **Mishmar API keys** lists the `msk_…` key as Active, and **Trading keys** lists the Binance trading account with key type **Ed25519**, **Active**, **Key id entered** under **At the venue**, and the date the key expires under **Expires**.
+- On Binance, API Management lists both keys: the read-only one and the self-generated one.
+- **Trading accounts** lists the account as **Active**, with **Read-only key** **On file** under **Setup**.
 
 ## When something goes wrong
 
-- **`… exists already; add venue keys to it with "mishmar signer keygen", or pass --config for another file`**: the machine already has an agent's config. Give this agent its own file with `--config`, as in step 3.
-- **`the engine does not accept key key_… (…)`**: the secret pasted is not that key's, or the key was revoked. Nothing was written. Copy the secret again and rerun the command; if it is lost, see the next item.
-- **The secret is lost before `signer init` ran.** On the **Keys** tab, revoke the key under **API keys**, then **Issue key** again.
+- **`no config at …: put the agent's API key from the console in MISHMAR_API_KEY and start again`**: the signer found neither a config nor the key. Export `MISHMAR_API_KEY` in the shell that runs it, or pass it on the command line as in step 2.
+- **`… does not accept this key (…): it may have been revoked; issue a new one in the console`**: the key pasted is not one Mishmar knows, or was revoked. Copy it again, or revoke it on the **Keys** tab and issue another.
+- **`the key names environment "…", which is not a hosted one; set MISHMAR_ENGINE`**: the key came from a self-hosted engine. Add `MISHMAR_ENGINE=<its API base URL, with /v1>` to the command; the dialog shows it when it applies.
+- **`… holds another key than MISHMAR_API_KEY; remove the file to set the agent up again`**: the machine already has a config for another agent. Give this agent its own file with `--config`, or remove the old file.
+- **The dialog stays at *Waiting for the agent to start…***: the signer is not reaching Mishmar. Check its output; a signer that started shows `signer: polling`. On hosted Mishmar the first call may take up to a minute while a stopped account wakes.
 - **`This needs a passkey or a wallet. Add one under your profile, then try again.`**: your Mishmar login has neither. Open **Profile**, add a passkey or link a wallet, then try the step again.
-- **Key generation stopped partway** (the network dropped, the machine slept). The key still shows **Key generation pending**. Run the same `mishmar signer keygen` command again.
-- **`…: key id saved, not verified. The agent's signer is not connected; start it and verify again`**: start `mishmar signer run` (step 7), then click **⋯** on the key's row and choose **Verify**.
-- **`…: key id saved; 1 of 2 checks still failing`**, and the key's check **Trading key accepted by venue** says **`Refused by Binance: …`** with Binance's reason. Check at Binance that the key is the self-generated one with this public key, on the same account as the read-only key, and, on a live Mishmar, that its IP restriction includes the address Mishmar shows. Then choose **Verify** again. If the key id was pasted wrong, click **⋯** on the row, choose **Change key id**, paste the right one and click **Save and verify**: it can be changed until the key is active.
-- **The check says `Accepted by Binance, co-signed by the agent's signer; the account cannot trade`**: the key works but Binance says it can't trade. Give it permission to trade futures at Binance, then choose **Verify** again.
-- **`a signer is running with … : restart it so it uses the new key`**: you made the key while the agent's signer was running. Stop it and start it again.
-- **An order comes back with `signing: unreachable`.** The order needed the signer and none was running. Start `mishmar signer run` (or the SDK's `Signer`) and propose again.
+- **The signer logs `the engine lists an active trading key this signer holds no share of`**: the config file with the agent's half is gone (a container without a persistent volume, a reinstalled machine). Restore it, or revoke the key on the **Keys** tab and add a new one, which the running signer generates.
+- **Key generation stopped partway** (the network dropped, the machine slept): the signer runs it again on its next look, within a few seconds. Nothing to do.
+- **`The agent's signer is not connected; start it and verify again`**: the agent was not running when you clicked **Save and verify**. Everything you typed was saved; start the agent, then click it again, or on the agent's **Keys** tab click **⋯** on the key's row and choose **Verify**.
+- **Read-only key accepted by venue fails, with `Refused by Binance: …`**: Binance did not accept the read-only key. Check that you made it on demo.binance.com (a key from binance.com does not work on demo trading, nor the other way round), copied the key and its secret whole, and, on a live Mishmar, restricted it to the address Mishmar shows. While the account is pending, **Add read-only key** on its page takes another one.
+- **The key's check says `Refused by Binance: …`**: check at Binance that the key is the self-generated one with this public key, on the same account as the read-only key, and, on a live Mishmar, that its IP restriction includes the address Mishmar shows. If the key id was pasted wrong, on the **Keys** tab click **⋯** on the row, choose **Change key id**, paste the right one and click **Save and verify**: it can be changed until the key is active.
+- **The check says `Accepted by Binance, co-signed by the agent's signer; the account cannot trade`**: the key works but Binance says it can't trade. Give it permission to trade futures at Binance, then verify again.
+- **Position mode is one-way fails, with `Hedge mode: switch the account to one-way position mode`**: do that at Binance, then verify the trading account again from its page.
 - **An order comes back `allow` with `(Not forwarded: …)`**: Mishmar's rules allowed it, but Binance refused it, in the words after `Not forwarded:`. A size under the symbol's minimum is the usual reason. Change the order and propose again.
 - **`Agent …'s key on trading account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
 - **`The account's plan holds 1 agent; delete one or move to a larger plan`**. The free plan holds one agent and one trading account, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
@@ -216,8 +156,8 @@ Replace the key before then:
 
 1. On the agent's page, click **Replace key**, in the warning or under **⋯** on the key's row.
 2. Click **Add new key**. The current key keeps working.
-3. On the agent's machine, run the `mishmar signer keygen` command the dialog shows. If the agent's signer is running, restart it so it has the new key.
-4. Register the new public key at Binance as in step 6, paste the key id Binance issues into **Key id issued by Binance**, and click **Save and verify**. The agent's signer must be running.
+3. The agent's running signer generates the new key within a few seconds and logs its public key.
+4. Register the new public key at Binance as in step 3, paste the key id Binance issues into **Key id issued by Binance**, and click **Save and verify**. The agent's signer must be running.
 
 The moment the new key is active, Mishmar revokes the old one, and the agent trades on through the change. An order the agent built with the old key in the seconds after can be refused; propose it again. Then delete the old key at Binance.
 

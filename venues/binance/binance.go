@@ -92,7 +92,11 @@ var (
 // to the step, a limit price rounded to the tick toward the passive side
 // (down for a buy, up for a sell) with GTC, reduceOnly when the intent says
 // so, the client order id, and the timestamp and recvWindow the signature
-// covers. The keys are sorted, as net/url encodes them.
+// covers. The keys are sorted, as net/url encodes them. A market order that
+// is not reduce-only is refused: the engine bounds one from the venue's book
+// (a LIMIT IOC at the worst price its walk reached) and asks the signer over
+// the channel, as on Hyperliquid. An exit (reduce-only) is built as a true
+// MARKET order: one that does not fill is worse than one that fills badly.
 func BuildOrder(in Intent, r Rules, clientOrderID string, now time.Time) ([]byte, error) {
 	if clientOrderID == "" || len(clientOrderID) > 36 {
 		return nil, fmt.Errorf("binance: a client order id has 1 to 36 characters, not %q", clientOrderID)
@@ -127,6 +131,9 @@ func BuildOrder(in Intent, r Rules, clientOrderID string, now time.Time) ([]byte
 	}
 	switch in.OrderType {
 	case "market":
+		if !in.ReduceOnly {
+			return nil, fmt.Errorf("binance: a market order is bounded by the engine from the venue's book and signed through the channel")
+		}
 		p.Set("type", "MARKET")
 	case "limit":
 		px, ok := Decimal(in.Price)
@@ -184,12 +191,16 @@ func DecodeOrder(message []byte) (Order, error) {
 
 // CheckOrder checks a decoded order against the intent it was built for and
 // the client order id it must carry: the symbol is venueSymbol and starts
-// with the proposed one (BTC → BTCUSDT); the side is the proposal's; the type
-// is MARKET for a market proposal and LIMIT for a limit one; the quantity is
-// a decimal with 0 < quantity ≤ the proposed size (it is floored to the step,
-// never rounded up); a limit price is within 1 % of the proposed price and on
-// its passive side (at most for a buy, at least for a sell), and a market
-// order carries none; reduceOnly is the proposal's.
+// with the proposed one (BTC → BTCUSDT); the side is the proposal's; the
+// quantity is a decimal with 0 < quantity ≤ the proposed size (it is floored
+// to the step, never rounded up); reduceOnly is the proposal's. A limit
+// proposal is a LIMIT order with GTC at a price within 1 % of the proposed
+// price and on its passive side (at most for a buy, at least for a sell). A
+// market proposal is either a MARKET order with no price and no timeInForce
+// (an exit, or an older engine), or a LIMIT order with IOC at the bound the
+// engine read off the venue's book: a positive decimal the signer does not
+// know and does not check, as on Hyperliquid. Either can only fill at a price
+// a market order would have accepted, and the IOC never rests.
 func CheckOrder(o Order, in Intent, venueSymbol, clientOrderID string) error {
 	if o.ClientOrderID != clientOrderID {
 		return mismatch("newClientOrderId %q is not the expected %q", o.ClientOrderID, clientOrderID)
@@ -200,12 +211,27 @@ func CheckOrder(o Order, in Intent, venueSymbol, clientOrderID string) error {
 	if want := strings.ToUpper(in.Side); o.Side != want {
 		return mismatch("side %q is not the proposed %s", o.Side, want)
 	}
-	wantType := "LIMIT"
-	if in.OrderType == "market" {
-		wantType = "MARKET"
-	}
-	if o.Type != wantType {
-		return mismatch("type %q is not %s", o.Type, wantType)
+	switch in.OrderType {
+	case "market":
+		switch {
+		case o.Type == "MARKET" && o.TimeInForce == "":
+		case o.Type == "MARKET":
+			return mismatch("a market order carries no timeInForce, not %q", o.TimeInForce)
+		case o.Type == "LIMIT" && o.TimeInForce == "IOC":
+		case o.Type == "LIMIT":
+			return mismatch("a market proposal sent as a limit order is IOC, not %q", o.TimeInForce)
+		default:
+			return mismatch("type %q is neither MARKET nor LIMIT for a market proposal", o.Type)
+		}
+	case "limit":
+		switch {
+		case o.Type != "LIMIT":
+			return mismatch("type %q is not LIMIT", o.Type)
+		case o.TimeInForce != "GTC":
+			return mismatch("a limit order is GTC, not %q", o.TimeInForce)
+		}
+	default:
+		return fmt.Errorf("binance: the proposal's order type %q is neither market nor limit", in.OrderType)
 	}
 	qty, ok := Decimal(o.Quantity)
 	size, sizeOK := Decimal(in.Size)
@@ -219,11 +245,16 @@ func CheckOrder(o Order, in Intent, venueSymbol, clientOrderID string) error {
 	case qty.Cmp(size) > 0:
 		return mismatch("quantity %s is more than the proposed %s", o.Quantity, in.Size)
 	}
-	if wantType == "MARKET" {
+	switch {
+	case o.Type == "MARKET":
 		if o.Price != "" {
 			return mismatch("a market order carries no price")
 		}
-	} else {
+	case in.OrderType == "market":
+		if price, ok := Decimal(o.Price); !ok || price.Sign() <= 0 {
+			return mismatch("the bound %q of a market order is not a positive decimal", o.Price)
+		}
+	default:
 		price, ok := Decimal(o.Price)
 		want, wantOK := Decimal(in.Price)
 		switch {
@@ -247,8 +278,9 @@ func CheckOrder(o Order, in Intent, venueSymbol, clientOrderID string) error {
 
 // CheckRules checks what the engine checks of a message it did not build: the
 // quantity a multiple of the step and at least the minimum, a limit price a
-// multiple of the tick with GTC, a market order without timeInForce, and the
-// RESULT response type the engine reads the ack from.
+// multiple of the tick with GTC or IOC (CheckOrder ties each to its proposal),
+// a market order without timeInForce, and the RESULT response type the engine
+// reads the ack from.
 func CheckRules(o Order, r Rules) error {
 	qty, _ := Decimal(o.Quantity)
 	if qty == nil {
@@ -269,8 +301,8 @@ func CheckRules(o Order, r Rules) error {
 		if err := multipleOf("price", px, o.Price, r.Tick); err != nil {
 			return err
 		}
-		if o.TimeInForce != "GTC" {
-			return mismatch("timeInForce %q is not GTC", o.TimeInForce)
+		if o.TimeInForce != "GTC" && o.TimeInForce != "IOC" {
+			return mismatch("timeInForce %q is neither GTC nor IOC", o.TimeInForce)
 		}
 	case "MARKET":
 		if o.TimeInForce != "" {

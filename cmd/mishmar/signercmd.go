@@ -82,7 +82,12 @@ shared backend.
 
 --engine-key is the engine's Ed25519 public key (base64, GET /ledger/head),
 with which the decisions are verified; without it they are not, which is for
-development only.`,
+development only.
+
+GET /metrics, in the Prometheus text format, is on a plain HTTP listener of
+its own: ` + service.MetricsListenEnv + ` (default ` + service.DefaultMetricsListen + `; set it
+empty for none). It says whether the service is serving, how many requests
+are in flight and the oldest one's age, and the build's version; never a key.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return serve(cmd.Context(), o)
@@ -146,7 +151,8 @@ func serve(ctx context.Context, o serveOptions) error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: svc.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	metrics := service.NewMetrics(version, nil)
+	srv := &http.Server{Handler: metrics.Track(svc.Handler()), ReadHeaderTimeout: 10 * time.Second}
 	var ln net.Listener
 	switch {
 	case strings.HasPrefix(o.listen, "unix:"):
@@ -190,7 +196,24 @@ func serve(ctx context.Context, o serveOptions) error {
 			return err
 		}
 	}
+	// The metrics listener: plain HTTP, apart from the API, nothing secret on it.
+	// Unset means the default port; set and empty means none.
+	var metricsSrv *http.Server
+	if addr, on := service.MetricsListen(); on {
+		mln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("%s %q: %w", service.MetricsListenEnv, addr, err)
+		}
+		metricsSrv = &http.Server{Handler: metrics.Handler(), ReadHeaderTimeout: 5 * time.Second}
+		go func() {
+			if err := metricsSrv.Serve(mln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Error("signer service: metrics listener failed", "err", err)
+			}
+		}()
+		log.Info("signer service: metrics", "on", addr)
+	}
 	log.Info("signer service: listening", "on", o.listen, "store", spec, "keys", len(store.IDs()), "instance", svc.Instance(), "decisionsVerified", opts.EnginePublicKey != nil)
+	metrics.SetReady(true)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	if o.sync > 0 {
@@ -211,10 +234,19 @@ func serve(ctx context.Context, o serveOptions) error {
 	}
 	select {
 	case <-ctx.Done():
+		metrics.SetReady(false)
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutdown)
+		err := srv.Shutdown(shutdown)
+		if metricsSrv != nil {
+			_ = metricsSrv.Shutdown(shutdown)
+		}
+		return err
 	case err := <-errc:
+		metrics.SetReady(false)
+		if metricsSrv != nil {
+			_ = metricsSrv.Close()
+		}
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
@@ -409,6 +441,19 @@ request decodes to that order and nothing more); a verify request is signed
 when it decodes to a read and not an order. Everything else is refused with
 a reason the engine records on the decision. One line is logged per request.
 
+With no config at the path yet, the agent's API key in MISHMAR_API_KEY is
+enough: the signer writes the config from it (the engine and the key id are
+in the key; the agent comes from the engine) and starts. MISHMAR_ENGINE
+names a self-hosted engine's API base URL, with /v1, when the key does not
+name a hosted one.
+
+While it runs, the signer keeps its trading keys in line with the engine's
+list of the agent's: a key the console added without a share is generated
+here, two rounds with the engine's signer, and what the venue needs next is
+logged (the API wallet to approve at Hyperliquid, the public key to register
+at Binance); a key another command wrote into the config is picked up; the
+shares of revoked and expired keys are dropped. No restart needed.
+
 With --local the signer also serves its local API, which the SDKs use when
 they run the signer as a child process: POST /propose turns an order or a
 cancel into a proposal signed with this agent's key (one-shot where it can),
@@ -431,6 +476,13 @@ never outlives the bot that started it.`,
 			if err != nil {
 				return err
 			}
+			log, err := newLogger(level)
+			if err != nil {
+				return err
+			}
+			if err := ensureConfig(cmd.Context(), path, log); err != nil {
+				return err
+			}
 			lock, err := configlock.Acquire(path)
 			if err != nil {
 				return err
@@ -440,15 +492,12 @@ never outlives the bot that started it.`,
 			if err != nil {
 				return err
 			}
-			log, err := newLogger(level)
-			if err != nil {
-				return err
-			}
 			s, err := signer.New(cfg, nil, log)
 			if err != nil {
 				return err
 			}
-			log.Info("signer: config loaded", "path", path, "hook", cfg.Hook != "")
+			s.ConfigPath = path
+			log.Info("signer: config loaded", "path", path, "hook", cfg.Hook != "", "venueKeys", len(cfg.VenueKeys))
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 			if exitOnStdinClose {
@@ -482,10 +531,9 @@ func untilClosed(r io.Reader, log *slog.Logger, stop context.CancelFunc) {
 }
 
 // warnRunningSigner says so when a signer runs with the config just written:
-// it read the config when it started and will not see the new key until it
-// is restarted.
+// it reads the file again within a few seconds and holds the new key then.
 func warnRunningSigner(out io.Writer, path string) {
 	if pid, held, err := configlock.Holder(path); err == nil && held {
-		fmt.Fprintf(out, "a signer is running with %s (pid %d): restart it so it uses the new key\n", path, pid)
+		fmt.Fprintf(out, "a signer is running with %s (pid %d): it picks the new key up within a few seconds\n", path, pid)
 	}
 }
