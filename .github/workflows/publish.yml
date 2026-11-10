@@ -1,0 +1,40 @@
+# Publish the Python SDK (`mishmar` on PyPI) from this repo, with no token:
+# PyPI trusts this workflow file in this repository (trusted publishing, set
+# under the project's Publishing settings on pypi.org), and GitHub proves
+# which workflow is asking.
+#
+# Run by hand for now (Actions → Publish → Run workflow) on the commit to
+# publish. The version is the one in python/pyproject.toml; PyPI refuses a
+# version it already has.
+name: Publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    name: Python SDK to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # the proof PyPI checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Test
+        working-directory: python
+        run: uv run --extra test python -m pytest -q
+
+      - name: Build
+        working-directory: python
+        run: uv build --out-dir dist
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist
