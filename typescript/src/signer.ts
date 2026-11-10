@@ -49,7 +49,7 @@ import type { Decision, DecisionPage } from "./client.ts";
 
 export const RELEASES = "https://github.com/mishmar-io/mishmar/releases/download";
 /** The release the SDK fetches when it has to (the npm bin: `npx -y mishmar …`); bumped with each release. */
-export const RELEASE = "v0.2.3";
+export const RELEASE = "v0.3.0";
 const ENV_BINARY = "MISHMAR_BIN";
 const ENV_LOCAL_TOKEN = "MISHMAR_LOCAL_TOKEN";
 const ENV_API_KEY = "MISHMAR_API_KEY";

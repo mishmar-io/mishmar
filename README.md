@@ -1,5 +1,8 @@
 # mishmar
 
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/mishmar-io/mishmar)
+[![Mishmar MCP on mcprush](https://mcprush.com/badge/mishmar-mcp/score.svg)](https://mcprush.com/mishmar-io/mishmar-mcp)
+
 [Mishmar](https://mishmar.io) is a risk management layer for trading bots
 and AI agents: every order is checked against your limits before it reaches
 the exchange, large orders wait for your approval, and no key can trade
@@ -46,7 +49,6 @@ the cgo flags. Linux and macOS; Windows through WSL or Docker.
 ```
 make test                                       # Go packages, including the vectors and both signers
 make lint
-cd python && python -m pytest                   # the Python SDK against the same vectors
 cd python && python -m pytest                   # the Python SDK against the same vectors
 cd typescript && npm test                       # the TypeScript SDK against the same vectors (Node 22+)
 go test ./proposal -update                      # rewrite spec/vectors after changing the cases

@@ -65,7 +65,7 @@ log = logging.getLogger("mishmar.signer")
 
 RELEASES = "https://github.com/mishmar-io/mishmar/releases/download"
 # The release the SDK fetches when it has to (the console script: `uvx mishmar …`); bumped with each release.
-RELEASE = "v0.2.3"
+RELEASE = "v0.3.0"
 ENV_BINARY = "MISHMAR_BIN"
 ENV_LOCAL_TOKEN = "MISHMAR_LOCAL_TOKEN"
 ENV_API_KEY = "MISHMAR_API_KEY"
