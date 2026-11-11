@@ -1,15 +1,27 @@
-# Publish the Python SDK (`mishmar` on PyPI) from this repo, with no token:
-# PyPI trusts this workflow file in this repository (trusted publishing, set
-# under the project's Publishing settings on pypi.org), and GitHub proves
-# which workflow is asking.
+# Publish from this repo with no tokens: the Python SDK (`mishmar` on PyPI)
+# and the MCP registry entry (server.json). PyPI trusts this workflow file in
+# this repository (trusted publishing, set under the project's Publishing
+# settings on pypi.org), the MCP registry trusts the mishmar-io organization's
+# workflows, and GitHub proves which workflow is asking.
 #
 # Run by hand for now (Actions → Publish → Run workflow) on the commit to
-# publish. The version is the one in python/pyproject.toml; PyPI refuses a
-# version it already has.
+# publish. The versions are the ones in python/pyproject.toml and server.json;
+# both registries refuse a version they already have, so untick the one that
+# is already out. The registry checks server.json against npm and PyPI, so it
+# runs after PyPI, and the npm package must be published first.
 name: Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      pypi:
+        description: Publish the Python SDK to PyPI
+        type: boolean
+        default: true
+      registry:
+        description: Publish server.json to the MCP registry
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -17,6 +29,7 @@ permissions:
 jobs:
   pypi:
     name: Python SDK to PyPI
+    if: inputs.pypi
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,3 +51,23 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist
+
+  registry:
+    name: server.json to the MCP registry
+    needs: pypi
+    if: always() && inputs.registry && (needs.pypi.result == 'success' || needs.pypi.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # the proof the registry checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - name: Publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
