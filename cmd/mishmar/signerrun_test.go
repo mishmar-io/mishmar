@@ -130,7 +130,7 @@ func TestAddKeyWarnsWhenASignerRuns(t *testing.T) {
 	}
 	defer held.Close()
 	out, err := execute(context.Background(), t, strings.NewReader(""), 5*time.Second,
-		"signer", "add-key", "--config", path, "--venue-key", "vk_1", "--trading-account", "ta_1", "--venue", "binance", "--share", shareFile)
+		"signer", "add-key", "--config", path, "--venue-key", "vk_1", "--connected-account", "ta_1", "--venue", "binance", "--share", shareFile)
 	if err != nil {
 		t.Fatalf("add-key: %v\n%s", err, out)
 	}

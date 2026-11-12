@@ -9,7 +9,7 @@ KEY = AgentKey.from_seed(bytes(range(32)))
 
 def good():
     return Proposal(
-        trading_account_id="rt_1",
+        connected_account_id="rt_1",
         symbol="BTC",
         side="buy",
         size="0.5",
@@ -73,7 +73,7 @@ def test_nonce():
 
 def cancel():
     return Proposal(
-        trading_account_id="rt_1",
+        connected_account_id="rt_1",
         symbol="BTCUSDT",
         kind="cancel",
         target_client_order_id="msh-a1b2c3-k3j9xq",

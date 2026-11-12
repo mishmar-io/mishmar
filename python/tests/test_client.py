@@ -98,9 +98,9 @@ class Stub(BaseHTTPRequestHandler):
             return self._send(200, {"items": Stub.decisions, "nextCursor": None})
         if self.path == PREFIX + "/agent/positions":
             return self._send(200, [])
-        if self.path.startswith(PREFIX + "/agent/trading-accounts/ta_1/venue-rules"):
+        if self.path.startswith(PREFIX + "/agent/connected-accounts/ta_1/venue-rules"):
             return self._send(
-                200, {"tradingAccountId": "ta_1", "venue": "binance", "symbols": []}
+                200, {"connectedAccountId": "ta_1", "venue": "binance", "symbols": []}
             )
         return self._send(404, {"code": "not_found", "message": "no"})
 
@@ -118,7 +118,7 @@ def test_propose_signs_and_sends(engine):
     client = Client(engine, KEY, "key_a")
     d = client.propose(
         Proposal(
-            trading_account_id="rt_1",
+            connected_account_id="rt_1",
             symbol="BTC",
             side="buy",
             size="0.5",
@@ -134,7 +134,7 @@ def test_propose_signs_and_sends(engine):
 def test_a_tampered_proposal_is_refused(engine):
     client = Client(engine, KEY, "key_a")
     p = Proposal(
-        trading_account_id="rt_1",
+        connected_account_id="rt_1",
         symbol="BTC",
         side="buy",
         size="0.5",
@@ -194,7 +194,7 @@ def test_one_shot_reads(engine):
     client = Client(engine, KEY, "key_a")
     assert client.venue_rules("ta_1", symbol="BTCUSDT")["venue"] == "binance"
     _, path, _, _ = Stub.requests[-1]
-    assert path == PREFIX + "/agent/trading-accounts/ta_1/venue-rules?symbol=BTCUSDT"
+    assert path == PREFIX + "/agent/connected-accounts/ta_1/venue-rules?symbol=BTCUSDT"
     batch = client.signer_commitments("vk_1", count=2)
     assert batch["outstanding"] == 2
     method, path, _, body = Stub.requests[-1]

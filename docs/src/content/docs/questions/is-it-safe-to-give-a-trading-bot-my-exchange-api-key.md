@@ -36,7 +36,7 @@ That is what Mishmar is: a risk management layer for trading bots and AI agents.
 - **The trading key is split in two.** One half is in the bot's signer, on the bot's machine; the other is with Mishmar. The exchange sees an ordinary key and ordinary signatures, but the private key never exists in one place. On Binance the two halves sign with FROST, the IETF's threshold signing standard ([RFC 9591](https://www.rfc-editor.org/rfc/rfc9591)); on Hyperliquid with two-party ECDSA from Coinbase's open-source [cb-mpc](https://github.com/coinbase/cb-mpc). [How a trading key is split](/concepts/how-a-trading-key-is-split/) has the details.
 - **Every order is checked first.** Eight kinds of limit: order size, gross exposure, net exposure, leverage, concentration, drawdown, daily loss and daily realised loss. Each one either blocks the order or holds it for you. [How do I limit what my trading bot can do?](/questions/how-do-i-limit-what-my-trading-bot-can-do/) goes through them.
 - **Large orders wait for you.** A held order shows in the console and you get an email; approving it takes a passkey.
-- **There is a stop button.** Stop all trading on the account, a portfolio, one agent or one trading account, and nothing more is signed but cancels, so a bot can still pull its resting orders. Pause instead, and orders that close a position still pass.
+- **There is a stop button.** Stop all trading on the account, a portfolio, one agent or one connected account, and nothing more is signed but cancels, so a bot can still pull its resting orders. Pause instead, and orders that close a position still pass.
 - **Keys expire.** Every trading key expires 100 days after it becomes active, and you replace it from the console before then.
 - **Every decision is recorded.** Each one is signed and chained to the one before it, and the ledger can be exported and verified.
 
@@ -44,15 +44,15 @@ A stolen bot's half is useless on its own: it signs nothing without Mishmar's ha
 
 ## What is still your risk
 
-- If the bot's machine and Mishmar are both compromised at the same time, whoever holds both halves can trade on that trading account within what the exchange lets the key do. That is why trading keys cannot withdraw on Hyperliquid, why you leave withdrawals off on Binance, and why keys expire.
+- If the bot's machine and Mishmar are both compromised at the same time, whoever holds both halves can trade on that connected account within what the exchange lets the key do. That is why trading keys cannot withdraw on Hyperliquid, why you leave withdrawals off on Binance, and why keys expire.
 - Mishmar limits size, exposure, leverage, concentration and loss. It does not judge the strategy. A bot that loses slowly, inside its limits, loses.
 - Mishmar's change to cb-mpc, which lets an order be signed in one round trip, has not been audited yet. [What has been reviewed](/concepts/how-a-trading-key-is-split/#what-has-been-reviewed) says what has.
 
 ## Set it up
 
 1. [Install the mishmar CLI](/start/install-the-cli/) on the bot's machine.
-2. Add a trading account [on Hyperliquid](/hyperliquid/add-a-trading-account/) or [on Binance](/binance/add-a-trading-account/).
+2. Connect your exchange account [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/), with read access only.
 3. Add an agent [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). Its trading key is made split, and you approve or register the public half at the exchange.
 4. Set the limits, then point the bot at the SDK's `Signer`, so the bot's process holds no key at all.
 
-The hosted testnet is free: one agent and one trading account on Hyperliquid testnet or Binance demo trading.
+The hosted testnet is free: one agent and one connected account on Hyperliquid testnet or Binance demo trading.

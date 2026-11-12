@@ -1,9 +1,15 @@
 /**
  * The agent's identity: an Ed25519 key whose public half the engine stores.
  *
- * The engine shows the secret once, as `msk_<prefix>_<seed>`: a label, then
- * the 32-byte seed in base64url without padding. The key id (`key_…`) is
- * separate and public.
+ * The engine shows the secret once, the agent's API key:
+ * `msk_<environment>_<account suffix>_<key random part>_<seed>`. The seed is
+ * the 32-byte Ed25519 seed in base64url without padding; before it comes
+ * what names the engine and the key, so an agent needs nothing else: the
+ * environment (testnet, prod, … for hosted Mishmar; anything else means the
+ * engine URL is given by hand) and the two parts of the public key id,
+ * `key_<account suffix>_<random part>`. Keys issued before contract 0.19.0
+ * are `msk_<six characters>_<seed>` and still parse; they name neither engine
+ * nor key id, which then come separately.
  *
  * The key signs two things: proposals (proposal.ts) and, under the
  * contract's agentAuth scheme, every other agent-facing request: four headers
@@ -71,21 +77,9 @@ export class AgentKey {
     this.#key = key;
   }
 
-  /** Read the secret the engine showed when the key was issued. */
+  /** Read the key out of the secret the engine showed when it was issued, in either format (see `parseSecret`). */
   static parse(secret: string): AgentKey {
-    // msk_<prefix>_<seed>: the seed is base64url and may itself contain '_',
-    // so split on the first two underscores only.
-    const s = secret.trim();
-    const first = s.indexOf("_");
-    const second = first < 0 ? -1 : s.indexOf("_", first + 1);
-    if (first < 0 || second < 0 || s.slice(0, first) !== "msk") {
-      throw new Error("malformed agent secret: expected msk_<prefix>_<seed>");
-    }
-    const seed = Buffer.from(s.slice(second + 1), "base64url");
-    if (seed.length !== SEED_SIZE || seed.toString("base64url") !== s.slice(second + 1)) {
-      throw new Error("malformed agent secret: the seed is not 32 base64url bytes");
-    }
-    return AgentKey.fromSeed(seed);
+    return parseSecret(secret).key;
   }
 
   static fromSeed(seed: Uint8Array): AgentKey {
@@ -122,6 +116,88 @@ export class AgentKey {
   get publicKeyB64(): string {
     return Buffer.from(this.publicKey).toString("base64");
   }
+}
+
+/**
+ * An agent's API key taken apart: the key, and what the secret says about
+ * where it belongs. `environment`, `accountId` and `keyId` are set for a key
+ * issued at contract 0.19.0 or later and absent for an older one.
+ */
+export interface ParsedSecret {
+  key: AgentKey;
+  environment?: string;
+  accountId?: string;
+  keyId?: string;
+}
+
+// An environment is a short lowercase word (testnet, stage, prod, self); the
+// parts of an id are lowercase letters and digits, the random part twelve of them.
+const ENVIRONMENT = /^[a-z][a-z0-9-]{0,31}$/;
+const ID_PART = /^[a-z0-9]+$/;
+const RANDOM_PART_LEN = 12;
+
+/** The 32-byte seed a secret ends with, or undefined: strict base64url without padding. */
+function seedOf(text: string): Buffer | undefined {
+  const seed = Buffer.from(text, "base64url");
+  return seed.length === SEED_SIZE && seed.toString("base64url") === text ? seed : undefined;
+}
+
+/**
+ * Read the secret the engine showed when the key was issued, in either
+ * format: `msk_<environment>_<account>_<key>_<seed>` (0.19.0 and later), which
+ * also names the engine and the key id, or `msk_<prefix>_<seed>`.
+ */
+export function parseSecret(secret: string): ParsedSecret {
+  const s = secret.trim();
+  if (!s.startsWith("msk_")) throw new Error("malformed agent secret: it starts with msk_");
+  // 0.19.0: five parts, the seed last. The seed is base64url and may itself
+  // contain '_', so split for at most five. An older secret cannot pass here:
+  // its seed would have to be split across the parts, leaving too few
+  // characters for the last one to be a whole seed.
+  const parts = splitN(s, "_", 5);
+  const [, env, account, random, rest] = parts;
+  if (parts.length === 5 && env && account && random && rest && ENVIRONMENT.test(env) && ID_PART.test(account) && random.length === RANDOM_PART_LEN && ID_PART.test(random)) {
+    const seed = seedOf(rest);
+    if (seed) return { key: AgentKey.fromSeed(seed), environment: env, accountId: `acc_${account}`, keyId: `key_${account}_${random}` };
+  }
+  // Before 0.19.0: msk_<prefix>_<seed>, split on the first two underscores only.
+  const [, prefix, tail] = splitN(s, "_", 3);
+  if (!prefix || tail === undefined) {
+    throw new Error("malformed agent secret: expected msk_<environment>_<account>_<key>_<seed>, or msk_<prefix>_<seed>");
+  }
+  const seed = seedOf(tail);
+  if (!seed) throw new Error("malformed agent secret: the seed is not 32 base64url bytes");
+  return { key: AgentKey.fromSeed(seed) };
+}
+
+/**
+ * Render the secret of a key issued at contract 0.19.0 or later: the
+ * environment, the key id's account and random parts, and the seed. For tests
+ * and tools; the engine issues the real ones.
+ */
+export function newSecret(environment: string, keyId: string, seed: Uint8Array): string {
+  if (!ENVIRONMENT.test(environment)) throw new Error(`environment ${JSON.stringify(environment)} is not a lowercase word of up to 32 letters, digits and dashes`);
+  const parts = keyId.split("_");
+  const [kind, account, random] = parts;
+  if (parts.length !== 3 || kind !== "key" || !account || !ID_PART.test(account) || !random || random.length !== RANDOM_PART_LEN || !ID_PART.test(random)) {
+    throw new Error(`key id ${JSON.stringify(keyId)} is not key_<account suffix>_<12 characters>`);
+  }
+  if (seed.length !== SEED_SIZE) throw new Error("a seed is 32 bytes");
+  return secret(`msk_${environment}_${account}_${random}`, seed);
+}
+
+/** `s` split on `sep` into at most `n` parts, the last holding the rest. */
+function splitN(s: string, sep: string, n: number): string[] {
+  const out: string[] = [];
+  let rest = s;
+  while (out.length < n - 1) {
+    const i = rest.indexOf(sep);
+    if (i < 0) break;
+    out.push(rest.slice(0, i));
+    rest = rest.slice(i + sep.length);
+  }
+  out.push(rest);
+  return out;
 }
 
 /** Render a seed the way the engine shows it, with the given prefix. */

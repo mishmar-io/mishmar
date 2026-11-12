@@ -5,7 +5,7 @@ import type { Proposal } from "../src/index.ts";
 
 const KEY = AgentKey.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => i));
 
-const good = (): Proposal => ({ tradingAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", price: "98000.5", keyId: "key_a" });
+const good = (): Proposal => ({ connectedAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", price: "98000.5", keyId: "key_a" });
 
 test("sign fills the nonce and the times and the body carries the signature", () => {
   const p = sign(good(), KEY);
@@ -48,7 +48,7 @@ test("nonce", () => {
   assert.notEqual(newNonce(), newNonce());
 });
 
-const cancel = (): Proposal => ({ kind: "cancel", tradingAccountId: "rt_1", symbol: "BTCUSDT", targetClientOrderId: "msh-a1b2c3-k3j9xq", keyId: "key_a" });
+const cancel = (): Proposal => ({ kind: "cancel", connectedAccountId: "rt_1", symbol: "BTCUSDT", targetClientOrderId: "msh-a1b2c3-k3j9xq", keyId: "key_a" });
 
 test("a cancel carries the target and no order fields", () => {
   const body = toWire(sign(cancel(), KEY));

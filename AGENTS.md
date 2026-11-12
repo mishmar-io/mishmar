@@ -11,7 +11,7 @@ contract here.
 go test ./...                       # every Go package, including the vector check and the signer's end-to-end test
 go vet ./...                        # also `make lint` (vet + gofmt)
 make gen                            # regenerate api/types.gen.go from spec/openapi.yaml (oapi-codegen, models only)
-go build ./cmd/mishmar              # the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, mcp, version
+go build ./cmd/mishmar              # the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, read, mcp, version
 go test ./proposal -update          # regenerate spec/vectors/proposal-signing.json after changing its cases
 cd python && python -m pytest       # the Python SDK (needs `pip install -e .[test]`)
 cd typescript && npm test           # the TypeScript SDK on node:test (needs `npm install`; Node 22+ runs the .ts files directly)
@@ -66,21 +66,26 @@ signer/      the agent's signer as a library: config.go (the 0600 file, validati
              sync.go (SyncKeys, run by Run every KeySyncInterval when ConfigPath is set: generates the keys
              the console added without a share, adopts keys another command wrote into the file, drops
              revoked ones, all without a restart; the map is replaced whole under the mutex, readers snapshot it),
-             client.go (the agent-facing API, every /agent call signed), checks.go (Policy.Check: the
+             client.go (the agent-facing API, every /agent call signed), permission.go (Run asks GET /agent/me
+             whether the agent reads or trades; a read agent's signer polls and syncs nothing, and its client
+             sends only DataRead, the seven reads a hosted collector answers), checks.go (Policy.Check: the
              refusals in order, the Binance order, cancel and read checks), hook.go, signer.go (Run, Handle,
              the FROST round), oneshot.go (Prepare and Propose: the venue request built here and the agent's
              half signed against a pre-issued engine commitment, with the channel as the fallback; with two
-             keys on a trading account, the one GET /agent/venue-keys reports active),
+             keys on a connected account, the one GET /agent/venue-keys reports active),
              local.go (the local API an SDK or `mishmar mcp` calls: Submit turns an intent into a signed
              proposal; `signer run --local`), service/ (the engine's signer service, `signer serve`),
              configlock/ (one long-running signer per config: `signer run` and `mcp` hold <config>.lock,
              flock or LockFileEx, no cgo)
-mcp/         the MCP server (JSON-RPC 2.0 over stdio, no dependency): ten tools over a Backend the signer implements
+mcp/         the MCP server (JSON-RPC 2.0 over stdio, no dependency): sixteen tools over a Backend the signer implements,
+             seven of them the reads of connected-account data (the calls a hosted collector answers; accountdata_test.go
+             checks they call nothing else)
 cmd/mishmar/ the CLI on cobra: keygen, add-agent (operator client lives here, not in signer/),
-             signer add-key, signer run, propose (one-shot with --config where it can, --cancel, --channel), version
-python/      the Python SDK: src/mishmar/{canon,agentkey,proposal,client,signer}.py (signer.py runs the binary as a
+             signer add-key, signer run, propose (one-shot with --config where it can, --cancel, --channel),
+             read (the agent's reads of connected-account data, from MISHMAR_API_KEY or the config), version
+python/      the Python SDK: src/mishmar/{canon,agentkey,proposal,client,signer,data}.py (signer.py runs the binary as a
              child process and speaks its local API), tests against spec/vectors and a fake binary
-typescript/  the TypeScript SDK: src/{canon,agentkey,proposal,client,signer,index}.ts on node:crypto and fetch,
+typescript/  the TypeScript SDK: src/{canon,agentkey,proposal,client,data,signer,index}.ts on node:crypto and fetch,
              tests/*.test.ts on node:test against spec/vectors; `.ts` imports, erasable syntax only
 kms/         Cloud KMS encrypt and decrypt over REST with the workload's metadata-server token, no client
              library and no proxy; kmstest/ is a stand-in server for tests, used by the engine's too

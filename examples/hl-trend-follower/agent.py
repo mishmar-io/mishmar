@@ -1,4 +1,4 @@
-"""HL Trend Follower: a test bot for a Hyperliquid testnet trading account.
+"""HL Trend Follower: a test bot for a Hyperliquid testnet connected account.
 
 It trades through the agent's signer only (the Python SDK's Signer runs
 `mishmar signer run --local` as a child; this process holds no key) and walks
@@ -19,7 +19,7 @@ that parks for a person waits for someone to approve or reject it in the
 console and reports what they chose.
 
     pip install mishmar      # plus the mishmar binary on the PATH or in MISHMAR_BIN
-    python agent.py --trading-account ta_… --results results.json
+    python agent.py --connected-account ta_… --results results.json
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ class Agent:
         self, symbol: str, side: str, usd: str, valid_for: int = 60
     ) -> dict[str, Any]:
         return {
-            "tradingAccountId": self.ta,
+            "connectedAccountId": self.ta,
             "symbol": symbol,
             "side": side,
             "size": self.size_for(symbol, usd),
@@ -100,7 +100,7 @@ class Agent:
 
     def position(self, symbol: str) -> dict[str, Any] | None:
         for p in self.s.positions():
-            if p["symbol"] == symbol and p.get("tradingAccountId", self.ta) == self.ta:
+            if p["symbol"] == symbol and p.get("connectedAccountId", self.ta) == self.ta:
                 return p
         return None
 
@@ -265,7 +265,7 @@ def steps() -> list[Step]:
     def rest_buy(a: Agent) -> dict[str, Any]:
         price = int(mids()["BTC"] * Decimal("0.97"))
         return {
-            "tradingAccountId": a.ta,
+            "connectedAccountId": a.ta,
             "symbol": "BTC",
             "side": "buy",
             "size": str(
@@ -285,7 +285,7 @@ def steps() -> list[Step]:
             "clientOrderId"
         ]
         return {
-            "tradingAccountId": a.ta,
+            "connectedAccountId": a.ta,
             "symbol": "BTC",
             "kind": "cancel",
             "targetClientOrderId": coid,
@@ -301,7 +301,7 @@ def steps() -> list[Step]:
         p = a.position("BTC")
         size = p["size"].lstrip("-") if p else "0"
         return {
-            "tradingAccountId": a.ta,
+            "connectedAccountId": a.ta,
             "symbol": "BTC",
             "side": "sell",
             "size": size,
@@ -372,10 +372,10 @@ def main() -> int:
         help="the signer's config, written by the signer's first start with MISHMAR_API_KEY, or `mishmar signer init` (default ~/.mishmar/agent.json)",
     )
     ap.add_argument(
-        "--trading-account",
-        default=os.environ.get("MISHMAR_TRADING_ACCOUNT"),
-        required="MISHMAR_TRADING_ACCOUNT" not in os.environ,
-        help="the trading account's id, ta_…",
+        "--connected-account",
+        default=os.environ.get("MISHMAR_CONNECTED_ACCOUNT"),
+        required="MISHMAR_CONNECTED_ACCOUNT" not in os.environ,
+        help="the connected account's id, ta_…",
     )
     ap.add_argument("--approval-timeout", type=float, default=900)
     ap.add_argument("--results", default="results.json")
@@ -385,7 +385,7 @@ def main() -> int:
     only = {int(x) for x in args.only.split(",")} if args.only else None
     results: list[dict[str, Any]] = []
     with Signer(args.config, log_level="info") as s:
-        agent = Agent(s, args.trading_account, args.approval_timeout)
+        agent = Agent(s, args.connected_account, args.approval_timeout)
         print(f"signer up: {s.health()}")
         for i, step in enumerate(steps(), start=1):
             if only and i not in only:
@@ -396,7 +396,7 @@ def main() -> int:
         time.sleep(4)
         positions = s.positions()
         pnl = s.pnl()
-        page = s.decisions(trading_account_id=args.trading_account, limit=50)
+        page = s.decisions(connected_account_id=args.connected_account, limit=50)
 
     print("\n== result")
     for r in results:

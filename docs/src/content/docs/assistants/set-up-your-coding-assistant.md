@@ -54,17 +54,18 @@ This bot trades through [Mishmar](https://mishmar.io), a risk management layer f
 - Sizes and prices are decimal strings, never floats. Size and price from the venue rules the signer returns (`venue_rules` / `venueRules`: tick size, step size, minimums).
 - Never call the exchange's order endpoints directly; every order goes through the signer. The signer and Mishmar each hold half of the trading key, so a direct call could not be signed anyway.
 - `mishmar mcp` is the same signer as an MCP server, for an agent that is a language model.
+- The agent reads each connected account it was given whole: balances, the venue's positions, transactions (a trade's `origin.own` marks the agent's own) and value over time (`account_balances`, `account_positions`, `account_transactions`, `account_equity`; camelCase in TypeScript). A read agent holds no signer and cannot propose; it reads with its Mishmar API key alone (`Client.from_api_key()` / `Client.fromApiKey()`, from `MISHMAR_API_KEY`).
 - The setup steps, the rules and the API, as Markdown: https://docs.mishmar.io/llms.txt (all pages in one file: https://docs.mishmar.io/llms-full.txt). Example bots: https://github.com/mishmar-io/mishmar/tree/main/examples
 ```
 
 ## Open Claude with the docs loaded
 
-If the Claude desktop app is installed, this link opens a new chat with the prompt filled in (nothing is sent until you press enter): [Open in Claude](claude://claude.ai/new?q=Read%20https%3A%2F%2Fdocs.mishmar.io%2Fllms.txt%2C%20then%20help%20me%20set%20up%20a%20trading%20bot%20that%20trades%20through%20Mishmar%20on%20the%20hosted%20testnet%3A%20install%20the%20mishmar%20CLI%2C%20add%20a%20trading%20account%20and%20an%20agent%2C%20set%20the%20first%20rules%2C%20and%20write%20the%20bot%20with%20the%20Python%20SDK%20Signer.).
+If the Claude desktop app is installed, this link opens a new chat with the prompt filled in (nothing is sent until you press enter): [Open in Claude](claude://claude.ai/new?q=Read%20https%3A%2F%2Fdocs.mishmar.io%2Fllms.txt%2C%20then%20help%20me%20set%20up%20a%20trading%20bot%20that%20trades%20through%20Mishmar%20on%20the%20hosted%20testnet%3A%20install%20the%20mishmar%20CLI%2C%20connect%20an%20account%20and%20add%20an%20agent%2C%20set%20the%20first%20rules%2C%20and%20write%20the%20bot%20with%20the%20Python%20SDK%20Signer.).
 
 The same prompt, for any assistant:
 
 ```text
-Read https://docs.mishmar.io/llms.txt, then help me set up a trading bot that trades through Mishmar on the hosted testnet: install the mishmar CLI, add a trading account and an agent, set the first rules, and write the bot with the Python SDK Signer.
+Read https://docs.mishmar.io/llms.txt, then help me set up a trading bot that trades through Mishmar on the hosted testnet: install the mishmar CLI, connect an account and add an agent, set the first rules, and write the bot with the Python SDK Signer.
 ```
 
 ## For the agent itself

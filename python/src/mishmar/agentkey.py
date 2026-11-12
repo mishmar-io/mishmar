@@ -1,8 +1,14 @@
 """The agent's identity: an Ed25519 key whose public half the engine stores.
 
-The engine shows the secret once, as ``msk_<prefix>_<seed>``: a label, then
-the 32-byte seed in base64url without padding. The key id (``key_…``) is
-separate and public.
+The engine shows the secret once, the agent's API key:
+``msk_<environment>_<account suffix>_<key random part>_<seed>``. The seed is
+the 32-byte Ed25519 seed in base64url without padding; before it comes what
+names the engine and the key, so an agent needs nothing else: the
+environment (testnet, prod, … for hosted Mishmar; anything else means the
+engine URL is given by hand) and the two parts of the public key id,
+``key_<account suffix>_<random part>``. Keys issued before contract 0.19.0
+are ``msk_<six characters>_<seed>`` and still parse; they name neither
+engine nor key id, which then come separately.
 
 The key signs two things: proposals (see proposal.py) and, under the
 contract's agentAuth scheme, every other agent-facing request: four headers
@@ -15,7 +21,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from cryptography.exceptions import InvalidSignature
@@ -38,6 +46,28 @@ HEADER_SIGNATURE = "X-Mishmar-Signature"
 
 def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _seed_of(text: str) -> bytes | None:
+    """The 32-byte seed a secret ends with, or ``None``: strict base64url
+    without padding, as the engine writes it."""
+    try:
+        seed = _b64url_decode(text)
+    except ValueError:
+        return None
+    if (
+        len(seed) != SEED_SIZE
+        or base64.urlsafe_b64encode(seed).rstrip(b"=").decode("ascii") != text
+    ):
+        return None
+    return seed
+
+
+# An environment is a short lowercase word (testnet, stage, prod, self); the
+# parts of an id are lowercase letters and digits, the random part twelve of them.
+_ENVIRONMENT = re.compile(r"[a-z][a-z0-9-]{0,31}")
+_ID_PART = re.compile(r"[a-z0-9]+")
+_RANDOM_PART_LEN = 12
 
 
 def new_nonce() -> str:
@@ -80,21 +110,9 @@ class AgentKey:
 
     @classmethod
     def parse(cls, secret: str) -> AgentKey:
-        """Read the secret the engine showed when the key was issued."""
-        # msk_<prefix>_<seed>: the seed is base64url and may itself contain
-        # '_', so split on the first two underscores only.
-        parts = secret.strip().split("_", 2)
-        if len(parts) != 3 or parts[0] != "msk":
-            raise ValueError("malformed agent secret: expected msk_<prefix>_<seed>")
-        try:
-            seed = _b64url_decode(parts[2])
-        except ValueError as err:
-            raise ValueError(
-                "malformed agent secret: the seed is not base64url"
-            ) from err
-        if len(seed) != SEED_SIZE:
-            raise ValueError("malformed agent secret: the seed is not 32 bytes")
-        return cls.from_seed(seed)
+        """Read the key out of the secret the engine showed when it was
+        issued, in either format (see :func:`parse_secret`)."""
+        return parse_secret(secret).key
 
     @classmethod
     def from_seed(cls, seed: bytes) -> AgentKey:
@@ -145,8 +163,84 @@ class AgentKey:
         return base64.b64encode(self.public_key).decode("ascii")
 
 
+@dataclass(frozen=True)
+class ParsedSecret:
+    """An agent's API key taken apart: the key, and what the secret says
+    about where it belongs. ``environment``, ``account_id`` and ``key_id``
+    are set for a key issued at contract 0.19.0 or later and ``None`` for an
+    older one."""
+
+    key: AgentKey
+    environment: str | None = None
+    account_id: str | None = None
+    key_id: str | None = None
+
+
+def parse_secret(secret: str) -> ParsedSecret:
+    """Read the secret the engine showed when the key was issued, in either
+    format: ``msk_<environment>_<account>_<key>_<seed>`` (0.19.0 and later),
+    which also names the engine and the key id, or ``msk_<prefix>_<seed>``."""
+    s = secret.strip()
+    if not s.startswith("msk_"):
+        raise ValueError("malformed agent secret: it starts with msk_")
+    # 0.19.0: five parts, the seed last. The seed is base64url and may itself
+    # contain '_', so split for at most five. An older secret cannot pass
+    # here: its seed would have to be split across the parts, leaving too few
+    # characters for the last one to be a whole seed.
+    parts = s.split("_", 4)
+    if (
+        len(parts) == 5
+        and _ENVIRONMENT.fullmatch(parts[1])
+        and _ID_PART.fullmatch(parts[2])
+        and len(parts[3]) == _RANDOM_PART_LEN
+        and _ID_PART.fullmatch(parts[3])
+    ):
+        seed = _seed_of(parts[4])
+        if seed is not None:
+            return ParsedSecret(
+                AgentKey.from_seed(seed),
+                environment=parts[1],
+                account_id="acc_" + parts[2],
+                key_id=f"key_{parts[2]}_{parts[3]}",
+            )
+    # Before 0.19.0: msk_<prefix>_<seed>, split on the first two underscores only.
+    parts = s.split("_", 2)
+    if len(parts) != 3 or not parts[1]:
+        raise ValueError(
+            "malformed agent secret: expected msk_<environment>_<account>_<key>_<seed>, or msk_<prefix>_<seed>"
+        )
+    seed = _seed_of(parts[2])
+    if seed is None:
+        raise ValueError("malformed agent secret: the seed is not 32 base64url bytes")
+    return ParsedSecret(AgentKey.from_seed(seed))
+
+
+def new_secret(environment: str, key_id: str, seed: bytes) -> str:
+    """Render the secret of a key issued at contract 0.19.0 or later: the
+    environment, the key id's account and random parts, and the seed. For
+    tests and tools; the engine issues the real ones."""
+    if not _ENVIRONMENT.fullmatch(environment):
+        raise ValueError(
+            f"environment {environment!r} is not a lowercase word of up to 32 letters, digits and dashes"
+        )
+    parts = key_id.split("_")
+    if (
+        len(parts) != 3
+        or parts[0] != "key"
+        or not _ID_PART.fullmatch(parts[1])
+        or len(parts[2]) != _RANDOM_PART_LEN
+        or not _ID_PART.fullmatch(parts[2])
+    ):
+        raise ValueError(
+            f"key id {key_id!r} is not key_<account suffix>_<12 characters>"
+        )
+    if len(seed) != SEED_SIZE:
+        raise ValueError("a seed is 32 bytes")
+    return secret(f"msk_{environment}_{parts[1]}_{parts[2]}", seed)
+
+
 def secret(prefix: str, seed: bytes) -> str:
-    """Render a seed the way the engine shows it."""
+    """Render a seed the way the engine shows it, after ``prefix``."""
     return prefix + "_" + base64.urlsafe_b64encode(seed).rstrip(b"=").decode("ascii")
 
 

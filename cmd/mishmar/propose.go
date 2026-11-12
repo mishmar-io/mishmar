@@ -19,10 +19,10 @@ import (
 
 // proposeOptions are the flags of "mishmar propose".
 type proposeOptions struct {
-	engineURL, keyID, config, tradingAccount, kind, symbol, side, size, price, leverage, cancel string
-	market, reduceOnly, channel                                                                 bool
-	validFor                                                                                    time.Duration
-	engineSet                                                                                   bool
+	engineURL, keyID, config, connectedAccount, kind, symbol, side, size, price, leverage, cancel string
+	market, reduceOnly, channel                                                                   bool
+	validFor                                                                                      time.Duration
+	engineSet                                                                                     bool
 }
 
 func newProposeCmd() *cobra.Command {
@@ -39,7 +39,7 @@ acknowledgement.
 The key comes from --config (the signer's config: its keyId, secret and
 engine), or from --key with the secret in MISHMAR_AGENT_SECRET.
 
-With --config, an order or a cancel on a Binance trading account goes
+With --config, an order or a cancel on a Binance connected account goes
 one-shot: this command builds the venue's own request from the engine's
 rules for the symbol and signs the agent's half of it with the share in the
 config, so the engine can forward an allowed order without asking the
@@ -57,14 +57,14 @@ expires, and nothing is forwarded after it.`,
 			case o.validFor <= 0 || o.validFor > 24*time.Hour:
 				return errors.New("--valid-for must be between 1s and 24h")
 			case o.cancel != "" && (o.market || o.price != "" || o.size != "" || o.reduceOnly || o.leverage != ""):
-				return errors.New("--cancel takes --trading-account and --symbol only, no order fields")
-			case o.cancel != "" && (o.tradingAccount == "" || o.symbol == ""):
-				return errors.New("--cancel needs --trading-account and --symbol")
+				return errors.New("--cancel takes --connected-account and --symbol only, no order fields")
+			case o.cancel != "" && (o.connectedAccount == "" || o.symbol == ""):
+				return errors.New("--cancel needs --connected-account and --symbol")
 			case o.cancel != "":
 			case o.market == (o.price != ""):
 				return errors.New("give exactly one of --market or --price")
-			case o.tradingAccount == "" || o.symbol == "" || o.size == "":
-				return errors.New("--trading-account, --symbol and --size are required")
+			case o.connectedAccount == "" || o.symbol == "" || o.size == "":
+				return errors.New("--connected-account, --symbol and --size are required")
 			}
 			return propose(cmd.Context(), o, cmd.OutOrStdout())
 		},
@@ -73,7 +73,7 @@ expires, and nothing is forwarded after it.`,
 	f.StringVar(&o.engineURL, "engine", "http://localhost:8080/v1", "engine API base URL (the config's when --config is given)")
 	f.StringVar(&o.keyID, "key", "", "the agent key id (key_…); the secret comes from MISHMAR_AGENT_SECRET")
 	configFlag(cmd, &o.config)
-	f.StringVar(&o.tradingAccount, "trading-account", "", "trading account id (ta_…)")
+	f.StringVar(&o.connectedAccount, "connected-account", "", "connected account id (ta_…)")
 	f.StringVar(&o.kind, "kind", "order", "order | transaction | signed_message")
 	f.StringVar(&o.symbol, "symbol", "", "venue symbol, e.g. BTC on Hyperliquid, BTCUSDT on Binance")
 	f.StringVar(&o.side, "side", "buy", "buy | sell")
@@ -121,14 +121,14 @@ func propose(ctx context.Context, o proposeOptions, out io.Writer) error {
 	}
 	now := time.Now().UTC()
 	submit := api.ProposalSubmit{
-		KeyId: keyID, TradingAccountId: o.tradingAccount, Kind: api.ProposalKind(o.kind), Symbol: o.symbol,
+		KeyId: keyID, ConnectedAccountId: o.connectedAccount, Kind: api.ProposalKind(o.kind), Symbol: o.symbol,
 		Side: api.Side(o.side), Size: o.size, ReduceOnly: &o.reduceOnly,
 		OrderType: api.ProposalSubmitOrderTypeLimit, Nonce: nonce, ProposedAt: now, ExpiresAt: now.Add(o.validFor),
 	}
 	switch {
 	case o.cancel != "":
 		submit = api.ProposalSubmit{
-			KeyId: keyID, TradingAccountId: o.tradingAccount, Kind: api.ProposalKindCancel, Symbol: o.symbol,
+			KeyId: keyID, ConnectedAccountId: o.connectedAccount, Kind: api.ProposalKindCancel, Symbol: o.symbol,
 			TargetClientOrderId: &o.cancel, Nonce: nonce, ProposedAt: now, ExpiresAt: now.Add(o.validFor),
 		}
 	case o.market:
@@ -140,6 +140,12 @@ func propose(ctx context.Context, o proposeOptions, out io.Writer) error {
 		submit.Leverage = &o.leverage
 	}
 	client := signer.NewClient(engine, keyID, key)
+	// A read agent proposes nothing: say so here, with one read, rather than
+	// send a proposal that wakes a sleeping engine to be refused. An engine
+	// that does not answer this (or does not say) decides as it always has.
+	if me, err := client.Me(ctx); err == nil && me.Permission == api.AgentPermissionRead {
+		return fmt.Errorf("agent %s (%s) is a read agent: it proposes nothing, and nothing was sent. It reads the connected accounts it was given: \"mishmar read accounts\"", me.AgentId, me.AgentName)
+	}
 	var d api.Decision
 	if cfg != nil && !o.channel {
 		cfg.Engine = engine

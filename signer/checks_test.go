@@ -41,8 +41,8 @@ func newFixture(t *testing.T) *fixture {
 		policy: Policy{
 			KeyID: "key_a", PublicKey: key.PublicKeyB64(),
 			VenueKeys: map[string]VenueKey{
-				"vk_1":  {TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: share},
-				"vk_by": {TradingAccountID: "rt_3", Venue: "bybit", Scheme: SchemeFrostEd25519, Share: share},
+				"vk_1":  {ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: share},
+				"vk_by": {ConnectedAccountID: "rt_3", Venue: "bybit", Scheme: SchemeFrostEd25519, Share: share},
 			},
 			Now:      func() time.Time { return now },
 			Answered: func(id string) bool { return id == "sr_dup" },
@@ -56,7 +56,7 @@ func (f *fixture) proposal(t *testing.T, key *agentkey.Key, mod func(p *api.Prop
 	t.Helper()
 	price := "60000"
 	p := api.ProposalSubmit{
-		KeyId: "key_a", TradingAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5",
+		KeyId: "key_a", ConnectedAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5",
 		Price: &price, OrderType: api.ProposalSubmitOrderTypeLimit, ReduceOnly: proposal.Bool(false), Nonce: "n1",
 		ProposedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute),
 	}
@@ -108,7 +108,7 @@ func b64(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) 
 // message given.
 func orderRequest(p api.ProposalSubmit, message string) api.SignRequest {
 	return api.SignRequest{
-		Id: "sr_1", SessionId: "sr_1", Round: 1, Attempt: 1, AgentId: "ag_1", TradingAccountId: "rt_1", VenueKeyId: "vk_1",
+		Id: "sr_1", SessionId: "sr_1", Round: 1, Attempt: 1, AgentId: "ag_1", ConnectedAccountId: "rt_1", VenueKeyId: "vk_1",
 		Venue: api.VenueBinance, Scheme: api.SigningSchemeFrostEd25519, Purpose: api.SignRequestPurposeOrder,
 		DecisionId: ptr("dec_1"), ClientOrderId: ptr("msh-ag1-abc123"), Proposal: &p,
 		Order: &api.SignRequestOrder{
@@ -122,7 +122,7 @@ func orderRequest(p api.ProposalSubmit, message string) api.SignRequest {
 
 func verifyRequest(message string) api.SignRequest {
 	return api.SignRequest{
-		Id: "sr_v", SessionId: "sr_v", Round: 1, Attempt: 1, AgentId: "ag_1", TradingAccountId: "rt_1", VenueKeyId: "vk_1",
+		Id: "sr_v", SessionId: "sr_v", Round: 1, Attempt: 1, AgentId: "ag_1", ConnectedAccountId: "rt_1", VenueKeyId: "vk_1",
 		Venue: api.VenueBinance, Scheme: api.SigningSchemeFrostEd25519, Purpose: api.SignRequestPurposeVerify,
 		Message: b64(message), VenueRequest: &api.VenueRequest{Method: "GET", Url: "/fapi/v2/account"},
 		IssuedAt: now, ExpiresAt: now.Add(10 * time.Second),
@@ -202,10 +202,10 @@ func TestPolicyCheck(t *testing.T) {
 			p.Size = "5"
 			return orderRequest(p, binanceOrder(p, cid, nil))
 		}(), RefuseBadSignature},
-		{"proposal for another trading account", func() api.SignRequest {
-			p := f.proposal(t, f.key, func(p *api.ProposalSubmit) { p.TradingAccountId = "rt_2" })
+		{"proposal for another connected account", func() api.SignRequest {
+			p := f.proposal(t, f.key, func(p *api.ProposalSubmit) { p.ConnectedAccountId = "rt_2" })
 			return orderRequest(p, binanceOrder(p, cid, nil))
-		}(), RefuseTradingAccountMismatch},
+		}(), RefuseConnectedAccountMismatch},
 		{"proposal expired", func() api.SignRequest {
 			p := f.proposal(t, f.key, func(p *api.ProposalSubmit) { p.ProposedAt, p.ExpiresAt = now.Add(-time.Hour), now.Add(-time.Second) })
 			return orderRequest(p, binanceOrder(p, cid, nil))
@@ -225,9 +225,9 @@ func TestPolicyCheck(t *testing.T) {
 			r.VenueKeyId = "vk_9"
 			return r
 		}(), RefuseUnknownKey},
-		{"venue key on another trading account", func() api.SignRequest {
+		{"venue key on another connected account", func() api.SignRequest {
 			r := orderRequest(limit, binanceOrder(limit, cid, nil))
-			r.TradingAccountId = "rt_2"
+			r.ConnectedAccountId = "rt_2"
 			return r
 		}(), RefuseKeyMismatch},
 		{"wrong scheme", func() api.SignRequest {
@@ -266,7 +266,7 @@ func TestPolicyCheck(t *testing.T) {
 		}(), RefuseMessage},
 		{"unsupported venue", func() api.SignRequest {
 			r := verifyRequest(readMessage)
-			r.Venue, r.TradingAccountId, r.VenueKeyId = api.VenueBybit, "rt_3", "vk_by"
+			r.Venue, r.ConnectedAccountId, r.VenueKeyId = api.VenueBybit, "rt_3", "vk_by"
 			return r
 		}(), RefuseVenue},
 	}

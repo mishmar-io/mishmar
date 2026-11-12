@@ -8,7 +8,7 @@ is checked against the owner's rules, and reaches the venue only when both
 halves sign it.
 
 Before running any of them: sign up on the hosted testnet at
-https://app.testnet.mishmar.io, add a trading account and an agent
+https://app.testnet.mishmar.io, add a connected account and an agent
 (https://docs.mishmar.io walks through both), and install the `mishmar`
 binary on the machine the bot runs on (https://docs.mishmar.io/start/install-the-cli/).
 The agent's Mishmar API key, shown once when the agent is added, is all the

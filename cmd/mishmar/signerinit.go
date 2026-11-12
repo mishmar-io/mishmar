@@ -121,7 +121,7 @@ writes nothing. --no-check skips the read; it then needs --agent.`,
 			fmt.Fprintf(out, "wrote %s (mode 0600) for agent %s, key %s, engine %s\n", path, cfg.AgentID, cfg.KeyID, cfg.Engine)
 			fmt.Fprint(out, "next: mishmar signer run\n"+
 				"  it generates the trading keys the console adds for this agent and logs what to approve or register at the venue;\n"+
-				"  or make one by hand: mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance|hyperliquid [--network mainnet|testnet]\n")
+				"  or make one by hand: mishmar signer keygen --venue-key vk_… --connected-account ta_… --venue binance|hyperliquid [--network mainnet|testnet]\n")
 			return nil
 		},
 	}

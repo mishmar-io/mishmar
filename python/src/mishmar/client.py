@@ -1,15 +1,16 @@
 """A small HTTP client for the engine, on the standard library only.
 
 Proposals go to POST /proposals with the signature in the body. Everything
-else an agent may call (its own decisions, approvals, positions, PnL, trading accounts,
-and the signer channel) is under /agent and signed with the agentAuth
-headers, so a bot can function without an operator token and cannot act on
-the account.
+else an agent may call (its own decisions, approvals, positions, PnL, the
+connected accounts it was given and their data, and the signer channel) is
+under /agent and signed with the agentAuth headers, so a bot can function
+without an operator token and cannot act on the account.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import random
 import time
 import urllib.error
@@ -17,10 +18,22 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
-from .agentkey import AgentKey
+from ._time import rfc3339
+from .agentkey import AgentKey, ParsedSecret, parse_secret
+from .data import (
+    AccountPositionSnapshot,
+    AccountTransactionKind,
+    AccountTransactionPage,
+    AgentIdentity,
+    BalanceSnapshot,
+    ConnectedAccount,
+    EquityResolution,
+    EquitySeries,
+)
 from .proposal import Proposal
 
 RESOLVED_APPROVAL = ("approved", "rejected", "expired")
@@ -90,6 +103,46 @@ def _parse_retry_after(value: str | None) -> float | None:
 #: The default policy; see :class:`Retries`.
 DEFAULT_RETRIES = Retries()
 
+#: The agent's API key from the console (``msk_…``), which names its engine and key id.
+ENV_API_KEY = "MISHMAR_API_KEY"
+#: The engine's API base URL, with /v1, for a self-hosted engine or a key that names none.
+ENV_ENGINE = "MISHMAR_ENGINE"
+
+#: The API host of each hosted environment a key can name; an account's
+#: engine is reached under ``/a/<account id>/v1`` on it.
+HOSTED_API = {
+    "testnet": "https://api.testnet.mishmar.io",
+    "stage": "https://api.stage.mishmar.io",
+    "prod": "https://api.mishmar.io",
+}
+
+
+def engine_url_for(parsed: ParsedSecret, override: str | None = None) -> str:
+    """The API base URL a key's engine is reached at: ``override`` when
+    given (trailing slashes dropped), else the hosted host the key's
+    environment names, plus the account's path. A key that names no engine
+    (issued before 0.19.0), or an environment that is not hosted (a
+    self-hosted engine's), needs the override."""
+    if override and override.strip():
+        return override.strip().rstrip("/")
+    if parsed.key_id is None or parsed.account_id is None:
+        raise ValueError(
+            f"the key was issued before 0.19.0 and names no engine; pass the engine's API base URL, with /v1, or set {ENV_ENGINE}"
+        )
+    host = HOSTED_API.get(parsed.environment or "")
+    if host is None:
+        raise ValueError(
+            f"the key names environment {parsed.environment!r}, which is not a hosted one; pass the engine's API base URL, with /v1, or set {ENV_ENGINE}"
+        )
+    return f"{host}/a/{parsed.account_id}/v1"
+
+
+def _when(value: str | datetime | None) -> str | None:
+    """A time for a query: a datetime in the contract's form, a string as given."""
+    if value is None or isinstance(value, str):
+        return value
+    return rfc3339(value)
+
 
 class Client:
     """Talks to one engine as one agent. The trading key's share lives in the
@@ -115,6 +168,39 @@ class Client:
         self.retries = retries
         self._sleep: Callable[[float], None] = time.sleep
 
+    @classmethod
+    def from_api_key(
+        cls,
+        api_key: str | None = None,
+        *,
+        engine_url: str | None = None,
+        timeout: float = 10.0,
+        retries: Retries | None = DEFAULT_RETRIES,
+    ) -> Client:
+        """A client from the agent's Mishmar API key alone (default
+        ``$MISHMAR_API_KEY``): the key names its engine and its key id.
+        ``engine_url`` (default ``$MISHMAR_ENGINE``) is the engine's API base
+        URL, with /v1, for a self-hosted engine. A read agent needs nothing
+        else; a key issued before 0.19.0 names neither, so it takes
+        ``Client(engine_url, AgentKey.parse(secret), key_id)``."""
+        key = api_key if api_key is not None else os.environ.get(ENV_API_KEY, "")
+        if not key.strip():
+            raise ValueError(f"no agent API key: pass api_key or set {ENV_API_KEY}")
+        parsed = parse_secret(key)
+        if parsed.key_id is None:
+            raise ValueError(
+                "the key was issued before 0.19.0 and names no key id: use Client(engine_url, AgentKey.parse(secret), key_id)"
+            )
+        if engine_url is None:
+            engine_url = os.environ.get(ENV_ENGINE)
+        return cls(
+            engine_url_for(parsed, engine_url),
+            parsed.key,
+            parsed.key_id,
+            timeout=timeout,
+            retries=retries,
+        )
+
     # Proposals
 
     def propose(self, proposal: Proposal) -> dict[str, Any]:
@@ -131,7 +217,7 @@ class Client:
     def decisions(
         self,
         *,
-        trading_account_id: str | None = None,
+        connected_account_id: str | None = None,
         verdict: str | None = None,
         since: str | None = None,
         until: str | None = None,
@@ -140,7 +226,7 @@ class Client:
     ) -> dict[str, Any]:
         """A page of this agent's decisions, newest first."""
         params = {
-            "tradingAccountId": trading_account_id,
+            "connectedAccountId": connected_account_id,
             "verdict": verdict,
             "from": since,
             "to": until,
@@ -164,22 +250,104 @@ class Client:
         """Daily PnL of this agent; ``start`` and ``end`` are dates (YYYY-MM-DD)."""
         return self._agent_call("GET", "/agent/pnl", query={"from": start, "to": end})
 
-    def trading_account(self, trading_account_id: str) -> dict[str, Any]:
-        """A trading account as this agent may see it, its setup without any secret."""
-        return self._agent_call(
-            "GET",
-            f"/agent/trading-accounts/{urllib.parse.quote(trading_account_id, safe='')}",
-        )
+    def connected_account(self, connected_account_id: str) -> ConnectedAccount:
+        """A connected account as this agent may see it, its setup without any secret."""
+        return self._agent_call("GET", _account_path(connected_account_id))
 
     def venue_rules(
-        self, trading_account_id: str, symbol: str | None = None
+        self, connected_account_id: str, symbol: str | None = None
     ) -> dict[str, Any]:
-        """What the trading account's venue accepts per symbol (tick, step,
+        """What the connected account's venue accepts per symbol (tick, step,
         minimums), as the engine last read it; ``symbol`` narrows it to one."""
         return self._agent_call(
             "GET",
-            f"/agent/trading-accounts/{urllib.parse.quote(trading_account_id, safe='')}/venue-rules",
+            _account_path(connected_account_id, "/venue-rules"),
             query={"symbol": symbol},
+        )
+
+    # Connected-account data. The agent reads each connected account it was
+    # given whole, other agents' and the owner's activity included, and every
+    # read is written to the account's access log. On hosted Mishmar these
+    # (with connected_account) are answered while the account's engine
+    # sleeps, so an agent that only reads never wakes it. Times are RFC 3339
+    # strings or timezone-aware datetimes.
+
+    def me(self) -> AgentIdentity:
+        """Who the key belongs to: the agent, its account and portfolio, and
+        the key id. The engine answers only a key it knows, so this is the
+        read that proves one."""
+        return self._agent_call("GET", "/agent/me")
+
+    def connected_accounts(self) -> list[ConnectedAccount]:
+        """The connected accounts this agent was given, in the order it got them."""
+        return self._agent_call("GET", "/agent/connected-accounts")
+
+    def account_balances(
+        self, connected_account_id: str, *, at: str | datetime | None = None
+    ) -> BalanceSnapshot:
+        """The connected account's balances at the venue, spot and margin, each
+        with its value in USD, at ``at`` (default now). A moment before the
+        account's history or the plan's retention is a 404."""
+        return self._agent_call(
+            "GET",
+            _account_path(connected_account_id, "/balances"),
+            query={"at": _when(at)},
+        )
+
+    def account_positions(
+        self, connected_account_id: str, *, at: str | datetime | None = None
+    ) -> AccountPositionSnapshot:
+        """The venue's own net positions on the connected account, whoever
+        placed the orders behind them, at ``at`` (default now). This agent's
+        own book is :meth:`positions`."""
+        return self._agent_call(
+            "GET",
+            _account_path(connected_account_id, "/positions"),
+            query={"at": _when(at)},
+        )
+
+    def account_transactions(
+        self,
+        connected_account_id: str,
+        *,
+        since: str | datetime | None = None,
+        until: str | datetime | None = None,
+        kind: AccountTransactionKind | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> AccountTransactionPage:
+        """A page of the connected account's trades, transfers, funding and
+        fees as the venue reports them, newest first. A trade's ``origin``
+        says who placed it; ``origin["own"]`` is true on this agent's own.
+        Pass the page's ``nextCursor`` as ``cursor`` for the page after;
+        ``limit`` is 1 to 500 (the engine's default 100)."""
+        return self._agent_call(
+            "GET",
+            _account_path(connected_account_id, "/transactions"),
+            query={
+                "from": _when(since),
+                "to": _when(until),
+                "kind": kind,
+                "cursor": cursor,
+                "limit": limit,
+            },
+        )
+
+    def account_equity(
+        self,
+        connected_account_id: str,
+        *,
+        since: str | datetime | None = None,
+        until: str | datetime | None = None,
+        resolution: EquityResolution | None = None,
+    ) -> EquitySeries:
+        """The connected account's value in USD over time, oldest point first.
+        Without ``resolution`` (minute, hour, day) the engine picks one that
+        gives a few hundred points over the range."""
+        return self._agent_call(
+            "GET",
+            _account_path(connected_account_id, "/equity"),
+            query={"from": _when(since), "to": _when(until), "resolution": resolution},
         )
 
     def wait(
@@ -317,6 +485,11 @@ class Client:
             )
             raise failure from None
         return json.loads(raw) if raw else None
+
+
+def _account_path(connected_account_id: str, sub: str = "") -> str:
+    """The agent-facing path of a connected account, or of one of its reads."""
+    return f"/agent/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}{sub}"
 
 
 def resolved(decision: dict[str, Any]) -> bool:

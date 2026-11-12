@@ -57,9 +57,20 @@ import urllib.parse
 import urllib.request
 from collections import deque
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
-from .client import EngineError, resolved
+from .client import EngineError, _when, resolved
+from .data import (
+    AccountPositionSnapshot,
+    AccountTransactionKind,
+    AccountTransactionPage,
+    AgentIdentity,
+    BalanceSnapshot,
+    ConnectedAccount,
+    EquityResolution,
+    EquitySeries,
+)
 
 log = logging.getLogger("mishmar.signer")
 
@@ -399,7 +410,7 @@ class Signer:
     # Proposals
 
     def propose(self, intent: dict[str, Any]) -> dict[str, Any]:
-        """Send an intent (the local API's ProposeRequest: tradingAccountId,
+        """Send an intent (the local API's ProposeRequest: connectedAccountId,
         symbol, side, size, orderType, price, reduceOnly, leverage,
         validForSeconds; or kind cancel with targetClientOrderId) and get
         the decision back."""
@@ -407,7 +418,7 @@ class Signer:
 
     def order(
         self,
-        trading_account_id: str,
+        connected_account_id: str,
         symbol: str,
         side: str,
         size: str,
@@ -422,7 +433,7 @@ class Signer:
         """Propose an order. A limit order needs ``price``; a market order is
         priced at the engine's mark. Sizes and prices are decimal strings."""
         intent: dict[str, Any] = {
-            "tradingAccountId": trading_account_id,
+            "connectedAccountId": connected_account_id,
             "symbol": symbol,
             "side": side,
             "size": size,
@@ -439,7 +450,7 @@ class Signer:
 
     def cancel(
         self,
-        trading_account_id: str,
+        connected_account_id: str,
         symbol: str,
         client_order_id: str,
         *,
@@ -448,7 +459,7 @@ class Signer:
         """Cancel a resting order this agent placed, by the clientOrderId its decision carries."""
         return self.propose(
             {
-                "tradingAccountId": trading_account_id,
+                "connectedAccountId": connected_account_id,
                 "symbol": symbol,
                 "kind": "cancel",
                 "targetClientOrderId": client_order_id,
@@ -469,7 +480,7 @@ class Signer:
     def decisions(
         self,
         *,
-        trading_account_id: str | None = None,
+        connected_account_id: str | None = None,
         verdict: str | None = None,
         start: str | None = None,
         end: str | None = None,
@@ -480,7 +491,7 @@ class Signer:
             "GET",
             "/decisions",
             query={
-                "tradingAccountId": trading_account_id,
+                "connectedAccountId": connected_account_id,
                 "verdict": verdict,
                 "from": start,
                 "to": end,
@@ -498,19 +509,88 @@ class Signer:
     def pnl(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
         return self._request("GET", "/pnl", query={"from": start, "to": end})
 
-    def trading_account(self, trading_account_id: str) -> dict[str, Any]:
+    def connected_account(self, connected_account_id: str) -> dict[str, Any]:
         return self._request(
             "GET",
-            f"/trading-accounts/{urllib.parse.quote(trading_account_id, safe='')}",
+            f"/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}",
         )
 
     def venue_rules(
-        self, trading_account_id: str, symbol: str | None = None
+        self, connected_account_id: str, symbol: str | None = None
     ) -> dict[str, Any]:
         return self._request(
             "GET",
-            f"/trading-accounts/{urllib.parse.quote(trading_account_id, safe='')}/venue-rules",
+            f"/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}/venue-rules",
             query={"symbol": symbol},
+        )
+
+    # Connected-account data, through the child: the same reads as
+    # Client's, signed with the agent's key there.
+
+    def me(self) -> AgentIdentity:
+        """Who the agent's key belongs to: the agent, its account and portfolio."""
+        return self._request("GET", "/me")
+
+    def connected_accounts(self) -> list[ConnectedAccount]:
+        """The connected accounts this agent was given."""
+        return self._request("GET", "/connected-accounts")
+
+    def account_balances(
+        self, connected_account_id: str, *, at: str | datetime | None = None
+    ) -> BalanceSnapshot:
+        """The connected account's balances, each with its value in USD, at ``at`` (default now)."""
+        return self._request(
+            "GET",
+            f"/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}/balances",
+            query={"at": _when(at)},
+        )
+
+    def account_positions(
+        self, connected_account_id: str, *, at: str | datetime | None = None
+    ) -> AccountPositionSnapshot:
+        """The venue's net positions on the connected account, whoever placed them, at ``at`` (default now)."""
+        return self._request(
+            "GET",
+            f"/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}/positions",
+            query={"at": _when(at)},
+        )
+
+    def account_transactions(
+        self,
+        connected_account_id: str,
+        *,
+        since: str | datetime | None = None,
+        until: str | datetime | None = None,
+        kind: AccountTransactionKind | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> AccountTransactionPage:
+        """A page of the connected account's transactions, newest first; ``origin["own"]`` marks this agent's trades."""
+        return self._request(
+            "GET",
+            f"/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}/transactions",
+            query={
+                "from": _when(since),
+                "to": _when(until),
+                "kind": kind,
+                "cursor": cursor,
+                "limit": limit,
+            },
+        )
+
+    def account_equity(
+        self,
+        connected_account_id: str,
+        *,
+        since: str | datetime | None = None,
+        until: str | datetime | None = None,
+        resolution: EquityResolution | None = None,
+    ) -> EquitySeries:
+        """The connected account's value in USD over time, oldest point first."""
+        return self._request(
+            "GET",
+            f"/connected-accounts/{urllib.parse.quote(connected_account_id, safe='')}/equity",
+            query={"from": _when(since), "to": _when(until), "resolution": resolution},
         )
 
     def wait(

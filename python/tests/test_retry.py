@@ -125,7 +125,7 @@ def test_a_proposal_goes_again_with_the_same_bytes(engine):
     Flaky.script = [503]
     c, waits = client(engine)
     p = Proposal(
-        trading_account_id="rt_1", symbol="BTC", side="buy", size="0.5", price="1"
+        connected_account_id="rt_1", symbol="BTC", side="buy", size="0.5", price="1"
     )
     c.propose(
         p

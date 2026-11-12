@@ -20,7 +20,7 @@ Mishmar is a risk management layer for trading bots and AI agents: every order i
 | Pause and Stop | from the console: Pause lets only closing orders through, Stop only cancels |
 | A record | every decision, allowed, held or blocked, signed and chained |
 
-The limits are set in the console, on the account, a portfolio, the agent or the trading account. No tool can change them, approve an order or lift a stop, so a model that is confused or talked into something cannot either.
+The limits are set in the console, on the account, a portfolio, the agent or the connected account. No tool can change them, approve an order or lift a stop, so a model that is confused or talked into something cannot either.
 
 ## Set it up
 
@@ -37,7 +37,7 @@ The limits are set in the console, on the account, a portfolio, the agent or the
 
 ## What the model gets
 
-Ten tools: `propose_order` and `cancel_order`, which reach the exchange; and eight reads, `get_decision`, `wait_for_decision`, `list_decisions`, `list_positions`, `get_pnl`, `list_approvals`, `get_trading_account` and `get_venue_rules` (tick size, step size and minimums, so the model can size and price orders the exchange accepts). Each tool carries the protocol's hints, so a client knows which two change something at the exchange.
+Sixteen tools: `propose_order` and `cancel_order`, which reach the exchange; seven reads of the agent's own trading, `get_decision`, `wait_for_decision`, `list_decisions`, `list_positions`, `get_pnl`, `list_approvals` and `get_venue_rules` (tick size, step size and minimums, so the model can size and price orders the exchange accepts); and seven reads of the connected accounts the agent was given, `get_identity`, `list_connected_accounts`, `get_connected_account`, `get_account_balances`, `get_account_positions`, `list_account_transactions` and `get_account_equity` (balances, the venue's positions, transactions with who placed each trade, and value over time). Each tool carries the protocol's hints, so a client knows which two change something at the exchange. An agent added only to read gets the account reads and no way to trade: [Add a read agent](/start/add-a-read-agent/).
 
 A proposal comes back as a decision: `allow` (signed and sent; the exchange's answer is on it), `require_approval` (held for you; the model can wait or move on) or `block` (refused, with the rule that refused it).
 
@@ -76,4 +76,4 @@ Found an error here? [Edit this page on GitHub](https://github.com/mishmar-io/mi
 
 ## Try it
 
-The hosted testnet is free for one agent and one trading account, on Hyperliquid testnet or Binance demo trading.
+The hosted testnet is free for one agent and one connected account, on Hyperliquid testnet or Binance demo trading.

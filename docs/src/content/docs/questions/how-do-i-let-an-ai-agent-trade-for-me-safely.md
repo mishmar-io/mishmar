@@ -35,7 +35,7 @@ A rule set to start with, for a model trading a small account:
 
 ## Give the model the tools
 
-`mishmar mcp` is Mishmar's MCP server: one command on the machine where the agent's signer config lives, and any MCP client (Claude Code, Claude Desktop, Cursor, VS Code, your own agent) gets ten tools: propose an order, cancel one, read and wait for a decision, list decisions, positions, PnL and approvals, read the trading account and the exchange's rules for sizing and pricing. The signer runs inside that process, so the model never sees a key, every order it proposes passes your rules, and nothing reaches the exchange without both signatures.
+`mishmar mcp` is Mishmar's MCP server: one command on the machine where the agent's signer config lives, and any MCP client (Claude Code, Claude Desktop, Cursor, VS Code, your own agent) gets sixteen tools: propose an order, cancel one, read and wait for a decision, list decisions, positions, PnL and approvals, read the exchange's rules for sizing and pricing, and read the connected accounts the agent was given (balances, the venue's positions, transactions and value over time). The signer runs inside that process, so the model never sees a key, every order it proposes passes your rules, and nothing reaches the exchange without both signatures.
 
 ```json
 { "mcpServers": { "mishmar": { "command": "mishmar", "args": ["mcp"] } } }
@@ -45,4 +45,4 @@ A rule set to start with, for a model trading a small account:
 
 ## What this does not do
 
-Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet, which is free for one agent and one trading account, with the rule set above, and read the ledger before you widen anything.
+Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet, which is free for one agent and one connected account, with the rule set above, and read the ledger before you widen anything.

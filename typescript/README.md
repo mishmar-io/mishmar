@@ -6,8 +6,8 @@ the exchange, large orders wait for your approval, and no key can trade
 alone.
 
 This is the TypeScript client: build a proposal, sign it with the agent's
-key, send it to the engine, read the decision. No runtime dependencies; Node
-20 or later.
+key, send it to the engine, read the decision; and read the connected
+accounts the agent was given. No runtime dependencies; Node 20 or later.
 
 ```sh
 npm install mishmar
@@ -27,7 +27,7 @@ const key = AgentKey.parse("msk_…"); // shown once when the engine issued the 
 const client = new Client("http://localhost:8080/v1", key, "key_…");
 
 const decision = await client.propose({
-  tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.25",
+  connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.25",
   orderType: "market", validForMs: 5 * 60_000,
 });
 console.log(decision.verdict); // allow | require_approval | block
@@ -36,7 +36,7 @@ console.log(decision.verdict); // allow | require_approval | block
 // order by the clientOrderId its decision carries, and has no side or size.
 const { clientOrderId } = decision.proposal as { clientOrderId: string };
 await client.propose({
-  tradingAccountId: "ta_…", symbol: "BTC", kind: "cancel",
+  connectedAccountId: "ta_…", symbol: "BTC", kind: "cancel",
   targetClientOrderId: clientOrderId,
 });
 ```
@@ -50,6 +50,43 @@ while the engine restarts and `429 rate_limited` (after its `Retry-After`),
 for up to 45 s, then the last answer is thrown as `EngineError`. Nothing else
 is retried. `new Client(url, key, keyId, { retries: false })` turns that off;
 `{ retries: { budgetMs: 90_000 } }` tunes it.
+
+## Reading connected accounts
+
+An agent reads each connected account it was given whole: balances, the
+venue's positions, transactions and value over time, whoever acted on the
+account. Every read is signed with the agent's key and shows in the
+account's access log. The agent's API key alone is enough: it names the
+engine and the key id (`MISHMAR_ENGINE`, or `{ engineUrl }`, for a
+self-hosted engine), so a read agent, which has no signer, needs nothing
+else.
+
+```ts
+import { Client } from "mishmar";
+
+const client = Client.fromApiKey(); // $MISHMAR_API_KEY
+for (const account of await client.connectedAccounts()) {
+  const snap = await client.accountBalances(account.id); // { at } for a past moment
+  console.log(account.name, snap.equityUsd);
+}
+
+const page = await client.accountTransactions("ta_…", { from: "2026-11-01T00:00:00Z", kind: "trade", limit: 200 });
+for (const t of page.items) console.log(t.at, t.symbol, t.origin?.own ? "mine" : (t.origin?.agentName ?? "outside"));
+// page.nextCursor → { cursor } for the page after
+
+const positions = await client.accountPositions("ta_…"); // the venue's net positions, whoever placed them
+const series = await client.accountEquity("ta_…", { from: "2026-10-01T00:00:00Z", resolution: "day" });
+```
+
+`me()` says who the key belongs to and `connectedAccount(id)` reads one
+account. Times are RFC 3339 strings or Dates. The answers are typed
+(`BalanceSnapshot`, `AccountTransactionPage`, …, exported from the
+package). `positions()` is something else: the agent's own book, what its
+orders through Mishmar opened. `Signer` has the same reads, through its child.
+Started with a read agent's key, the child polls nothing (it learns from
+`GET /agent/me` that the agent reads) and refuses `order`, `cancel` and the
+other calls a read agent does not make with a 403 `EngineError`, before
+anything is sent.
 
 Run the tests, which include the cross-language vectors in `../spec/vectors`:
 
@@ -70,7 +107,7 @@ import { Signer } from "mishmar";
 
 const s = await new Signer().start(); // ~/.mishmar/agent.json
 try {
-  let d = await s.order({ tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
+  let d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
   if (d.verdict === "require_approval") d = await s.wait(d.id);
   const { clientOrderId } = d.proposal as { clientOrderId: string };
   await s.cancel("ta_…", "BTC", clientOrderId);

@@ -47,8 +47,17 @@ type Client struct {
 	Retries Retries
 
 	instance atomic.Value // string: the engine instance its last answer named
+	readOnly atomic.Bool  // a read agent's: nothing but DataRead is sent
 	sleep    func(context.Context, time.Duration) error
 }
+
+// SetReadOnly makes the client a read agent's: from then on it refuses
+// (ErrReadAgent), before anything is sent, every call but the reads of
+// connected-account data (DataRead). Run sets it from GET /agent/me.
+func (c *Client) SetReadOnly(on bool) { c.readOnly.Store(on) }
+
+// ReadOnly says whether the client sends only reads of connected-account data.
+func (c *Client) ReadOnly() bool { return c.readOnly.Load() }
 
 // HeaderEngineInstance names the engine instance that answered; it changes
 // each time the engine starts.
@@ -85,12 +94,12 @@ var ErrRequestGone = errors.New("signer: the sign request is no longer open")
 
 // DecisionQuery filters Decisions. Zero values are left out.
 type DecisionQuery struct {
-	TradingAccountID string
-	Verdict          string
-	From             time.Time
-	To               time.Time
-	Cursor           string
-	Limit            int
+	ConnectedAccountID string
+	Verdict            string
+	From               time.Time
+	To                 time.Time
+	Cursor             string
+	Limit              int
 }
 
 // Poll waits up to wait for requests this agent's signer must sign and
@@ -143,8 +152,8 @@ func (c *Client) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 // Decisions pages this agent's decisions, newest first.
 func (c *Client) Decisions(ctx context.Context, q DecisionQuery) (api.DecisionPage, error) {
 	v := url.Values{}
-	if q.TradingAccountID != "" {
-		v.Set("tradingAccountId", q.TradingAccountID)
+	if q.ConnectedAccountID != "" {
+		v.Set("connectedAccountId", q.ConnectedAccountID)
 	}
 	if q.Verdict != "" {
 		v.Set("verdict", q.Verdict)
@@ -201,22 +210,22 @@ func (c *Client) Me(ctx context.Context) (api.AgentIdentity, error) {
 }
 
 // VenueKeys lists this agent's venue keys as the engine holds them: which
-// one is active on each trading account, and which were revoked or expired.
+// one is active on each connected account, and which were revoked or expired.
 func (c *Client) VenueKeys(ctx context.Context) ([]api.VenueKey, error) {
 	var out []api.VenueKey
 	err := c.agentCall(ctx, http.MethodGet, "/agent/venue-keys", nil, nil, &out, c.timeout())
 	return out, err
 }
 
-// VenueRules reads what the trading account's venue accepts (tick, step,
+// VenueRules reads what the connected account's venue accepts (tick, step,
 // minimums), for building orders; symbol narrows it to one market.
-func (c *Client) VenueRules(ctx context.Context, tradingAccountID, symbol string) (api.VenueRules, error) {
+func (c *Client) VenueRules(ctx context.Context, connectedAccountID, symbol string) (api.VenueRules, error) {
 	v := url.Values{}
 	if symbol != "" {
 		v.Set("symbol", symbol)
 	}
 	var out api.VenueRules
-	err := c.agentCall(ctx, http.MethodGet, "/agent/trading-accounts/"+url.PathEscape(tradingAccountID)+"/venue-rules", v, nil, &out, c.timeout())
+	err := c.agentCall(ctx, http.MethodGet, "/agent/connected-accounts/"+url.PathEscape(connectedAccountID)+"/venue-rules", v, nil, &out, c.timeout())
 	return out, err
 }
 
@@ -276,6 +285,9 @@ func (c *Client) agentCall(ctx context.Context, method, path string, query url.V
 // and decodes the final answer into out. sign, when given, makes the
 // headers of each attempt. Each attempt has its own timeout.
 func (c *Client) send(ctx context.Context, method, path, rawQuery string, raw []byte, sign func() (map[string]string, error), out any, timeout time.Duration) error {
+	if c.readOnly.Load() && !DataRead(method, path) {
+		return fmt.Errorf("%w (%s %s is not one of its reads)", ErrReadAgent, method, path)
+	}
 	start := time.Now()
 	for attempt := 0; ; attempt++ {
 		var headers map[string]string
@@ -398,7 +410,7 @@ func submitOf(p api.ProposalSubmit) proposal.Submit {
 	s := proposal.Submit{
 		KeyID: p.KeyId, Kind: proposal.Kind(p.Kind), Leverage: p.Leverage, Nonce: p.Nonce,
 		OrderType: proposal.OrderType(p.OrderType), Price: p.Price, ProposedAt: p.ProposedAt, ExpiresAt: p.ExpiresAt,
-		ReduceOnly: p.ReduceOnly, TradingAccountID: p.TradingAccountId, Side: proposal.Side(p.Side), Size: p.Size, Symbol: p.Symbol,
+		ReduceOnly: p.ReduceOnly, ConnectedAccountID: p.ConnectedAccountId, Side: proposal.Side(p.Side), Size: p.Size, Symbol: p.Symbol,
 		Signature: p.Signature,
 	}
 	if p.TargetClientOrderId != nil {
@@ -431,10 +443,121 @@ func (c *Client) Pnl(ctx context.Context, from, to string) (api.PnlSeries, error
 	return out, err
 }
 
-// TradingAccount is a trading account as this agent may see it: its setup
+// ConnectedAccount is a connected account as this agent may see it: its setup
 // without any secret.
-func (c *Client) TradingAccount(ctx context.Context, tradingAccountID string) (api.TradingAccount, error) {
-	var out api.TradingAccount
-	err := c.agentCall(ctx, http.MethodGet, "/agent/trading-accounts/"+url.PathEscape(tradingAccountID), nil, nil, &out, c.timeout())
+func (c *Client) ConnectedAccount(ctx context.Context, connectedAccountID string) (api.ConnectedAccount, error) {
+	var out api.ConnectedAccount
+	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, ""), nil, nil, &out, c.timeout())
 	return out, err
+}
+
+// The reads of connected-account data. An agent reads each connected account
+// it was given whole, other agents' and the owner's activity included, and
+// every read is written to the account's access log. On the hosted service
+// these are the agent calls a collector answers while the account's engine
+// sleeps (with Me and ConnectedAccount), so an agent that only reads never
+// wakes it; anything else an agent calls does.
+
+// ConnectedAccounts are the connected accounts this agent was given, in the
+// order it got them.
+func (c *Client) ConnectedAccounts(ctx context.Context) ([]api.ConnectedAccount, error) {
+	var out []api.ConnectedAccount
+	err := c.agentCall(ctx, http.MethodGet, "/agent/connected-accounts", nil, nil, &out, c.timeout())
+	return out, err
+}
+
+// AccountBalances are the connected account's balances at the venue, spot and
+// margin, each with its USD value, at the moment at; the zero time means now.
+// A moment before the account's history or the plan's retention is not found.
+func (c *Client) AccountBalances(ctx context.Context, connectedAccountID string, at time.Time) (api.BalanceSnapshot, error) {
+	var out api.BalanceSnapshot
+	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, "/balances"), atQuery(at), nil, &out, c.timeout())
+	return out, err
+}
+
+// AccountPositions are the venue's own net positions on the connected account,
+// whoever placed the orders behind them, at the moment at (zero: now). This
+// agent's own book is Positions.
+func (c *Client) AccountPositions(ctx context.Context, connectedAccountID string, at time.Time) (api.AccountPositionSnapshot, error) {
+	var out api.AccountPositionSnapshot
+	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, "/positions"), atQuery(at), nil, &out, c.timeout())
+	return out, err
+}
+
+// TransactionQuery filters AccountTransactions. Zero values are left out.
+type TransactionQuery struct {
+	From time.Time
+	To   time.Time
+	// Kind is one of the contract's AccountTransactionKind: trade,
+	// transfer_in, transfer_out, funding, fee, liquidation, rebate, other.
+	Kind string
+	// Cursor is the page's nextCursor to read the page after it.
+	Cursor string
+	// Limit is 1 to 500; the engine's default is 100.
+	Limit int
+}
+
+// AccountTransactions pages the connected account's trades, transfers,
+// funding and fees as the venue reports them, newest first. A trade's origin
+// says who placed it, with Own set on the ones this agent placed.
+func (c *Client) AccountTransactions(ctx context.Context, connectedAccountID string, q TransactionQuery) (api.AccountTransactionPage, error) {
+	v := rangeQuery(q.From, q.To)
+	if q.Kind != "" {
+		v.Set("kind", q.Kind)
+	}
+	if q.Cursor != "" {
+		v.Set("cursor", q.Cursor)
+	}
+	if q.Limit > 0 {
+		v.Set("limit", strconv.Itoa(q.Limit))
+	}
+	var out api.AccountTransactionPage
+	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, "/transactions"), v, nil, &out, c.timeout())
+	return out, err
+}
+
+// EquityQuery is the range and spacing of AccountEquity. Zero values are left
+// out: the engine then picks a spacing that gives a few hundred points.
+type EquityQuery struct {
+	From time.Time
+	To   time.Time
+	// Resolution is minute, hour or day; never finer than the plan allows.
+	Resolution string
+}
+
+// AccountEquity is the connected account's value in USD over time, oldest
+// point first.
+func (c *Client) AccountEquity(ctx context.Context, connectedAccountID string, q EquityQuery) (api.EquitySeries, error) {
+	v := rangeQuery(q.From, q.To)
+	if q.Resolution != "" {
+		v.Set("resolution", q.Resolution)
+	}
+	var out api.EquitySeries
+	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, "/equity"), v, nil, &out, c.timeout())
+	return out, err
+}
+
+// connectedAccountPath is the agent-facing path of a connected account, and
+// of one of its reads when sub is given ("/balances").
+func connectedAccountPath(connectedAccountID, sub string) string {
+	return "/agent/connected-accounts/" + url.PathEscape(connectedAccountID) + sub
+}
+
+func atQuery(at time.Time) url.Values {
+	v := url.Values{}
+	if !at.IsZero() {
+		v.Set("at", at.UTC().Format(time.RFC3339Nano))
+	}
+	return v
+}
+
+func rangeQuery(from, to time.Time) url.Values {
+	v := url.Values{}
+	if !from.IsZero() {
+		v.Set("from", from.UTC().Format(time.RFC3339Nano))
+	}
+	if !to.IsZero() {
+		v.Set("to", to.UTC().Format(time.RFC3339Nano))
+	}
+	return v
 }

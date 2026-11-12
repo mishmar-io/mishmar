@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -22,6 +23,9 @@ type fakeBackend struct {
 	decision  api.Decision
 	err       error
 	reads     int
+	calls     []string // the account reads, as record writes them
+	perm      api.AgentPermission
+	permErr   error
 }
 
 func (f *fakeBackend) Submit(_ context.Context, r signer.ProposeRequest) (api.Decision, error) {
@@ -63,11 +67,60 @@ func (f *fakeBackend) Positions(context.Context) ([]api.Position, error) {
 func (f *fakeBackend) Pnl(context.Context, string, string) (api.PnlSeries, error) {
 	return api.PnlSeries{}, nil
 }
-func (f *fakeBackend) TradingAccount(_ context.Context, id string) (api.TradingAccount, error) {
-	return api.TradingAccount{Id: id, Venue: api.VenueHyperliquid}, nil
+func (f *fakeBackend) ConnectedAccount(_ context.Context, id string) (api.ConnectedAccount, error) {
+	return api.ConnectedAccount{Id: id, Venue: api.VenueHyperliquid}, nil
 }
 func (f *fakeBackend) VenueRules(context.Context, string, string) (api.VenueRules, error) {
 	return api.VenueRules{}, nil
+}
+func (f *fakeBackend) Permission(context.Context) (api.AgentPermission, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.permErr != nil {
+		return "", f.permErr
+	}
+	if f.perm == "" {
+		return api.AgentPermissionTrade, nil
+	}
+	return f.perm, nil
+}
+func (f *fakeBackend) Me(context.Context) (api.AgentIdentity, error) {
+	return api.AgentIdentity{AgentId: "agt_1", AgentName: "Reader", AccountId: "acc_1", KeyId: "key_1", PortfolioId: "pf_1"}, nil
+}
+func (f *fakeBackend) ConnectedAccounts(context.Context) ([]api.ConnectedAccount, error) {
+	f.record("accounts")
+	return []api.ConnectedAccount{{Id: "ta_1", Name: "Main", Venue: api.VenueHyperliquid}}, nil
+}
+func (f *fakeBackend) AccountBalances(_ context.Context, id string, at time.Time) (api.BalanceSnapshot, error) {
+	f.record("balances " + id + " " + stamp(at))
+	return api.BalanceSnapshot{ConnectedAccountId: id, Source: api.SnapshotSourceObserved, Balances: []api.Balance{{Asset: "USDC", Wallet: "margin", Amount: "1500"}}}, nil
+}
+func (f *fakeBackend) AccountPositions(_ context.Context, id string, at time.Time) (api.AccountPositionSnapshot, error) {
+	f.record("positions " + id + " " + stamp(at))
+	return api.AccountPositionSnapshot{ConnectedAccountId: id, Positions: []api.AccountPosition{{Symbol: "ETH", Side: "short", Size: "2", EntryPrice: "3100"}}}, nil
+}
+func (f *fakeBackend) AccountTransactions(_ context.Context, id string, q signer.TransactionQuery) (api.AccountTransactionPage, error) {
+	f.record(fmt.Sprintf("transactions %s %s %s %s %d %s", id, stamp(q.From), stamp(q.To), q.Kind, q.Limit, q.Cursor))
+	own := true
+	return api.AccountTransactionPage{Items: []api.AccountTransaction{{Id: "tx_1", ConnectedAccountId: id, Kind: api.AccountTransactionKindTrade, Origin: &api.TransactionOrigin{Kind: api.TransactionOriginKindAgent, Own: &own}}}}, nil
+}
+func (f *fakeBackend) AccountEquity(_ context.Context, id string, q signer.EquityQuery) (api.EquitySeries, error) {
+	f.record(fmt.Sprintf("equity %s %s %s %s", id, stamp(q.From), stamp(q.To), q.Resolution))
+	return api.EquitySeries{ConnectedAccountId: id, Resolution: api.EquityResolutionDay, Points: []api.EquityPoint{{EquityUsd: "1500", Source: api.SnapshotSourceObserved}}}, nil
+}
+
+func (f *fakeBackend) record(call string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, call)
+}
+
+// stamp is a time as the fake records it: RFC 3339 in UTC, "-" for none.
+func stamp(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // session drives a server over pipes, one request at a time.
@@ -184,7 +237,7 @@ func TestInitializeListsTheTools(t *testing.T) {
 			t.Fatalf("tool %s idempotent hint: %v", name, ann)
 		}
 	}
-	for _, want := range []string{"propose_order", "cancel_order", "get_decision", "wait_for_decision", "list_decisions", "list_positions", "get_pnl", "list_approvals", "get_trading_account", "get_venue_rules"} {
+	for _, want := range append([]string{"propose_order", "cancel_order", "get_decision", "wait_for_decision", "list_decisions", "list_positions", "get_pnl", "list_approvals", "get_venue_rules"}, accountReads...) {
 		if !names[want] {
 			t.Fatalf("tool %s is missing from %v", want, names)
 		}
@@ -198,14 +251,14 @@ func TestWithoutAConfigTheToolsAreListedAndEveryCallSaysWhy(t *testing.T) {
 	s := start(t, Unconfigured("/home/x/.mishmar/agent.json"))
 	s.call("initialize", map[string]any{"protocolVersion": ProtocolVersion})
 	tools := s.call("tools/list", nil)["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 10 {
-		t.Fatalf("%d tools listed without a config, want 10", len(tools))
+	if len(tools) != 16 {
+		t.Fatalf("%d tools listed without a config, want 16", len(tools))
 	}
 	for _, tl := range tools {
 		name := tl.(map[string]any)["name"].(string)
 		res := s.call("tools/call", map[string]any{"name": name, "arguments": map[string]any{}})["result"].(map[string]any)
 		text := res["content"].([]any)[0].(map[string]any)["text"].(string)
-		if res["isError"] != true || !strings.Contains(text, "no agent config at /home/x/.mishmar/agent.json") || !strings.Contains(text, SetupURL) {
+		if res["isError"] != true || !strings.Contains(text, "no agent config at /home/x/.mishmar/agent.json") || !strings.Contains(text, signer.EnvAPIKey) || !strings.Contains(text, SetupURL) {
 			t.Fatalf("%s without a config: %v", name, res)
 		}
 	}
@@ -216,22 +269,22 @@ func TestProposeOrderAndCancel(t *testing.T) {
 	b := &fakeBackend{decision: api.Decision{Id: "dec_1", Verdict: api.VerdictAllow, Proposal: api.Proposal{Venue: api.VenueHyperliquid, NotionalUsd: "79.5"}, VenueAck: &ack}}
 	s := start(t, b)
 	res := s.call("tools/call", map[string]any{"name": "propose_order", "arguments": map[string]any{
-		"tradingAccountId": "ta_1", "symbol": "BTC", "side": "buy", "size": "0.001", "price": "79500", "validForSeconds": 30,
+		"connectedAccountId": "ta_1", "symbol": "BTC", "side": "buy", "size": "0.001", "price": "79500", "validForSeconds": 30,
 	}})
 	txt, isErr := text(t, res)
 	if isErr || !strings.HasPrefix(txt, "Decision dec_1: allow. buy 0.001 BTC on hyperliquid, notional 79.5 USD. Venue: filled, order 77.") || !strings.Contains(txt, `"id":"dec_1"`) {
 		t.Fatalf("propose_order: %v %q", isErr, txt)
 	}
 	got := b.submitted[0]
-	if got.Kind != "order" || got.TradingAccountID != "ta_1" || got.Side != "buy" || got.Price == nil || *got.Price != "79500" || got.ValidForSeconds != 30 || got.Channel {
+	if got.Kind != "order" || got.ConnectedAccountID != "ta_1" || got.Side != "buy" || got.Price == nil || *got.Price != "79500" || got.ValidForSeconds != 30 || got.Channel {
 		t.Fatalf("submitted: %+v", got)
 	}
 	// Unknown arguments are refused before anything is proposed.
-	res = s.call("tools/call", map[string]any{"name": "propose_order", "arguments": map[string]any{"tradingAccountId": "ta_1", "symbol": "BTC", "side": "buy", "size": "1", "bogus": 1}})
+	res = s.call("tools/call", map[string]any{"name": "propose_order", "arguments": map[string]any{"connectedAccountId": "ta_1", "symbol": "BTC", "side": "buy", "size": "1", "bogus": 1}})
 	if txt, isErr := text(t, res); !isErr || !strings.Contains(txt, "bogus") || len(b.submitted) != 1 {
 		t.Fatalf("unknown argument: %v %q", isErr, txt)
 	}
-	res = s.call("tools/call", map[string]any{"name": "cancel_order", "arguments": map[string]any{"tradingAccountId": "ta_1", "symbol": "BTC", "clientOrderId": "msh-1-abc"}})
+	res = s.call("tools/call", map[string]any{"name": "cancel_order", "arguments": map[string]any{"connectedAccountId": "ta_1", "symbol": "BTC", "clientOrderId": "msh-1-abc"}})
 	txt, isErr = text(t, res)
 	if isErr || !strings.Contains(txt, "Cancel of msh-1-abc on hyperliquid") {
 		t.Fatalf("cancel_order: %v %q", isErr, txt)
@@ -241,7 +294,7 @@ func TestProposeOrderAndCancel(t *testing.T) {
 	}
 	// A backend error is a tool error, not a protocol error.
 	b.err = errors.New("engine refused (422 validation): size")
-	res = s.call("tools/call", map[string]any{"name": "propose_order", "arguments": map[string]any{"tradingAccountId": "ta_1", "symbol": "BTC", "side": "buy", "size": "x"}})
+	res = s.call("tools/call", map[string]any{"name": "propose_order", "arguments": map[string]any{"connectedAccountId": "ta_1", "symbol": "BTC", "side": "buy", "size": "x"}})
 	if txt, isErr := text(t, res); !isErr || !strings.Contains(txt, "422") {
 		t.Fatalf("backend error: %v %q", isErr, txt)
 	}
@@ -267,8 +320,8 @@ func TestWaitForDecisionFollowsAnApproval(t *testing.T) {
 	if txt, isErr := text(t, res); isErr || !strings.Contains(txt, `"symbol":"BTC"`) {
 		t.Fatalf("list_positions: %v %q", isErr, txt)
 	}
-	res = s.call("tools/call", map[string]any{"name": "get_trading_account", "arguments": map[string]any{"tradingAccountId": "ta_9"}})
+	res = s.call("tools/call", map[string]any{"name": "get_connected_account", "arguments": map[string]any{"connectedAccountId": "ta_9"}})
 	if txt, isErr := text(t, res); isErr || !strings.Contains(txt, `"id":"ta_9"`) {
-		t.Fatalf("get_trading_account: %v %q", isErr, txt)
+		t.Fatalf("get_connected_account: %v %q", isErr, txt)
 	}
 }

@@ -47,7 +47,7 @@ func (n *NoOneShot) Error() string { return "signer: not one-shot: " + n.Reason 
 func noOneShot(format string, a ...any) error { return &NoOneShot{fmt.Sprintf(format, a...)} }
 
 // oneShotState is the signer's cache for one-shot signing: venue rules per
-// trading account and symbol, and the engine's unused commitments per venue
+// connected account and symbol, and the engine's unused commitments per venue
 // key with the engine instance that issued them.
 type oneShotState struct {
 	mu          sync.Mutex
@@ -77,7 +77,7 @@ type cachedHLRules struct {
 // agent's half of the signature, so the proposal goes out one-shot. It
 // returns a *NoOneShot, leaving the proposal as it was, when the proposal is
 // already signed or carries a message, when the agent holds no venue key on
-// the trading account or the venue is not one the signer builds for
+// the connected account or the venue is not one the signer builds for
 // (Binance today), when the config names no agent, when the engine has no
 // commitment or rules to give, or when the hook refuses. Propose signs the
 // proposal afterwards.
@@ -92,7 +92,7 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	case s.Config.AgentID == "":
 		return noOneShot("the config names no agentId")
 	}
-	vkID, vk, err := s.venueKeyOn(ctx, p.TradingAccountId)
+	vkID, vk, err := s.venueKeyOn(ctx, p.ConnectedAccountId)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	now := s.now()
 	var message []byte
 	req := api.SignRequest{
-		AgentId: s.Config.AgentID, TradingAccountId: p.TradingAccountId, VenueKeyId: vkID, Venue: api.VenueBinance,
+		AgentId: s.Config.AgentID, ConnectedAccountId: p.ConnectedAccountId, VenueKeyId: vkID, Venue: api.VenueBinance,
 		Scheme: api.SigningSchemeFrostEd25519, Proposal: p, IssuedAt: now,
 	}
 	if p.Kind == api.ProposalKindCancel {
@@ -118,7 +118,7 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 		req.Purpose = api.SignRequestPurposeCancel
 		req.VenueRequest = &api.VenueRequest{Method: http.MethodDelete, Url: binance.OrderPath}
 	} else {
-		rules, err := s.symbolRules(ctx, p.TradingAccountId, p.Symbol)
+		rules, err := s.symbolRules(ctx, p.ConnectedAccountId, p.Symbol)
 		if err != nil {
 			return noOneShot("venue rules for %s: %v", p.Symbol, err)
 		}
@@ -197,12 +197,12 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 	}
 	now := s.now()
 	nonce := hyperliquid.Nonce(now)
-	rules, err := s.hlRules(ctx, p.TradingAccountId, p.Symbol)
+	rules, err := s.hlRules(ctx, p.ConnectedAccountId, p.Symbol)
 	if err != nil {
 		return noOneShot("venue rules for %s: %v", p.Symbol, err)
 	}
 	req := api.SignRequest{
-		AgentId: s.Config.AgentID, TradingAccountId: p.TradingAccountId, VenueKeyId: vkID, Venue: api.VenueHyperliquid,
+		AgentId: s.Config.AgentID, ConnectedAccountId: p.ConnectedAccountId, VenueKeyId: vkID, Venue: api.VenueHyperliquid,
 		Scheme: api.SigningSchemeEcdsa2p, Proposal: p, IssuedAt: now, ExpiresAt: now.Add(hyperliquid.NonceWindow),
 	}
 	var message []byte
@@ -305,21 +305,21 @@ func (s *Signer) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 	return d, err
 }
 
-// venueKeyOn finds the config's venue key on a trading account. While a
+// venueKeyOn finds the config's venue key on a connected account. While a
 // replacement is pending the config holds two there, and the one the engine
 // reports active signs; with neither active, the proposal goes without
 // one-shot and the engine's sign request names the key.
-func (s *Signer) venueKeyOn(ctx context.Context, tradingAccountID string) (string, VenueKey, error) {
+func (s *Signer) venueKeyOn(ctx context.Context, connectedAccountID string) (string, VenueKey, error) {
 	keys := s.venueKeys()
 	var ids []string
 	for id, k := range keys {
-		if k.TradingAccountID == tradingAccountID {
+		if k.ConnectedAccountID == connectedAccountID {
 			ids = append(ids, id)
 		}
 	}
 	switch len(ids) {
 	case 0:
-		return "", VenueKey{}, noOneShot("no venue key on %s in the config", tradingAccountID)
+		return "", VenueKey{}, noOneShot("no venue key on %s in the config", connectedAccountID)
 	case 1:
 		return ids[0], keys[ids[0]], nil
 	}
@@ -330,7 +330,7 @@ func (s *Signer) venueKeyOn(ctx context.Context, tradingAccountID string) (strin
 		}
 	}
 	sort.Strings(ids)
-	return "", VenueKey{}, noOneShot("none of the config's keys on %s (%s) is active at the engine", tradingAccountID, strings.Join(ids, ", "))
+	return "", VenueKey{}, noOneShot("none of the config's keys on %s (%s) is active at the engine", connectedAccountID, strings.Join(ids, ", "))
 }
 
 // activeKeys is the set of this agent's venue keys the engine reports active,
@@ -360,10 +360,10 @@ func (s *Signer) activeKeys(ctx context.Context) map[string]bool {
 	return st.active
 }
 
-// symbolRules returns a symbol's rules on a trading account, from the engine
+// symbolRules returns a symbol's rules on a connected account, from the engine
 // once per rulesTTL.
-func (s *Signer) symbolRules(ctx context.Context, tradingAccountID, symbol string) (binance.Rules, error) {
-	key := tradingAccountID + "/" + strings.ToUpper(symbol)
+func (s *Signer) symbolRules(ctx context.Context, connectedAccountID, symbol string) (binance.Rules, error) {
+	key := connectedAccountID + "/" + strings.ToUpper(symbol)
 	st := s.oneShot()
 	st.mu.Lock()
 	c, ok := st.rules[key]
@@ -371,7 +371,7 @@ func (s *Signer) symbolRules(ctx context.Context, tradingAccountID, symbol strin
 	if ok && s.now().Sub(c.fetched) < rulesTTL {
 		return c.rules, nil
 	}
-	vr, err := s.Client.VenueRules(ctx, tradingAccountID, strings.ToUpper(symbol))
+	vr, err := s.Client.VenueRules(ctx, connectedAccountID, strings.ToUpper(symbol))
 	if err != nil {
 		return binance.Rules{}, err
 	}
@@ -385,13 +385,13 @@ func (s *Signer) symbolRules(ctx context.Context, tradingAccountID, symbol strin
 		st.mu.Unlock()
 		return r, nil
 	}
-	return binance.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, tradingAccountID)
+	return binance.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, connectedAccountID)
 }
 
-// hlRules returns a coin's Hyperliquid rules on a trading account, from the
+// hlRules returns a coin's Hyperliquid rules on a connected account, from the
 // engine once per rulesTTL.
-func (s *Signer) hlRules(ctx context.Context, tradingAccountID, symbol string) (hyperliquid.Rules, error) {
-	key := tradingAccountID + "/" + strings.ToUpper(symbol)
+func (s *Signer) hlRules(ctx context.Context, connectedAccountID, symbol string) (hyperliquid.Rules, error) {
+	key := connectedAccountID + "/" + strings.ToUpper(symbol)
 	st := s.oneShot()
 	st.mu.Lock()
 	c, ok := st.hl[key]
@@ -399,7 +399,7 @@ func (s *Signer) hlRules(ctx context.Context, tradingAccountID, symbol string) (
 	if ok && s.now().Sub(c.fetched) < rulesTTL {
 		return c.rules, nil
 	}
-	vr, err := s.Client.VenueRules(ctx, tradingAccountID, strings.ToUpper(symbol))
+	vr, err := s.Client.VenueRules(ctx, connectedAccountID, strings.ToUpper(symbol))
 	if err != nil {
 		return hyperliquid.Rules{}, err
 	}
@@ -413,15 +413,15 @@ func (s *Signer) hlRules(ctx context.Context, tradingAccountID, symbol string) (
 		st.mu.Unlock()
 		return r, nil
 	}
-	return hyperliquid.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, tradingAccountID)
+	return hyperliquid.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, connectedAccountID)
 }
 
 // cachedHLRules is what Policy.Rules reads: the rules hlRules fetched.
-func (s *Signer) cachedHLRules(tradingAccountID, symbol string) (hyperliquid.Rules, bool) {
+func (s *Signer) cachedHLRules(connectedAccountID, symbol string) (hyperliquid.Rules, bool) {
 	st := s.oneShot()
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	c, ok := st.hl[tradingAccountID+"/"+strings.ToUpper(symbol)]
+	c, ok := st.hl[connectedAccountID+"/"+strings.ToUpper(symbol)]
 	return c.rules, ok
 }
 

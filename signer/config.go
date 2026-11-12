@@ -62,8 +62,8 @@ type Config struct {
 
 // VenueKey is the agent's side of one trading key.
 type VenueKey struct {
-	TradingAccountID string `json:"tradingAccountId"`
-	Venue            string `json:"venue"`
+	ConnectedAccountID string `json:"connectedAccountId"`
+	Venue              string `json:"venue"`
 	// Scheme is the signing scheme the key runs (SchemeFrostEd25519, …).
 	Scheme string `json:"scheme"`
 	// Share is the agent's share as the scheme's package marshals it
@@ -85,6 +85,25 @@ func DefaultPath() (string, error) {
 		return "", fmt.Errorf("signer: no home directory for the default config path; set %s: %w", EnvConfig, err)
 	}
 	return filepath.Join(home, ".mishmar", "agent.json"), nil
+}
+
+// UnmarshalJSON reads a trading key as the config file holds it. A file
+// written before contract 0.20.0 names the account `tradingAccountId`; it is
+// read as ConnectedAccountID, and the next Save writes the new name.
+func (k *VenueKey) UnmarshalJSON(raw []byte) error {
+	type plain VenueKey
+	var v struct {
+		plain
+		Legacy string `json:"tradingAccountId"`
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return err
+	}
+	*k = VenueKey(v.plain)
+	if k.ConnectedAccountID == "" {
+		k.ConnectedAccountID = v.Legacy
+	}
+	return nil
 }
 
 // Load reads and validates a config file.
@@ -179,7 +198,7 @@ func (c *Config) Key() (*agentkey.Key, error) {
 }
 
 // AddVenueKey stores the agent's share of a venue key under its id. An id
-// already in the config is refused: remove it first. A key on a trading account
+// already in the config is refused: remove it first. A key on a connected account
 // the config holds one on already is a replacement: both stay, the signer signs
 // with the one the engine reports active, and PruneVenueKeys drops the old one
 // once the engine has revoked it.
@@ -219,8 +238,8 @@ func (c *Config) PruneVenueKeys(engine []api.VenueKey) []string {
 // of a key of the named scheme.
 func (k VenueKey) validate() error {
 	switch {
-	case k.TradingAccountID == "":
-		return errors.New("tradingAccountId is required")
+	case k.ConnectedAccountID == "":
+		return errors.New("connectedAccountId is required")
 	case k.Venue == "":
 		return errors.New("venue is required")
 	case k.Scheme == "":

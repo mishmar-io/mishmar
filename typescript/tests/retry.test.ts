@@ -139,7 +139,7 @@ test("a proposal goes again too, the same bytes", async () => {
   script = [503];
   const { c, waits } = client();
   // The flaky engine answers [] to the retried POST, which is not a decision; the retry is the point.
-  await c.propose({ tradingAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", price: "1" });
+  await c.propose({ connectedAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", price: "1" });
   assert.equal(attempts, 2);
   assert.equal(waits.length, 1);
   assert.ok(bodies[0]);

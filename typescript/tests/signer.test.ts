@@ -31,6 +31,7 @@ const srv = http.createServer((req, res) => {
     if (req.method === "GET" && p === "/decisions/dec_bad") return send(res, 422, { code: "validation", message: "no such decision" });
     if (req.method === "GET" && p.startsWith("/decisions/")) return send(res, 200, { id: p.slice("/decisions/".length), verdict: "allow", query: req.url });
     if (req.method === "GET" && p === "/decisions") return send(res, 200, { items: [], query: req.url });
+    if (req.method === "GET" && (p === "/me" || p.startsWith("/connected-accounts"))) return send(res, 200, { read: req.url });
     if (req.method === "POST" && p === "/propose") return send(res, 200, { id: "dec_1", verdict: "allow", intent: JSON.parse(body || "{}") });
     send(res, 404, { code: "not_found", message: p });
   });
@@ -64,15 +65,15 @@ test("the Signer runs the binary and proposes through it", async () => {
     const h = await s.health();
     assert.equal(h.agentId, "agt_1");
     assert.equal(h.config, config);
-    const d = (await s.order({ tradingAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "79500", validForSeconds: 30 })) as unknown as { intent: unknown; verdict: string };
+    const d = (await s.order({ connectedAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "79500", validForSeconds: 30 })) as unknown as { intent: unknown; verdict: string };
     assert.equal(d.verdict, "allow");
-    assert.deepEqual(d.intent, { orderType: "limit", reduceOnly: false, validForSeconds: 30, channel: false, tradingAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
+    assert.deepEqual(d.intent, { orderType: "limit", reduceOnly: false, validForSeconds: 30, channel: false, connectedAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
     const c = (await s.cancel("ta_1", "BTC", "msh-1-abc")) as unknown as { intent: { kind: string; targetClientOrderId: string } };
     assert.equal(c.intent.kind, "cancel");
     assert.equal(c.intent.targetClientOrderId, "msh-1-abc");
     assert.deepEqual(await s.positions(), [{ symbol: "BTC", size: "0.001" }]);
     assert.equal((await s.decision("dec_7")).id, "dec_7");
-    assert.match(String((await s.decisions({ tradingAccountId: "ta_1", limit: 5 })).query), /tradingAccountId=ta_1/);
+    assert.match(String((await s.decisions({ connectedAccountId: "ta_1", limit: 5 })).query), /connectedAccountId=ta_1/);
     await assert.rejects(s.decision("dec_bad"), (err: unknown) => err instanceof EngineError && err.status === 422 && err.code === "validation");
     assert.equal((await s.wait("dec_7", { timeoutMs: 1000 })).id, "dec_7");
     assert.ok(logs.some((l) => l.includes("local API listening")));
@@ -82,6 +83,25 @@ test("the Signer runs the binary and proposes through it", async () => {
     assert.ok(child && (child.exitCode !== null || child.signalCode !== null), "the child was stopped");
     assert.equal(s.process, undefined);
     assert.equal(s.address, undefined);
+  }
+});
+
+test("the Signer reads connected-account data through the child", async () => {
+  const s = new Signer({ binary: fake, startTimeoutMs: 10_000 });
+  await s.start();
+  const read = async (p: Promise<unknown>) => ((await p) as { read: string }).read;
+  try {
+    assert.equal(await read(s.me()), "/me");
+    assert.equal(await read(s.connectedAccounts()), "/connected-accounts");
+    assert.equal(await read(s.accountBalances("ta_1")), "/connected-accounts/ta_1/balances");
+    assert.equal(await read(s.accountPositions("ta_1", { at: "2026-11-01" })), "/connected-accounts/ta_1/positions?at=2026-11-01");
+    assert.equal(
+      await read(s.accountTransactions("ta_1", { from: new Date("2026-11-01T02:00:00+02:00"), kind: "trade", limit: 5 })),
+      "/connected-accounts/ta_1/transactions?from=2026-11-01T00%3A00%3A00Z&kind=trade&limit=5",
+    );
+    assert.equal(await read(s.accountEquity("ta_1", { resolution: "day" })), "/connected-accounts/ta_1/equity?resolution=day");
+  } finally {
+    await s.stop();
   }
 });
 
@@ -248,7 +268,7 @@ test("connect speaks to a running signer and leaves it running", { skip: platfor
     const h = await s.health();
     assert.equal(h.agentId, "agt_1");
     assert.ok(!(h.args as string[]).includes("--exit-on-stdin-close"));
-    assert.equal((await s.order({ tradingAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "1" })).verdict, "allow");
+    assert.equal((await s.order({ connectedAccountId: "ta_1", symbol: "BTC", side: "buy", size: "0.001", price: "1" })).verdict, "allow");
     await s.stop();
     assert.equal(running.exitCode, null, "stop() left the signer running");
     assert.ok(alive(running.pid as number));

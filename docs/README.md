@@ -21,7 +21,7 @@ src/pages/          [...slug].md.ts (each page as Markdown), llms.txt.ts, llms-f
 src/routeData.ts    each page's <link rel="alternate" type="text/markdown">
 src/styles/         the mishmar.io look on Starlight
 src/middleware.ts   screenshots get their size (half the 2x PNG's) on every page
-scripts/            one screenshot script per page, against the console's mock engine
+scripts/            one screenshot script per page, against the console's mock engine (shots-common.mjs: what they share)
 ```
 
 A new section is a folder under `src/content/docs`, an entry in `astro.config.mjs`'s sidebar
@@ -48,10 +48,18 @@ A task page goes in this order: what you end up with, **What you need**, numbere
   again when a screen changes: `node scripts/shots-hyperliquid-agent.mjs ../../mishmar-console
   public/screens/hyperliquid/add-an-agent`. The script swaps what only the mock shows (its
   engine address, short ids, paper-mode details) for what a real account shows, and masks
-  secrets. Screenshots never show a real key, secret, address or account.
+  secrets. Screenshots never show a real key, secret, address or account. Each script starts
+  the console on its own port (5182 to 5187) and stops if something already answers there;
+  look at every PNG it writes before you use it.
 - Link other pages by their path with a trailing slash (`/start/install-the-cli/`) and
   images by their path under `public/` (`/screens/…png`). The `.md` copies turn both into
   absolute URLs, page links pointing at the other page's `.md`.
+
+A page that moves keeps its old address working. Add the old path to `redirects` in
+`astro.config.mjs`, and to `redirects` in `firebase.json` twice, for the page and for its `.md`
+copy, as a 301. Hosting answers a redirect before any file, so the meta-refresh page Astro writes
+at the old path only serves `npm run dev` and `preview`. The two account pages moved this way on
+12 Nov 2026 (`add-a-trading-account` became `connect-an-account`).
 
 ## Visit counts
 
@@ -76,3 +84,16 @@ docs.mishmar.io:
 ```
 npm run build && firebase deploy --only hosting:docs
 ```
+
+A published release deploys the docs by itself: `.github/workflows/docs.yml` builds main and
+deploys it, as `docs-deployer` through the prod project's GitHub pool
+(`scripts/deploy-identity.sh` sets that up, once). It builds main, not the tag, so commit docs
+changes before publishing a release, or the deploy replaces a hand deploy made from a working
+tree. Started by hand (`gh workflow run docs.yml --ref main`), it redeploys main.
+
+### The CLI version
+
+Pages write `{{MISHMAR_VERSION}}` where the mishmar CLI version goes (the install page does).
+The build fills it in with the latest published release on GitHub, in the site, the `.md`
+copies and `llms-full.txt` (`src/lib/cli-version.mjs`), so the docs never pin an old release.
+`MISHMAR_VERSION=v1.2.3` overrides the lookup; set it to build without network.

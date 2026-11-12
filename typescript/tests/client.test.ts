@@ -67,7 +67,7 @@ before(async () => {
       const { venueKeyId, count } = body as { venueKeyId: string; count?: number };
       return send(res, 200, { venueKeyId, scheme: "frost-ed25519", batchSize: 8, outstanding: count ?? 8, items: [] });
     }
-    if (path.startsWith(`${PREFIX}/agent/trading-accounts/ta_1/venue-rules`)) return send(res, 200, { tradingAccountId: "ta_1", venue: "binance", symbols: [] });
+    if (path.startsWith(`${PREFIX}/agent/connected-accounts/ta_1/venue-rules`)) return send(res, 200, { connectedAccountId: "ta_1", venue: "binance", symbols: [] });
     if (path.endsWith("/answer")) return send(res, 204);
     if (path.startsWith(`${PREFIX}/agent/decisions/`)) return send(res, 200, decisions.length > 1 ? decisions.shift() : decisions[0]);
     if (path.startsWith(`${PREFIX}/agent/decisions?`)) return send(res, 200, { items: decisions, nextCursor: null });
@@ -88,7 +88,7 @@ beforeEach(() => {
 
 test("propose signs and sends", async () => {
   const client = new Client(base, KEY, "key_a");
-  const d = await client.propose({ tradingAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", orderType: "market" });
+  const d = await client.propose({ connectedAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", orderType: "market" });
   assert.equal(d.verdict, "require_approval");
   const [req] = seen;
   assert.equal(req?.method, "POST");
@@ -100,7 +100,7 @@ test("propose signs and sends", async () => {
 
 test("a tampered proposal is refused", async () => {
   const client = new Client(base, KEY, "key_a");
-  const p = sign({ tradingAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", price: "1", keyId: "key_a" }, KEY);
+  const p = sign({ connectedAccountId: "rt_1", symbol: "BTC", side: "buy", size: "0.5", price: "1", keyId: "key_a" }, KEY);
   await assert.rejects(client.propose({ ...p, size: "0.50" }), (err: unknown) => {
     assert.ok(err instanceof EngineError);
     assert.equal(err.status, 401);
@@ -149,7 +149,7 @@ test("the signer channel", async () => {
 test("one-shot reads", async () => {
   const client = new Client(base, KEY, "key_a");
   assert.equal((await client.venueRules("ta_1", "BTCUSDT")).venue, "binance");
-  assert.equal(seen.at(-1)?.path, `${PREFIX}/agent/trading-accounts/ta_1/venue-rules?symbol=BTCUSDT`);
+  assert.equal(seen.at(-1)?.path, `${PREFIX}/agent/connected-accounts/ta_1/venue-rules?symbol=BTCUSDT`);
   assert.equal((await client.signerCommitments("vk_1", 2)).outstanding, 2);
   const last = seen.at(-1);
   assert.equal(last?.path, `${PREFIX}/agent/signer/commitments`);

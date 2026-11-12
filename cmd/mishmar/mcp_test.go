@@ -26,7 +26,7 @@ func TestMCPWithoutAConfigListsTheTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mishmar mcp without a config: %v\n%s", err, out)
 	}
-	for _, want := range []string{`"protocolVersion":"2025-06-18"`, `"name":"propose_order"`, `"name":"get_venue_rules"`, "no agent config at " + path} {
+	for _, want := range []string{`"protocolVersion":"2025-06-18"`, `"name":"propose_order"`, `"name":"get_venue_rules"`, `"name":"list_connected_accounts"`, `"name":"list_account_transactions"`, "no agent config at " + path} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output lacks %q:\n%s", want, out)
 		}

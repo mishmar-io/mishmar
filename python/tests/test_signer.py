@@ -13,6 +13,7 @@ import tarfile
 import tempfile
 import textwrap
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -71,6 +72,8 @@ FAKE = textwrap.dedent(
                 self._send(200, {"id": path.rsplit("/", 1)[1], "verdict": "allow", "query": self.path})
             elif path == "/decisions":
                 self._send(200, {"items": [], "query": self.path})
+            elif path == "/me" or path.startswith("/connected-accounts"):
+                self._send(200, {"read": self.path})
             else:
                 self._send(404, {"code": "not_found", "message": path})
         def do_POST(self):
@@ -117,7 +120,7 @@ def test_signer_runs_the_binary_and_proposes_through_it(fake_binary, tmp_path):
         d = s.order("ta_1", "BTC", "buy", "0.001", price="79500", valid_for=30)
         assert d["verdict"] == "allow"
         assert d["intent"] == {
-            "tradingAccountId": "ta_1",
+            "connectedAccountId": "ta_1",
             "symbol": "BTC",
             "side": "buy",
             "size": "0.001",
@@ -135,8 +138,8 @@ def test_signer_runs_the_binary_and_proposes_through_it(fake_binary, tmp_path):
         assert s.positions() == [{"symbol": "BTC", "size": "0.001"}]
         assert s.decision("dec_7")["id"] == "dec_7"
         assert (
-            "tradingAccountId=ta_1"
-            in s.decisions(trading_account_id="ta_1", limit=5)["query"]
+            "connectedAccountId=ta_1"
+            in s.decisions(connected_account_id="ta_1", limit=5)["query"]
         )
         with pytest.raises(EngineError) as err:
             s.decision("dec_bad")
@@ -146,6 +149,26 @@ def test_signer_runs_the_binary_and_proposes_through_it(fake_binary, tmp_path):
         process = s.process
     assert process.poll() is not None, "the child was stopped"
     assert s.process is None and s.address is None
+
+
+def test_signer_reads_connected_account_data_through_the_child(fake_binary):
+    since = datetime(2026, 11, 1, 2, 0, tzinfo=timezone(timedelta(hours=2)))
+    with Signer(binary=fake_binary, start_timeout=10) as s:
+        assert s.me()["read"] == "/me"
+        assert s.connected_accounts()["read"] == "/connected-accounts"
+        assert s.account_balances("ta_1")["read"] == "/connected-accounts/ta_1/balances"
+        assert (
+            s.account_positions("ta_1", at="2026-11-01")["read"]
+            == "/connected-accounts/ta_1/positions?at=2026-11-01"
+        )
+        assert (
+            s.account_transactions("ta_1", since=since, kind="trade", limit=5)["read"]
+            == "/connected-accounts/ta_1/transactions?from=2026-11-01T00%3A00%3A00Z&kind=trade&limit=5"
+        )
+        assert (
+            s.account_equity("ta_1", resolution="day")["read"]
+            == "/connected-accounts/ta_1/equity?resolution=day"
+        )
 
 
 def test_signer_over_localhost_with_a_token(fake_binary):

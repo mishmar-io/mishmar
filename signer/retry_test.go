@@ -180,7 +180,7 @@ func TestRetriesAnAnswerThatDidNothing(t *testing.T) {
 		// decision; what matters is the second attempt after a wait, with the
 		// body the first one carried.
 		_, _ = c.Propose(ctx, api.ProposalSubmit{
-			TradingAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5", Price: &price,
+			ConnectedAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5", Price: &price,
 			OrderType: api.ProposalSubmitOrderTypeLimit, Nonce: "n1", ProposedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute),
 		})
 		if f.attempts != 2 || len(*waits) != 1 {

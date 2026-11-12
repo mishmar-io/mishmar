@@ -28,7 +28,7 @@ import (
 	"github.com/bytemare/secret-sharing/keys"
 )
 
-// Scheme names this signing scheme in trading account setups and share files.
+// Scheme names this signing scheme in connected account setups and share files.
 const Scheme = "frost-ed25519"
 
 // The two parties' identifiers. FROST identifiers start at 1.

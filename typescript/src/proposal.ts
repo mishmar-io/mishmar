@@ -45,10 +45,10 @@ export interface VenueMessage {
 /**
  * A proposal as the agent means it. `sign` fills what is left out. A cancel
  * names the order to pull and leaves the order fields out:
- * `{ kind: "cancel", tradingAccountId, symbol, targetClientOrderId }`.
+ * `{ kind: "cancel", connectedAccountId, symbol, targetClientOrderId }`.
  */
 export interface Proposal {
-  tradingAccountId: string;
+  connectedAccountId: string;
   symbol: string;
   /** Required for every kind but cancel. */
   side?: Side;
@@ -86,7 +86,7 @@ export interface WireProposal {
   proposedAt: string;
   expiresAt: string;
   reduceOnly?: boolean;
-  tradingAccountId: string;
+  connectedAccountId: string;
   side?: Side;
   size?: string;
   symbol: string;
@@ -116,7 +116,7 @@ export function validate(p: Proposal): void {
   const orderType = p.orderType ?? "limit";
   const kind = p.kind ?? "order";
   if (!p.keyId) throw new Error("keyId is required (the Client fills it in)");
-  if (!p.tradingAccountId) throw new Error("tradingAccountId is required");
+  if (!p.connectedAccountId) throw new Error("connectedAccountId is required");
   if (!p.symbol) throw new Error("symbol is required");
   if (!p.nonce) throw new Error("nonce is required");
   if (!["order", "transaction", "signed_message", "cancel"].includes(kind)) throw new Error("kind must be order, transaction, signed_message or cancel");
@@ -158,7 +158,7 @@ export function toWire(p: Proposal): WireProposal {
     nonce: p.nonce ?? "",
     proposedAt: rfc3339(proposedAt),
     expiresAt: rfc3339(expiresAt),
-    tradingAccountId: p.tradingAccountId,
+    connectedAccountId: p.connectedAccountId,
     symbol: p.symbol,
   };
   if (kind !== "cancel") {
@@ -183,7 +183,7 @@ export function fromWire(w: WireProposal): Proposal {
     nonce: w.nonce,
     proposedAt: parseTime(w.proposedAt),
     expiresAt: parseTime(w.expiresAt),
-    tradingAccountId: w.tradingAccountId,
+    connectedAccountId: w.connectedAccountId,
     symbol: w.symbol,
   };
   if (w.orderType !== undefined) p.orderType = w.orderType;

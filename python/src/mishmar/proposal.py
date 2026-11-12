@@ -116,9 +116,9 @@ class Proposal:
     """One proposal. Mirrors the contract's ProposalSubmit; construct it with
     the agent's intent and let ``sign`` fill the rest. A cancel names the
     order to pull and leaves side, size and price out:
-    ``Proposal(trading_account_id, symbol, kind="cancel", target_client_order_id=...)``."""
+    ``Proposal(connected_account_id, symbol, kind="cancel", target_client_order_id=...)``."""
 
-    trading_account_id: str
+    connected_account_id: str
     symbol: str
     side: str | None = None
     size: str | None = None
@@ -140,8 +140,8 @@ class Proposal:
         """Raise ValueError naming the first field the engine would refuse."""
         if not self.key_id:
             raise ValueError("key_id is required (the Client fills it in)")
-        if not self.trading_account_id:
-            raise ValueError("trading_account_id is required")
+        if not self.connected_account_id:
+            raise ValueError("connected_account_id is required")
         if not self.symbol:
             raise ValueError("symbol is required")
         if not self.nonce:
@@ -207,7 +207,7 @@ class Proposal:
             "nonce": self.nonce,
             "proposedAt": rfc3339(proposed),
             "expiresAt": rfc3339(expires),
-            "tradingAccountId": self.trading_account_id,
+            "connectedAccountId": self.connected_account_id,
             "symbol": self.symbol,
         }
         if self.kind == "cancel":
@@ -244,7 +244,7 @@ class Proposal:
             proposed_at=_parse_time(body["proposedAt"]),
             expires_at=_parse_time(body["expiresAt"]),
             reduce_only=body.get("reduceOnly", False),
-            trading_account_id=body["tradingAccountId"],
+            connected_account_id=body["connectedAccountId"],
             side=body.get("side"),
             size=body.get("size"),
             symbol=body["symbol"],

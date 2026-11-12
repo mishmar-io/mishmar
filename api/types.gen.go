@@ -12,6 +12,105 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AccessLogRead.
+const (
+	AccessLogReadAccounts     AccessLogRead = "accounts"
+	AccessLogReadBalances     AccessLogRead = "balances"
+	AccessLogReadEquity       AccessLogRead = "equity"
+	AccessLogReadPositions    AccessLogRead = "positions"
+	AccessLogReadTransactions AccessLogRead = "transactions"
+)
+
+// Valid indicates whether the value is a known member of the AccessLogRead enum.
+func (e AccessLogRead) Valid() bool {
+	switch e {
+	case AccessLogReadAccounts:
+		return true
+	case AccessLogReadBalances:
+		return true
+	case AccessLogReadEquity:
+		return true
+	case AccessLogReadPositions:
+		return true
+	case AccessLogReadTransactions:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AccountPositionSide.
+const (
+	AccountPositionSideLong  AccountPositionSide = "long"
+	AccountPositionSideShort AccountPositionSide = "short"
+)
+
+// Valid indicates whether the value is a known member of the AccountPositionSide enum.
+func (e AccountPositionSide) Valid() bool {
+	switch e {
+	case AccountPositionSideLong:
+		return true
+	case AccountPositionSideShort:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AccountTransactionKind.
+const (
+	AccountTransactionKindFee         AccountTransactionKind = "fee"
+	AccountTransactionKindFunding     AccountTransactionKind = "funding"
+	AccountTransactionKindLiquidation AccountTransactionKind = "liquidation"
+	AccountTransactionKindOther       AccountTransactionKind = "other"
+	AccountTransactionKindRebate      AccountTransactionKind = "rebate"
+	AccountTransactionKindTrade       AccountTransactionKind = "trade"
+	AccountTransactionKindTransferIn  AccountTransactionKind = "transfer_in"
+	AccountTransactionKindTransferOut AccountTransactionKind = "transfer_out"
+)
+
+// Valid indicates whether the value is a known member of the AccountTransactionKind enum.
+func (e AccountTransactionKind) Valid() bool {
+	switch e {
+	case AccountTransactionKindFee:
+		return true
+	case AccountTransactionKindFunding:
+		return true
+	case AccountTransactionKindLiquidation:
+		return true
+	case AccountTransactionKindOther:
+		return true
+	case AccountTransactionKindRebate:
+		return true
+	case AccountTransactionKindTrade:
+		return true
+	case AccountTransactionKindTransferIn:
+		return true
+	case AccountTransactionKindTransferOut:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPermission.
+const (
+	AgentPermissionRead  AgentPermission = "read"
+	AgentPermissionTrade AgentPermission = "trade"
+)
+
+// Valid indicates whether the value is a known member of the AgentPermission enum.
+func (e AgentPermission) Valid() bool {
+	switch e {
+	case AgentPermissionRead:
+		return true
+	case AgentPermissionTrade:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentStatus.
 const (
 	AgentStatusActive AgentStatus = "active"
@@ -57,6 +156,156 @@ func (e ApprovalStatus) Valid() bool {
 	}
 }
 
+// Defines values for BalanceWallet.
+const (
+	BalanceWalletMargin BalanceWallet = "margin"
+	BalanceWalletOther  BalanceWallet = "other"
+	BalanceWalletSpot   BalanceWallet = "spot"
+)
+
+// Valid indicates whether the value is a known member of the BalanceWallet enum.
+func (e BalanceWallet) Valid() bool {
+	switch e {
+	case BalanceWalletMargin:
+		return true
+	case BalanceWalletOther:
+		return true
+	case BalanceWalletSpot:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountCreateHyperliquidNetwork.
+const (
+	ConnectedAccountCreateHyperliquidNetworkMainnet ConnectedAccountCreateHyperliquidNetwork = "mainnet"
+	ConnectedAccountCreateHyperliquidNetworkTestnet ConnectedAccountCreateHyperliquidNetwork = "testnet"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountCreateHyperliquidNetwork enum.
+func (e ConnectedAccountCreateHyperliquidNetwork) Valid() bool {
+	switch e {
+	case ConnectedAccountCreateHyperliquidNetworkMainnet:
+		return true
+	case ConnectedAccountCreateHyperliquidNetworkTestnet:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountKind.
+const (
+	ConnectedAccountKindCosignerCallback ConnectedAccountKind = "cosigner_callback"
+	ConnectedAccountKindExchange         ConnectedAccountKind = "exchange"
+	ConnectedAccountKindHyperliquid      ConnectedAccountKind = "hyperliquid"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountKind enum.
+func (e ConnectedAccountKind) Valid() bool {
+	switch e {
+	case ConnectedAccountKindCosignerCallback:
+		return true
+	case ConnectedAccountKindExchange:
+		return true
+	case ConnectedAccountKindHyperliquid:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountMode.
+const (
+	ConnectedAccountModeAgentsOnly ConnectedAccountMode = "agents_only"
+	ConnectedAccountModeShared     ConnectedAccountMode = "shared"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountMode enum.
+func (e ConnectedAccountMode) Valid() bool {
+	switch e {
+	case ConnectedAccountModeAgentsOnly:
+		return true
+	case ConnectedAccountModeShared:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountRestrictionCause.
+const (
+	ConnectedAccountRestrictionCauseAmbiguousTransfer   ConnectedAccountRestrictionCause = "ambiguous_transfer"
+	ConnectedAccountRestrictionCauseForeignFill         ConnectedAccountRestrictionCause = "foreign_fill"
+	ConnectedAccountRestrictionCauseStateUnavailable    ConnectedAccountRestrictionCause = "state_unavailable"
+	ConnectedAccountRestrictionCauseStreamGap           ConnectedAccountRestrictionCause = "stream_gap"
+	ConnectedAccountRestrictionCauseUnexplainedPosition ConnectedAccountRestrictionCause = "unexplained_position"
+	ConnectedAccountRestrictionCauseVenueUnreachable    ConnectedAccountRestrictionCause = "venue_unreachable"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountRestrictionCause enum.
+func (e ConnectedAccountRestrictionCause) Valid() bool {
+	switch e {
+	case ConnectedAccountRestrictionCauseAmbiguousTransfer:
+		return true
+	case ConnectedAccountRestrictionCauseForeignFill:
+		return true
+	case ConnectedAccountRestrictionCauseStateUnavailable:
+		return true
+	case ConnectedAccountRestrictionCauseStreamGap:
+		return true
+	case ConnectedAccountRestrictionCauseUnexplainedPosition:
+		return true
+	case ConnectedAccountRestrictionCauseVenueUnreachable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountRestrictionScope.
+const (
+	ConnectedAccountRestrictionScopeAsset            ConnectedAccountRestrictionScope = "asset"
+	ConnectedAccountRestrictionScopeConnectedAccount ConnectedAccountRestrictionScope = "connected_account"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountRestrictionScope enum.
+func (e ConnectedAccountRestrictionScope) Valid() bool {
+	switch e {
+	case ConnectedAccountRestrictionScopeAsset:
+		return true
+	case ConnectedAccountRestrictionScopeConnectedAccount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountStatus.
+const (
+	ConnectedAccountStatusActive  ConnectedAccountStatus = "active"
+	ConnectedAccountStatusKilled  ConnectedAccountStatus = "killed"
+	ConnectedAccountStatusPaused  ConnectedAccountStatus = "paused"
+	ConnectedAccountStatusPending ConnectedAccountStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountStatus enum.
+func (e ConnectedAccountStatus) Valid() bool {
+	switch e {
+	case ConnectedAccountStatusActive:
+		return true
+	case ConnectedAccountStatusKilled:
+		return true
+	case ConnectedAccountStatusPaused:
+		return true
+	case ConnectedAccountStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CosignerCallbackSetupKind.
 const (
 	CosignerCallbackSetupKindCosignerCallback CosignerCallbackSetupKind = "cosigner_callback"
@@ -66,6 +315,24 @@ const (
 func (e CosignerCallbackSetupKind) Valid() bool {
 	switch e {
 	case CosignerCallbackSetupKindCosignerCallback:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecisionSigningVersion.
+const (
+	DecisionSigningVersionN1 DecisionSigningVersion = 1
+	DecisionSigningVersionN2 DecisionSigningVersion = 2
+)
+
+// Valid indicates whether the value is a known member of the DecisionSigningVersion enum.
+func (e DecisionSigningVersion) Valid() bool {
+	switch e {
+	case DecisionSigningVersionN1:
+		return true
+	case DecisionSigningVersionN2:
 		return true
 	default:
 		return false
@@ -101,9 +368,9 @@ func (e DecisionValuationSource) Valid() bool {
 
 // Defines values for DiscrepancyRestricts.
 const (
-	DiscrepancyRestrictsAsset          DiscrepancyRestricts = "asset"
-	DiscrepancyRestrictsNone           DiscrepancyRestricts = "none"
-	DiscrepancyRestrictsTradingAccount DiscrepancyRestricts = "trading_account"
+	DiscrepancyRestrictsAsset            DiscrepancyRestricts = "asset"
+	DiscrepancyRestrictsConnectedAccount DiscrepancyRestricts = "connected_account"
+	DiscrepancyRestrictsNone             DiscrepancyRestricts = "none"
 )
 
 // Valid indicates whether the value is a known member of the DiscrepancyRestricts enum.
@@ -111,9 +378,9 @@ func (e DiscrepancyRestricts) Valid() bool {
 	switch e {
 	case DiscrepancyRestrictsAsset:
 		return true
-	case DiscrepancyRestrictsNone:
+	case DiscrepancyRestrictsConnectedAccount:
 		return true
-	case DiscrepancyRestrictsTradingAccount:
+	case DiscrepancyRestrictsNone:
 		return true
 	default:
 		return false
@@ -198,6 +465,27 @@ func (e EngineMode) Valid() bool {
 	case EngineModeLive:
 		return true
 	case EngineModePaper:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EquityResolution.
+const (
+	EquityResolutionDay    EquityResolution = "day"
+	EquityResolutionHour   EquityResolution = "hour"
+	EquityResolutionMinute EquityResolution = "minute"
+)
+
+// Valid indicates whether the value is a known member of the EquityResolution enum.
+func (e EquityResolution) Valid() bool {
+	switch e {
+	case EquityResolutionDay:
+		return true
+	case EquityResolutionHour:
+		return true
+	case EquityResolutionMinute:
 		return true
 	default:
 		return false
@@ -593,10 +881,10 @@ func (e RuleUnit) Valid() bool {
 
 // Defines values for ScopeKind.
 const (
-	ScopeKindAccount        ScopeKind = "account"
-	ScopeKindAgent          ScopeKind = "agent"
-	ScopeKindPortfolio      ScopeKind = "portfolio"
-	ScopeKindTradingAccount ScopeKind = "trading_account"
+	ScopeKindAccount          ScopeKind = "account"
+	ScopeKindAgent            ScopeKind = "agent"
+	ScopeKindConnectedAccount ScopeKind = "connected_account"
+	ScopeKindPortfolio        ScopeKind = "portfolio"
 )
 
 // Valid indicates whether the value is a known member of the ScopeKind enum.
@@ -606,9 +894,9 @@ func (e ScopeKind) Valid() bool {
 		return true
 	case ScopeKindAgent:
 		return true
-	case ScopeKindPortfolio:
+	case ScopeKindConnectedAccount:
 		return true
-	case ScopeKindTradingAccount:
+	case ScopeKindPortfolio:
 		return true
 	default:
 		return false
@@ -768,6 +1056,72 @@ func (e SigningStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for SnapshotSource.
+const (
+	SnapshotSourceObserved SnapshotSource = "observed"
+	SnapshotSourceRebuilt  SnapshotSource = "rebuilt"
+)
+
+// Valid indicates whether the value is a known member of the SnapshotSource enum.
+func (e SnapshotSource) Valid() bool {
+	switch e {
+	case SnapshotSourceObserved:
+		return true
+	case SnapshotSourceRebuilt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SyncKind.
+const (
+	SyncKindBalances     SyncKind = "balances"
+	SyncKindEquity       SyncKind = "equity"
+	SyncKindPositions    SyncKind = "positions"
+	SyncKindTransactions SyncKind = "transactions"
+)
+
+// Valid indicates whether the value is a known member of the SyncKind enum.
+func (e SyncKind) Valid() bool {
+	switch e {
+	case SyncKindBalances:
+		return true
+	case SyncKindEquity:
+		return true
+	case SyncKindPositions:
+		return true
+	case SyncKindTransactions:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SyncStateStatus.
+const (
+	SyncStateStatusBackfilling SyncStateStatus = "backfilling"
+	SyncStateStatusBehind      SyncStateStatus = "behind"
+	SyncStateStatusCurrent     SyncStateStatus = "current"
+	SyncStateStatusFailing     SyncStateStatus = "failing"
+)
+
+// Valid indicates whether the value is a known member of the SyncStateStatus enum.
+func (e SyncStateStatus) Valid() bool {
+	switch e {
+	case SyncStateStatusBackfilling:
+		return true
+	case SyncStateStatusBehind:
+		return true
+	case SyncStateStatusCurrent:
+		return true
+	case SyncStateStatusFailing:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Tier.
 const (
 	TierEnterprise Tier = "enterprise"
@@ -789,129 +1143,18 @@ func (e Tier) Valid() bool {
 	}
 }
 
-// Defines values for TradingAccountCreateHyperliquidNetwork.
+// Defines values for TransactionOriginKind.
 const (
-	TradingAccountCreateHyperliquidNetworkMainnet TradingAccountCreateHyperliquidNetwork = "mainnet"
-	TradingAccountCreateHyperliquidNetworkTestnet TradingAccountCreateHyperliquidNetwork = "testnet"
+	TransactionOriginKindAgent   TransactionOriginKind = "agent"
+	TransactionOriginKindOutside TransactionOriginKind = "outside"
 )
 
-// Valid indicates whether the value is a known member of the TradingAccountCreateHyperliquidNetwork enum.
-func (e TradingAccountCreateHyperliquidNetwork) Valid() bool {
+// Valid indicates whether the value is a known member of the TransactionOriginKind enum.
+func (e TransactionOriginKind) Valid() bool {
 	switch e {
-	case TradingAccountCreateHyperliquidNetworkMainnet:
+	case TransactionOriginKindAgent:
 		return true
-	case TradingAccountCreateHyperliquidNetworkTestnet:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TradingAccountKind.
-const (
-	TradingAccountKindCosignerCallback TradingAccountKind = "cosigner_callback"
-	TradingAccountKindExchange         TradingAccountKind = "exchange"
-	TradingAccountKindHyperliquid      TradingAccountKind = "hyperliquid"
-)
-
-// Valid indicates whether the value is a known member of the TradingAccountKind enum.
-func (e TradingAccountKind) Valid() bool {
-	switch e {
-	case TradingAccountKindCosignerCallback:
-		return true
-	case TradingAccountKindExchange:
-		return true
-	case TradingAccountKindHyperliquid:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TradingAccountMode.
-const (
-	TradingAccountModeAgentsOnly TradingAccountMode = "agents_only"
-	TradingAccountModeShared     TradingAccountMode = "shared"
-)
-
-// Valid indicates whether the value is a known member of the TradingAccountMode enum.
-func (e TradingAccountMode) Valid() bool {
-	switch e {
-	case TradingAccountModeAgentsOnly:
-		return true
-	case TradingAccountModeShared:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TradingAccountRestrictionCause.
-const (
-	TradingAccountRestrictionCauseAmbiguousTransfer   TradingAccountRestrictionCause = "ambiguous_transfer"
-	TradingAccountRestrictionCauseForeignFill         TradingAccountRestrictionCause = "foreign_fill"
-	TradingAccountRestrictionCauseStateUnavailable    TradingAccountRestrictionCause = "state_unavailable"
-	TradingAccountRestrictionCauseStreamGap           TradingAccountRestrictionCause = "stream_gap"
-	TradingAccountRestrictionCauseUnexplainedPosition TradingAccountRestrictionCause = "unexplained_position"
-	TradingAccountRestrictionCauseVenueUnreachable    TradingAccountRestrictionCause = "venue_unreachable"
-)
-
-// Valid indicates whether the value is a known member of the TradingAccountRestrictionCause enum.
-func (e TradingAccountRestrictionCause) Valid() bool {
-	switch e {
-	case TradingAccountRestrictionCauseAmbiguousTransfer:
-		return true
-	case TradingAccountRestrictionCauseForeignFill:
-		return true
-	case TradingAccountRestrictionCauseStateUnavailable:
-		return true
-	case TradingAccountRestrictionCauseStreamGap:
-		return true
-	case TradingAccountRestrictionCauseUnexplainedPosition:
-		return true
-	case TradingAccountRestrictionCauseVenueUnreachable:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TradingAccountRestrictionScope.
-const (
-	TradingAccountRestrictionScopeAsset          TradingAccountRestrictionScope = "asset"
-	TradingAccountRestrictionScopeTradingAccount TradingAccountRestrictionScope = "trading_account"
-)
-
-// Valid indicates whether the value is a known member of the TradingAccountRestrictionScope enum.
-func (e TradingAccountRestrictionScope) Valid() bool {
-	switch e {
-	case TradingAccountRestrictionScopeAsset:
-		return true
-	case TradingAccountRestrictionScopeTradingAccount:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TradingAccountStatus.
-const (
-	TradingAccountStatusActive  TradingAccountStatus = "active"
-	TradingAccountStatusKilled  TradingAccountStatus = "killed"
-	TradingAccountStatusPaused  TradingAccountStatus = "paused"
-	TradingAccountStatusPending TradingAccountStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the TradingAccountStatus enum.
-func (e TradingAccountStatus) Valid() bool {
-	switch e {
-	case TradingAccountStatusActive:
-		return true
-	case TradingAccountStatusKilled:
-		return true
-	case TradingAccountStatusPaused:
-		return true
-	case TradingAccountStatusPending:
+	case TransactionOriginKindOutside:
 		return true
 	default:
 		return false
@@ -1053,6 +1296,34 @@ func (e Verdict) Valid() bool {
 	}
 }
 
+// AccessLogEntry One read of connected-account data by an agent.
+type AccessLogEntry struct {
+	AgentId   string    `json:"agentId"`
+	AgentName string    `json:"agentName"`
+	At        time.Time `json:"at"`
+
+	// ConnectedAccountId Absent for `accounts`, the agent's list of what it was given.
+	ConnectedAccountId *string `json:"connectedAccountId,omitempty"`
+
+	// From The start of the range asked for, or the moment for a snapshot.
+	From *time.Time `json:"from,omitempty"`
+	Id   string     `json:"id"`
+
+	// KeyId The agent key the read was signed with.
+	KeyId *string       `json:"keyId,omitempty"`
+	Read  AccessLogRead `json:"read"`
+	To    *time.Time    `json:"to,omitempty"`
+}
+
+// AccessLogPage defines model for AccessLogPage.
+type AccessLogPage struct {
+	Items      []AccessLogEntry `json:"items"`
+	NextCursor *string          `json:"nextCursor,omitempty"`
+}
+
+// AccessLogRead defines model for AccessLogRead.
+type AccessLogRead string
+
 // Account defines model for Account.
 type Account struct {
 	// ConfigRevision Bumped on every configuration change. Decisions record the revision they were evaluated under.
@@ -1083,32 +1354,182 @@ type Account struct {
 	Paused bool `json:"paused"`
 }
 
+// AccountDataEntitlements What the plan includes of connected-account data. The values come from
+// the plan file, not from code. The data is collected by polling, whether
+// or not the engine that judges orders is up: on the hosted service a
+// collector stays up for an account whose engine was stopped for being
+// quiet, until the account is released.
+type AccountDataEntitlements struct {
+	// History True, a reading of each connected account's positions, balances and
+	// value is kept per stretch of `resolutionSeconds`, and they are
+	// served over time and at a past moment. False, only the latest
+	// reading is kept, and those reads are refused with `limit_reached`.
+	History bool `json:"history"`
+
+	// IncludedStorageMb The stored data the plan includes; beyond it is charged for. Absent means not metered.
+	IncludedStorageMb *int `json:"includedStorageMb,omitempty"`
+
+	// ResolutionSeconds How often each connected account is read, and the stretch one stored reading stands for. Absent means 60.
+	ResolutionSeconds *int `json:"resolutionSeconds,omitempty"`
+
+	// RetentionDays How long snapshots and transactions are kept and served.
+	RetentionDays int `json:"retentionDays"`
+}
+
+// AccountPosition The venue's own net position in one symbol, whoever placed the orders behind it.
+type AccountPosition struct {
+	// EntryPrice A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	EntryPrice Decimal `json:"entryPrice"`
+
+	// Leverage A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	Leverage *Decimal `json:"leverage,omitempty"`
+
+	// MarkPrice A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	MarkPrice *Decimal `json:"markPrice,omitempty"`
+
+	// NotionalUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	NotionalUsd *Decimal            `json:"notionalUsd,omitempty"`
+	Side        AccountPositionSide `json:"side"`
+
+	// Size A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	Size   Decimal `json:"size"`
+	Symbol string  `json:"symbol"`
+
+	// UnrealizedUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	UnrealizedUsd *Decimal `json:"unrealizedUsd,omitempty"`
+}
+
+// AccountPositionSide defines model for AccountPosition.Side.
+type AccountPositionSide string
+
+// AccountPositionSnapshot defines model for AccountPositionSnapshot.
+type AccountPositionSnapshot struct {
+	AsOf               time.Time         `json:"asOf"`
+	ConnectedAccountId string            `json:"connectedAccountId"`
+	Positions          []AccountPosition `json:"positions"`
+
+	// Source observed: read from the venue at that moment. rebuilt: worked out
+	// afterwards, for a moment nobody was reading the account (before it
+	// was connected), by replaying its transactions and, for values in USD,
+	// the venue's historical prices. No engine rebuilds yet: every reading
+	// served today is observed.
+	Source SnapshotSource `json:"source"`
+}
+
+// AccountTransaction One thing that happened on a connected account, as the venue reports
+// it. A trade Mishmar placed is here as the venue saw it and, as a
+// fill, in its agent's book.
+type AccountTransaction struct {
+	// Amount What the account gained (positive) or lost (negative), in `asset`. Transfers, funding, fees, rebates.
+	Amount *Decimal `json:"amount,omitempty"`
+
+	// AmountUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	AmountUsd *Decimal `json:"amountUsd,omitempty"`
+
+	// Asset What `amount` is in.
+	Asset              *string   `json:"asset,omitempty"`
+	At                 time.Time `json:"at"`
+	ConnectedAccountId string    `json:"connectedAccountId"`
+
+	// FeeUsd A trade's fee.
+	FeeUsd *Decimal               `json:"feeUsd,omitempty"`
+	Id     string                 `json:"id"`
+	Kind   AccountTransactionKind `json:"kind"`
+
+	// Origin Trades and liquidations. Absent on the rest.
+	Origin *TransactionOrigin `json:"origin,omitempty"`
+
+	// Price A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	Price *Decimal `json:"price,omitempty"`
+	Side  *Side    `json:"side,omitempty"`
+
+	// Size A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	Size *Decimal `json:"size,omitempty"`
+
+	// Symbol Trades, funding and liquidations.
+	Symbol *string `json:"symbol,omitempty"`
+
+	// VenueId The venue's own id for it; each is recorded once.
+	VenueId *string `json:"venueId,omitempty"`
+}
+
+// AccountTransactionKind defines model for AccountTransactionKind.
+type AccountTransactionKind string
+
+// AccountTransactionPage defines model for AccountTransactionPage.
+type AccountTransactionPage struct {
+	Items      []AccountTransaction `json:"items"`
+	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
 // Agent defines model for Agent.
 type Agent struct {
-	CreatedAt      time.Time  `json:"createdAt"`
-	Description    *string    `json:"description,omitempty"`
-	Id             string     `json:"id"`
-	Keys           []AgentKey `json:"keys"`
-	LastDecisionAt *time.Time `json:"lastDecisionAt,omitempty"`
-	Name           string     `json:"name"`
-	PortfolioId    string     `json:"portfolioId"`
+	// ConnectedAccountIds The connected accounts the agent was given: it may read each one
+	// whole. A trade agent trades on those where it holds an unrevoked
+	// venue key (`venueKeys`); getting a key on an account gives the
+	// account. Before contract 0.20.0 this list was derived from the
+	// keys alone.
+	ConnectedAccountIds []string   `json:"connectedAccountIds"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	Description         *string    `json:"description,omitempty"`
+	Id                  string     `json:"id"`
+	Keys                []AgentKey `json:"keys"`
+	LastDecisionAt      *time.Time `json:"lastDecisionAt,omitempty"`
+	Name                string     `json:"name"`
+
+	// Permission read: the agent has a Mishmar API key and reads the connected accounts
+	// it is given; it has no signer and can hold no trading key
+	// (createVenueKey answers 409 `conflict`), and its proposals are refused
+	// (403 `forbidden`). trade: it may also hold trading keys and propose
+	// orders on the accounts it holds one on.
+	Permission  AgentPermission `json:"permission"`
+	PortfolioId string          `json:"portfolioId"`
 
 	// Signer Whether the agent's signer is reaching the engine. Absent when the engine does not track it (no signer channel).
-	Signer *SignerPresence `json:"signer,omitempty"`
-	Status AgentStatus     `json:"status"`
+	Signer    *SignerPresence `json:"signer,omitempty"`
+	Status    AgentStatus     `json:"status"`
+	UpdatedAt time.Time       `json:"updatedAt"`
 
-	// TradingAccountIds The trading accounts the agent holds an unrevoked venue key on. Derived from `venueKeys`.
-	TradingAccountIds []string  `json:"tradingAccountIds"`
-	UpdatedAt         time.Time `json:"updatedAt"`
-
-	// VenueKeys The agent's trading keys, one per trading account it may use.
+	// VenueKeys The agent's trading keys, one per connected account it may trade on. Always empty for a read agent.
 	VenueKeys []VenueKey `json:"venueKeys"`
 }
 
 // AgentCreate defines model for AgentCreate.
 type AgentCreate struct {
-	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
+	// ConnectedAccountIds Connected accounts to give the agent from the start. Default none.
+	ConnectedAccountIds *[]string `json:"connectedAccountIds,omitempty"`
+	Description         *string   `json:"description,omitempty"`
+	Name                string    `json:"name"`
+
+	// Permission Required, with no default, so that whoever adds an agent says what it may do.
+	Permission AgentPermission `json:"permission"`
 
 	// PortfolioId Absent for the account's default portfolio (Account.defaultPortfolioId).
 	PortfolioId *string `json:"portfolioId,omitempty"`
@@ -1116,11 +1537,19 @@ type AgentCreate struct {
 
 // AgentIdentity Who an agent key belongs to, as `GET /agent/me` answers the key.
 type AgentIdentity struct {
-	AccountId   string `json:"accountId"`
-	AgentId     string `json:"agentId"`
-	AgentName   string `json:"agentName"`
-	KeyId       string `json:"keyId"`
-	PortfolioId string `json:"portfolioId"`
+	AccountId string `json:"accountId"`
+	AgentId   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+	KeyId     string `json:"keyId"`
+
+	// Permission What the agent may do. A signer or MCP server started with the
+	// key reads it first: for a read agent it starts no signer channel
+	// and no key sync, so every call it makes is a read of
+	// connected-account data, which a hosted account's collector
+	// answers while the engine sleeps. An engine from before this field
+	// sends none; a client treats that as trade.
+	Permission  AgentPermission `json:"permission"`
+	PortfolioId string          `json:"portfolioId"`
 }
 
 // AgentKey defines model for AgentKey.
@@ -1171,6 +1600,13 @@ type AgentKeyIssued struct {
 	Secret string `json:"secret"`
 }
 
+// AgentPermission read: the agent has a Mishmar API key and reads the connected accounts
+// it is given; it has no signer and can hold no trading key
+// (createVenueKey answers 409 `conflict`), and its proposals are refused
+// (403 `forbidden`). trade: it may also hold trading keys and propose
+// orders on the accounts it holds one on.
+type AgentPermission string
+
 // AgentStatus defines model for AgentStatus.
 type AgentStatus string
 
@@ -1178,7 +1614,12 @@ type AgentStatus string
 type AgentUpdate struct {
 	Description *string `json:"description,omitempty"`
 	Name        *string `json:"name,omitempty"`
-	PortfolioId *string `json:"portfolioId,omitempty"`
+
+	// Permission read to trade lets the agent get trading keys from then on; each
+	// still needs its own setup at the venue. trade to read is refused
+	// with 409 `conflict` while the agent holds an unrevoked trading key.
+	Permission  *AgentPermission `json:"permission,omitempty"`
+	PortfolioId *string          `json:"portfolioId,omitempty"`
 }
 
 // Approval defines model for Approval.
@@ -1253,6 +1694,44 @@ type ApprovalOutcome struct {
 // ApprovalStatus defines model for ApprovalStatus.
 type ApprovalStatus string
 
+// Balance defines model for Balance.
+type Balance struct {
+	// Amount A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	Amount Decimal `json:"amount"`
+
+	// Asset The asset as the venue names it, e.g. USDC, BTC.
+	Asset string `json:"asset"`
+
+	// UsdValue Absent when the engine has no price for the asset.
+	UsdValue *Decimal `json:"usdValue,omitempty"`
+
+	// Wallet Where the venue holds it. margin is what backs derivatives positions.
+	Wallet BalanceWallet `json:"wallet"`
+}
+
+// BalanceWallet Where the venue holds it. margin is what backs derivatives positions.
+type BalanceWallet string
+
+// BalanceSnapshot defines model for BalanceSnapshot.
+type BalanceSnapshot struct {
+	AsOf               time.Time `json:"asOf"`
+	Balances           []Balance `json:"balances"`
+	ConnectedAccountId string    `json:"connectedAccountId"`
+
+	// EquityUsd The account's whole value, balances plus unrealised PnL.
+	EquityUsd *Decimal `json:"equityUsd,omitempty"`
+
+	// Source observed: read from the venue at that moment. rebuilt: worked out
+	// afterwards, for a moment nobody was reading the account (before it
+	// was connected), by replaying its transactions and, for values in USD,
+	// the venue's historical prices. No engine rebuilds yet: every reading
+	// served today is observed.
+	Source SnapshotSource `json:"source"`
+}
+
 // CommitmentBatch defines model for CommitmentBatch.
 type CommitmentBatch struct {
 	// BatchSize The account's entitlement (Entitlements.commitmentBatch).
@@ -1284,9 +1763,186 @@ type CommitmentRequest struct {
 	VenueKeyId string `json:"venueKeyId"`
 }
 
+// ConnectedAccount One account at a venue, connected with read access. It needs no agent:
+// it is connected by itself, the engine keeps its balances, positions,
+// equity and transactions over time, and agents are then given it to
+// read or to trade on. Before contract 0.20.0 this was TradingAccount.
+type ConnectedAccount struct {
+	CreatedAt time.Time `json:"createdAt"`
+	Id        string    `json:"id"`
+
+	// Kind An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
+	Kind ConnectedAccountKind `json:"kind"`
+
+	// Maintenance An open maintenance window (openMaintenance). Absent when none is open.
+	Maintenance *MaintenanceWindow `json:"maintenance,omitempty"`
+
+	// Mode What a fill Mishmar did not place means on a connected account agents
+	// trade on (`traded`); on one Mishmar only reads it means nothing and
+	// such fills are simply recorded. Several agents
+	// may share a connected account in either mode, and transfers, funding, liquidations
+	// and the venue's other entries are handled the same way in both.
+	// agents_only (the default): Mishmar is the only thing trading on the
+	// connected account, so such a fill restricts new risk on the connected account, exits still
+	// passing, until the owner assigns it (resolveDiscrepancy) or it falls in
+	// a maintenance window. shared: such a fill is booked to the unassigned book
+	// and trading continues; account and connected account rules see it, agent rules do not.
+	Mode ConnectedAccountMode `json:"mode"`
+	Name string               `json:"name"`
+
+	// Restrictions What blocks new risk on the connected account right now, set by the engine
+	// rather than by a person (pause and stop are `status`). Exits pass
+	// under every restriction. Absent when there is none.
+	Restrictions *[]ConnectedAccountRestriction `json:"restrictions,omitempty"`
+	Setup        ConnectedAccountSetup          `json:"setup"`
+	Status       ConnectedAccountStatus         `json:"status"`
+
+	// Sync How current each kind of the account's data is. Absent until the
+	// account is verified.
+	Sync *[]SyncState `json:"sync,omitempty"`
+
+	// Traded Whether any agent holds an unrevoked trading key on the account.
+	// False, Mishmar can only read it: every trade there is recorded as
+	// it is, `mode` restricts nothing and no discrepancy is opened.
+	Traded       bool                          `json:"traded"`
+	UpdatedAt    time.Time                     `json:"updatedAt"`
+	Venue        Venue                         `json:"venue"`
+	Verification *ConnectedAccountVerification `json:"verification,omitempty"`
+}
+
+// ConnectedAccountCreate defines model for ConnectedAccountCreate.
+type ConnectedAccountCreate struct {
+	// Exchange An exchange account. The trading keys come later, one per agent
+	// (VenueKey). The read-only key may come later too (`setReadKey`):
+	// without it the account is created with `readKeyRegistered` false
+	// and cannot verify or stream until it has one.
+	Exchange *struct {
+		// ReadApiKey A key with read permissions only, for the account's margin, positions and fills. Write-only.
+		ReadApiKey *string `json:"readApiKey,omitempty"`
+
+		// ReadApiSecret The read-only key's secret (HMAC). Write-only and stored whole; it cannot trade or withdraw.
+		ReadApiSecret *string `json:"readApiSecret,omitempty"`
+		Subaccount    *string `json:"subaccount,omitempty"`
+	} `json:"exchange,omitempty"`
+	Fireblocks *struct {
+		ApiUserId string `json:"apiUserId"`
+	} `json:"fireblocks,omitempty"`
+	Hyperliquid *struct {
+		// MasterAddress The master account. Absent, the engine learns it from the first
+		// API wallet an agent gets on this account that the master approves
+		// at Hyperliquid (`userRole` names the approving account), and
+		// verifies the account then; until that the account is pending.
+		MasterAddress *string `json:"masterAddress,omitempty"`
+
+		// Network A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
+		Network ConnectedAccountCreateHyperliquidNetwork `json:"network"`
+	} `json:"hyperliquid,omitempty"`
+
+	// Mode Default agents_only.
+	Mode  *ConnectedAccountMode `json:"mode,omitempty"`
+	Name  string                `json:"name"`
+	Venue Venue                 `json:"venue"`
+}
+
+// ConnectedAccountCreateHyperliquidNetwork A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
+type ConnectedAccountCreateHyperliquidNetwork string
+
+// ConnectedAccountKind An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
+type ConnectedAccountKind string
+
+// ConnectedAccountMode What a fill Mishmar did not place means on a connected account agents
+// trade on (`traded`); on one Mishmar only reads it means nothing and
+// such fills are simply recorded. Several agents
+// may share a connected account in either mode, and transfers, funding, liquidations
+// and the venue's other entries are handled the same way in both.
+// agents_only (the default): Mishmar is the only thing trading on the
+// connected account, so such a fill restricts new risk on the connected account, exits still
+// passing, until the owner assigns it (resolveDiscrepancy) or it falls in
+// a maintenance window. shared: such a fill is booked to the unassigned book
+// and trading continues; account and connected account rules see it, agent rules do not.
+type ConnectedAccountMode string
+
+// ConnectedAccountRestriction defines model for ConnectedAccountRestriction.
+type ConnectedAccountRestriction struct {
+	// Asset The asset
+	Asset *string `json:"asset,omitempty"`
+
+	// Cause foreign_fill: an agents-only connected account saw a fill Mishmar did not place.
+	// unexplained_position: the venue's position in the asset disagrees
+	// with the books and nothing explains it. ambiguous_transfer: an
+	// asset several agents hold was transferred out beyond what the unassigned
+	// book holds. stream_gap: the venue's stream missed more than its
+	// history can fill. state_unavailable: the venue's state cannot be read.
+	// venue_unreachable: the engine has no live stream of the connected account's
+	// fills and orders from the venue: the venue refused the subscription, or the
+	// stream has been down past its grace. It lifts by itself once the stream is
+	// back and the engine has caught up.
+	Cause ConnectedAccountRestrictionCause `json:"cause"`
+
+	// Detail More than the cause says, when there is more: for venue_unreachable,
+	// why the stream is down, in the venue's words where it gave any.
+	Detail *string `json:"detail,omitempty"`
+
+	// DiscrepancyId The discrepancy that lifts it once resolved
+	DiscrepancyId *string `json:"discrepancyId,omitempty"`
+
+	// Scope The whole connected account, or one asset on it (every market that trades that asset).
+	Scope ConnectedAccountRestrictionScope `json:"scope"`
+	Since time.Time                        `json:"since"`
+}
+
+// ConnectedAccountRestrictionCause foreign_fill: an agents-only connected account saw a fill Mishmar did not place.
+// unexplained_position: the venue's position in the asset disagrees
+// with the books and nothing explains it. ambiguous_transfer: an
+// asset several agents hold was transferred out beyond what the unassigned
+// book holds. stream_gap: the venue's stream missed more than its
+// history can fill. state_unavailable: the venue's state cannot be read.
+// venue_unreachable: the engine has no live stream of the connected account's
+// fills and orders from the venue: the venue refused the subscription, or the
+// stream has been down past its grace. It lifts by itself once the stream is
+// back and the engine has caught up.
+type ConnectedAccountRestrictionCause string
+
+// ConnectedAccountRestrictionScope The whole connected account, or one asset on it (every market that trades that asset).
+type ConnectedAccountRestrictionScope string
+
+// ConnectedAccountSetup defines model for ConnectedAccountSetup.
+type ConnectedAccountSetup struct {
+	union json.RawMessage
+}
+
+// ConnectedAccountStatus defines model for ConnectedAccountStatus.
+type ConnectedAccountStatus string
+
+// ConnectedAccountUpdate defines model for ConnectedAccountUpdate.
+type ConnectedAccountUpdate struct {
+	// Mode What a fill Mishmar did not place means on a connected account agents
+	// trade on (`traded`); on one Mishmar only reads it means nothing and
+	// such fills are simply recorded. Several agents
+	// may share a connected account in either mode, and transfers, funding, liquidations
+	// and the venue's other entries are handled the same way in both.
+	// agents_only (the default): Mishmar is the only thing trading on the
+	// connected account, so such a fill restricts new risk on the connected account, exits still
+	// passing, until the owner assigns it (resolveDiscrepancy) or it falls in
+	// a maintenance window. shared: such a fill is booked to the unassigned book
+	// and trading continues; account and connected account rules see it, agent rules do not.
+	Mode *ConnectedAccountMode `json:"mode,omitempty"`
+	Name *string               `json:"name,omitempty"`
+}
+
+// ConnectedAccountVerification defines model for ConnectedAccountVerification.
+type ConnectedAccountVerification struct {
+	Checks []struct {
+		Detail *string `json:"detail,omitempty"`
+		Name   string  `json:"name"`
+		Passed bool    `json:"passed"`
+	} `json:"checks"`
+	VerifiedAt *time.Time `json:"verifiedAt,omitempty"`
+}
+
 // CosignerCallbackSetup defines model for CosignerCallbackSetup.
 type CosignerCallbackSetup struct {
-	// ApiUserId The Fireblocks API user that maps to this trading account.
+	// ApiUserId The Fireblocks API user that maps to this connected account.
 	ApiUserId         *string `json:"apiUserId,omitempty"`
 	CallbackPublicKey string  `json:"callbackPublicKey"`
 
@@ -1297,6 +1953,17 @@ type CosignerCallbackSetup struct {
 
 // CosignerCallbackSetupKind defines model for CosignerCallbackSetup.Kind.
 type CosignerCallbackSetupKind string
+
+// DataUsage defines model for DataUsage.
+type DataUsage struct {
+	AsOf time.Time `json:"asOf"`
+
+	// IncludedBytes From `Entitlements.accountData.includedStorageMb`. Absent when not metered.
+	IncludedBytes *int64 `json:"includedBytes,omitempty"`
+
+	// StorageBytes What the account's connected-account data takes in the engine's database.
+	StorageBytes int64 `json:"storageBytes"`
+}
 
 // Decimal A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 // quantities are never JSON numbers. A string survives every language's
@@ -1318,9 +1985,10 @@ type Decision struct {
 	// engine knows (the `cancelled` ledger event). Absent while it rests, after it
 	// filled completely, and on orders that never rested. Not covered by
 	// engineSignature: it arrives later, as a chained event.
-	Cancellation   *OrderCancellation `json:"cancellation,omitempty"`
-	ConfigRevision int                `json:"configRevision"`
-	CreatedAt      time.Time          `json:"createdAt"`
+	Cancellation       *OrderCancellation `json:"cancellation,omitempty"`
+	ConfigRevision     int                `json:"configRevision"`
+	ConnectedAccountId string             `json:"connectedAccountId"`
+	CreatedAt          time.Time          `json:"createdAt"`
 
 	// EngineSignature The engine key's Ed25519 signature over the decision record as written
 	// (every field above plus `submission`, without `venueAck`, `approval`,
@@ -1345,10 +2013,18 @@ type Decision struct {
 	// Reason One line for a person, e.g. the rule that blocked it or the kill switch that was engaged.
 	Reason *string `json:"reason,omitempty"`
 
-	// Signing Where the order stands with the agent's signer. Absent on trading accounts that
+	// Signing Where the order stands with the agent's signer. Absent on connected accounts that
 	// need no signer (the paper simulator, co-signer callbacks).
 	Signing *SigningStatus `json:"signing,omitempty"`
-	State   StateSnapshot  `json:"state"`
+
+	// SigningVersion Which shape the agent's and the engine's signatures on this
+	// decision cover. 2: this contract's, the account's id under
+	// `connectedAccountId`. 1: a decision from before contract 0.20.0,
+	// whose signed bytes carry the same id under `tradingAccountId`; the
+	// record is served under today's names, and a verifier rebuilds the
+	// bytes with the old name. Absent means 1.
+	SigningVersion *DecisionSigningVersion `json:"signingVersion,omitempty"`
+	State          StateSnapshot           `json:"state"`
 
 	// Submission What the agent submitted that the priced proposal does not keep, so the
 	// agent's signature can be verified again from the ledger alone: the key,
@@ -1356,8 +2032,7 @@ type Decision struct {
 	// order, whose stored price is the mark the engine used) and the
 	// one-shot venue message when there was one. A cancel's target is on the
 	// proposal (`targetClientOrderId`).
-	Submission       *DecisionSubmission `json:"submission,omitempty"`
-	TradingAccountId string              `json:"tradingAccountId"`
+	Submission *DecisionSubmission `json:"submission,omitempty"`
 
 	// Valuation What the rules valued the order at and where that price came from. Present
 	// on orders; absent on cancels and on decisions from before it was recorded.
@@ -1366,6 +2041,14 @@ type Decision struct {
 	VenueAck  *VenueAck          `json:"venueAck,omitempty"`
 	Verdict   Verdict            `json:"verdict"`
 }
+
+// DecisionSigningVersion Which shape the agent's and the engine's signatures on this
+// decision cover. 2: this contract's, the account's id under
+// `connectedAccountId`. 1: a decision from before contract 0.20.0,
+// whose signed bytes carry the same id under `tradingAccountId`; the
+// record is served under today's names, and a verifier rebuilds the
+// bytes with the old name. Absent means 1.
+type DecisionSigningVersion int
 
 // DecisionPage defines model for DecisionPage.
 type DecisionPage struct {
@@ -1393,7 +2076,7 @@ type DecisionSubmission struct {
 	// VenueMessage The one-shot path. The agent's signer builds the venue request and
 	// signs its half before the proposal leaves the agent's machine, so an
 	// allowed order needs no round trip to the signer: the engine decodes
-	// `message`, checks it against the proposal and the trading account's venue rules,
+	// `message`, checks it against the proposal and the connected account's venue rules,
 	// runs the rules, and only then adds its own half and forwards. It is
 	// inside the signed proposal, so nobody can pair a proposal with a
 	// message the agent did not mean. The engine spends the commitment named
@@ -1454,8 +2137,9 @@ type Discrepancy struct {
 	Asset *string `json:"asset,omitempty"`
 
 	// BooksQuantity What the books add up to, the unassigned book included.
-	BooksQuantity *Decimal  `json:"booksQuantity,omitempty"`
-	DetectedAt    time.Time `json:"detectedAt"`
+	BooksQuantity      *Decimal  `json:"booksQuantity,omitempty"`
+	ConnectedAccountId string    `json:"connectedAccountId"`
+	DetectedAt         time.Time `json:"detectedAt"`
 
 	// Difference venueQuantity minus booksQuantity.
 	Difference *Decimal `json:"difference,omitempty"`
@@ -1466,10 +2150,10 @@ type Discrepancy struct {
 	Id                string           `json:"id"`
 
 	// Kind foreign_fill: a fill the venue reported that Mishmar did not place;
-	// restricts an agents-only trading account, and on a shared trading account is already in the
+	// restricts an agents-only connected account, and on a shared connected account is already in the
 	// unassigned book and listed only for re-attribution. unexplained_position: a
 	// venue position that disagrees with the books with nothing to explain
-	// it; that asset on the trading account is degraded, and every agent holding it has
+	// it; that asset on the connected account is degraded, and every agent holding it has
 	// the difference added to its agent rules in whichever direction is
 	// worse. unexplained_balance: a cash or collateral change with nothing to
 	// explain it; nothing is degraded, a drop counts as a loss and a rise is
@@ -1477,13 +2161,13 @@ type Discrepancy struct {
 	// hold was transferred out beyond what the unassigned book holds; that asset
 	// is degraded until the owner names the agent it came from. stream_gap:
 	// the venue's stream missed more than its history can fill; the whole
-	// trading account is degraded until the engine has re-read the venue.
+	// connected account is degraded until the engine has re-read the venue.
 	Kind       DiscrepancyKind `json:"kind"`
 	Resolution *struct {
 		AgentId *string `json:"agentId,omitempty"`
 
-		// AssignTo unassigned: book it to the trading account's unassigned book. agent: book it to `agentId`'s
-		// book, an agent on the trading account (for an ambiguous transfer, the agent it
+		// AssignTo unassigned: book it to the connected account's unassigned book. agent: book it to `agentId`'s
+		// book, an agent on the connected account (for an ambiguous transfer, the agent it
 		// came from). capital: it was a transfer in or out, recorded at the mark,
 		// moving equity and the drawdown baseline together.
 		AssignTo  DiscrepancyAssignTo `json:"assignTo"`
@@ -1500,14 +2184,13 @@ type Discrepancy struct {
 	Suggestion *struct {
 		AgentId *string `json:"agentId,omitempty"`
 
-		// AssignTo unassigned: book it to the trading account's unassigned book. agent: book it to `agentId`'s
-		// book, an agent on the trading account (for an ambiguous transfer, the agent it
+		// AssignTo unassigned: book it to the connected account's unassigned book. agent: book it to `agentId`'s
+		// book, an agent on the connected account (for an ambiguous transfer, the agent it
 		// came from). capital: it was a transfer in or out, recorded at the mark,
 		// moving equity and the drawdown baseline together.
 		AssignTo DiscrepancyAssignTo `json:"assignTo"`
 		Reason   string              `json:"reason"`
 	} `json:"suggestion,omitempty"`
-	TradingAccountId string `json:"tradingAccountId"`
 
 	// VenueQuantity The venue's position (signed, long positive) or balance when detected.
 	VenueQuantity *Decimal `json:"venueQuantity,omitempty"`
@@ -1516,8 +2199,8 @@ type Discrepancy struct {
 // DiscrepancyRestricts What it blocks for new risk while open. Exits always pass.
 type DiscrepancyRestricts string
 
-// DiscrepancyAssignTo unassigned: book it to the trading account's unassigned book. agent: book it to `agentId`'s
-// book, an agent on the trading account (for an ambiguous transfer, the agent it
+// DiscrepancyAssignTo unassigned: book it to the connected account's unassigned book. agent: book it to `agentId`'s
+// book, an agent on the connected account (for an ambiguous transfer, the agent it
 // came from). capital: it was a transfer in or out, recorded at the mark,
 // moving equity and the drawdown baseline together.
 type DiscrepancyAssignTo string
@@ -1543,10 +2226,10 @@ type DiscrepancyFill struct {
 }
 
 // DiscrepancyKind foreign_fill: a fill the venue reported that Mishmar did not place;
-// restricts an agents-only trading account, and on a shared trading account is already in the
+// restricts an agents-only connected account, and on a shared connected account is already in the
 // unassigned book and listed only for re-attribution. unexplained_position: a
 // venue position that disagrees with the books with nothing to explain
-// it; that asset on the trading account is degraded, and every agent holding it has
+// it; that asset on the connected account is degraded, and every agent holding it has
 // the difference added to its agent rules in whichever direction is
 // worse. unexplained_balance: a cash or collateral change with nothing to
 // explain it; nothing is degraded, a drop counts as a loss and a rise is
@@ -1554,7 +2237,7 @@ type DiscrepancyFill struct {
 // hold was transferred out beyond what the unassigned book holds; that asset
 // is degraded until the owner names the agent it came from. stream_gap:
 // the venue's stream missed more than its history can fill; the whole
-// trading account is degraded until the engine has re-read the venue.
+// connected account is degraded until the engine has re-read the venue.
 type DiscrepancyKind string
 
 // DiscrepancyResolve defines model for DiscrepancyResolve.
@@ -1562,8 +2245,8 @@ type DiscrepancyResolve struct {
 	// AgentId Required when assignTo is agent, refused otherwise.
 	AgentId *string `json:"agentId,omitempty"`
 
-	// AssignTo unassigned: book it to the trading account's unassigned book. agent: book it to `agentId`'s
-	// book, an agent on the trading account (for an ambiguous transfer, the agent it
+	// AssignTo unassigned: book it to the connected account's unassigned book. agent: book it to `agentId`'s
+	// book, an agent on the connected account (for an ambiguous transfer, the agent it
 	// came from). capital: it was a transfer in or out, recorded at the mark,
 	// moving equity and the drawdown baseline together.
 	AssignTo DiscrepancyAssignTo `json:"assignTo"`
@@ -1584,7 +2267,7 @@ type EngineCommitment struct {
 
 // EngineMode paper: venues are simulated or test networks; fixtures may be imported.
 // live: real venues and real money; the engine refuses fixtures and refuses
-// to start if any trading account's venue lacks a live adapter.
+// to start if any connected account's venue lacks a live adapter.
 type EngineMode string
 
 // Entitlements What the account's tier includes (plan doc, Pricing). Billing writes it
@@ -1592,6 +2275,13 @@ type EngineMode string
 // licence; the API only reads it. Safety is never gated: every rule, the
 // stop, the pause, cancels, exits and approvals are in every tier.
 type Entitlements struct {
+	// AccountData What the plan includes of connected-account data. The values come from
+	// the plan file, not from code. The data is collected by polling, whether
+	// or not the engine that judges orders is up: on the hosted service a
+	// collector stays up for an account whose engine was stopped for being
+	// quiet, until the account is released.
+	AccountData *AccountDataEntitlements `json:"accountData,omitempty"`
+
 	// CommitmentBatch The most unused engine commitments (or presignatures) an agent's
 	// signer may hold per venue key: how many orders in a burst take the
 	// one-shot path before the rest fall back to the signer channel.
@@ -1603,15 +2293,16 @@ type Entitlements struct {
 	// FailoverCell A standby cell in another availability zone takes over when the account's cell fails (the uptime guarantee).
 	FailoverCell bool `json:"failoverCell"`
 
-	// MaxAgents The most agents the account may have, stopped ones included. Absent
-	// means no limit. An account already over it keeps what it has;
+	// MaxAgents The most agents the account may have, stopped ones and read agents
+	// included. Absent means no limit. An account already over it keeps what it has;
 	// createAgent is refused with `limit_reached` until one is deleted.
 	MaxAgents *int `json:"maxAgents,omitempty"`
 
-	// MaxTradingAccounts The most trading accounts the account may have, on every venue
-	// together. Absent means no limit. createTradingAccount is refused
-	// with `limit_reached` past it, as createAgent is.
-	MaxTradingAccounts *int `json:"maxTradingAccounts,omitempty"`
+	// MaxConnectedAccounts The most connected accounts the account may have, on every venue
+	// together. Absent means no limit. createConnectedAccount is refused
+	// with `limit_reached` past it, as createAgent is. One Mishmar only
+	// reads counts like one agents trade on.
+	MaxConnectedAccounts *int `json:"maxConnectedAccounts,omitempty"`
 
 	// SelfHosted Licensed to run the engine on the customer's own infrastructure.
 	SelfHosted bool `json:"selfHosted"`
@@ -1633,6 +2324,36 @@ type Entitlements struct {
 	VenueBudgets *[]VenueBudget `json:"venueBudgets,omitempty"`
 }
 
+// EquityPoint defines model for EquityPoint.
+type EquityPoint struct {
+	At time.Time `json:"at"`
+
+	// EquityUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	EquityUsd Decimal `json:"equityUsd"`
+
+	// Source observed: read from the venue at that moment. rebuilt: worked out
+	// afterwards, for a moment nobody was reading the account (before it
+	// was connected), by replaying its transactions and, for values in USD,
+	// the venue's historical prices. No engine rebuilds yet: every reading
+	// served today is observed.
+	Source SnapshotSource `json:"source"`
+}
+
+// EquityResolution defines model for EquityResolution.
+type EquityResolution string
+
+// EquitySeries defines model for EquitySeries.
+type EquitySeries struct {
+	ConnectedAccountId string `json:"connectedAccountId"`
+
+	// Points Oldest first.
+	Points     []EquityPoint    `json:"points"`
+	Resolution EquityResolution `json:"resolution"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine code: `not_found`, `conflict`, `validation`, `unauthorized`,
@@ -1647,7 +2368,7 @@ type Error struct {
 	// answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
 	// signer and send the same request again.
 	// `limit_reached` (403) means the account's plan holds no more of what
-	// the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
+	// the request would add (`Entitlements.maxAgents`, `maxConnectedAccounts`).
 	// Sending it again changes nothing: delete one, or move to a larger plan.
 	// `unavailable` (503) means the request did nothing: the engine cannot read its
 	// state, it is starting or waiting for its account, or it is stopping. Send the
@@ -1683,7 +2404,7 @@ type ExchangeSetup struct {
 
 	// ReadKeyRegistered Whether the engine holds the account's read-only key, for margin,
 	// positions and fills. The trading keys belong to the agents (VenueKey);
-	// a trading account without a read key verifies and streams nothing.
+	// a connected account without a read key verifies and streams nothing.
 	ReadKeyRegistered bool    `json:"readKeyRegistered"`
 	Subaccount        *string `json:"subaccount,omitempty"`
 }
@@ -1819,7 +2540,7 @@ type MarkInput struct {
 type Operator struct {
 	// Mode paper: venues are simulated or test networks; fixtures may be imported.
 	// live: real venues and real money; the engine refuses fixtures and refuses
-	// to start if any trading account's venue lacks a live adapter.
+	// to start if any connected account's venue lacks a live adapter.
 	Mode EngineMode `json:"mode"`
 
 	// Name The person behind the bearer token. Recorded on approvals as decidedBy.
@@ -2038,10 +2759,11 @@ type Position struct {
 	AgentId *string `json:"agentId,omitempty"`
 
 	// Book unassigned: a holding no agent owns, such as a manual trade on a shared
-	// trading account, an asset deposited in kind, or what a retired agent held;
-	// agentId and portfolioId are then absent. Account and trading account rules see
+	// connected account, an asset deposited in kind, or what a retired agent held;
+	// agentId and portfolioId are then absent. Account and connected account rules see
 	// the unassigned book; agent and portfolio rules do not. Absent means agent.
-	Book *PositionBook `json:"book,omitempty"`
+	Book               *PositionBook `json:"book,omitempty"`
+	ConnectedAccountId *string       `json:"connectedAccountId,omitempty"`
 
 	// EntryPrice A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -2074,9 +2796,8 @@ type Position struct {
 	// quantities are never JSON numbers. A string survives every language's
 	// float formatting unchanged, so the bytes an agent signs are the bytes the
 	// engine verifies, and sums of cents stay exact.
-	Size             Decimal `json:"size"`
-	Symbol           string  `json:"symbol"`
-	TradingAccountId *string `json:"tradingAccountId,omitempty"`
+	Size   Decimal `json:"size"`
+	Symbol string  `json:"symbol"`
 
 	// UnrealizedUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -2087,8 +2808,8 @@ type Position struct {
 }
 
 // PositionBook unassigned: a holding no agent owns, such as a manual trade on a shared
-// trading account, an asset deposited in kind, or what a retired agent held;
-// agentId and portfolioId are then absent. Account and trading account rules see
+// connected account, an asset deposited in kind, or what a retired agent held;
+// agentId and portfolioId are then absent. Account and connected account rules see
 // the unassigned book; agent and portfolio rules do not. Absent means agent.
 type PositionBook string
 
@@ -2097,7 +2818,8 @@ type PositionSide string
 
 // PositionInput defines model for PositionInput.
 type PositionInput struct {
-	AgentId string `json:"agentId"`
+	AgentId            string `json:"agentId"`
+	ConnectedAccountId string `json:"connectedAccountId"`
 
 	// EntryPrice A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -2116,10 +2838,9 @@ type PositionInput struct {
 	// quantities are never JSON numbers. A string survives every language's
 	// float formatting unchanged, so the bytes an agent signs are the bytes the
 	// engine verifies, and sums of cents stay exact.
-	Size             Decimal `json:"size"`
-	Symbol           string  `json:"symbol"`
-	TradingAccountId string  `json:"tradingAccountId"`
-	Venue            Venue   `json:"venue"`
+	Size   Decimal `json:"size"`
+	Symbol string  `json:"symbol"`
+	Venue  Venue   `json:"venue"`
 }
 
 // PositionInputSide defines model for PositionInput.Side.
@@ -2251,6 +2972,11 @@ type ProposalKind string
 // (side, size, price, orderType, leverage, reduceOnly) out. The engine
 // refuses either mistake (422).
 type ProposalSubmit struct {
+	// ConnectedAccountId The connected account to trade on. Part of the signed bytes under
+	// this name since contract 0.20.0 (before, `tradingAccountId`): a
+	// client built for an earlier contract is refused with 422.
+	ConnectedAccountId string `json:"connectedAccountId"`
+
 	// ExpiresAt The latest moment the order may reach the venue. Must be after
 	// proposedAt and at most 24 hours later. A decision parked for a
 	// person expires then (sooner when the engine's approval window is
@@ -2305,15 +3031,14 @@ type ProposalSubmit struct {
 
 	// TargetClientOrderId Cancels only, and required for them: the clientOrderId the engine
 	// assigned on the decision of the order to pull. That order must be
-	// the same agent's, on the same trading account, and must have reached the
+	// the same agent's, on the same connected account, and must have reached the
 	// venue. Refused on every other kind.
 	TargetClientOrderId *string `json:"targetClientOrderId,omitempty"`
-	TradingAccountId    string  `json:"tradingAccountId"`
 
 	// VenueMessage The one-shot path. The agent's signer builds the venue request and
 	// signs its half before the proposal leaves the agent's machine, so an
 	// allowed order needs no round trip to the signer: the engine decodes
-	// `message`, checks it against the proposal and the trading account's venue rules,
+	// `message`, checks it against the proposal and the connected account's venue rules,
 	// runs the rules, and only then adds its own half and forwards. It is
 	// inside the signed proposal, so nobody can pair a proposal with a
 	// message the agent did not mean. The engine spends the commitment named
@@ -2331,7 +3056,7 @@ type ProposalSubmitOrderType string
 // ProposalVenueMessage The one-shot path. The agent's signer builds the venue request and
 // signs its half before the proposal leaves the agent's machine, so an
 // allowed order needs no round trip to the signer: the engine decodes
-// `message`, checks it against the proposal and the trading account's venue rules,
+// `message`, checks it against the proposal and the connected account's venue rules,
 // runs the rules, and only then adds its own half and forwards. It is
 // inside the signed proposal, so nobody can pair a proposal with a
 // message the agent did not mean. The engine spends the commitment named
@@ -2353,7 +3078,7 @@ type ProposalVenueMessage struct {
 	// exchange endpoint takes them, plus the order's Mishmar client
 	// order id, which the cloid on the order is derived from and the
 	// venue never sees: `{"action": …, "nonce": …, "clientOrderId": …}`,
-	// no vault, built by the signer from the trading account's venue
+	// no vault, built by the signer from the connected account's venue
 	// rules, from which the engine derives the EIP-712 digest itself.
 	Message string `json:"message"`
 
@@ -2368,7 +3093,7 @@ type ProposalVenueMessage struct {
 	// to another slot or another order.
 	Share string `json:"share"`
 
-	// VenueKeyId The agent's trading key on the trading account.
+	// VenueKeyId The agent's trading key on the connected account.
 	VenueKeyId string `json:"venueKeyId"`
 }
 
@@ -2393,7 +3118,7 @@ type Rule struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// leverage is gross exposure ÷ equity at account and connected account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
 	// a portfolio without capital cannot have such rules (createRule).
@@ -2433,7 +3158,7 @@ type RuleCreate struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// leverage is gross exposure ÷ equity at account and connected account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
 	// a portfolio without capital cannot have such rules (createRule).
@@ -2465,7 +3190,7 @@ type RuleEvaluation struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// leverage is gross exposure ÷ equity at account and connected account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
 	// a portfolio without capital cannot have such rules (createRule).
@@ -2509,7 +3234,7 @@ type RuleEvaluation struct {
 // order_size, and the projected book every exposure metric reads, value an order at the
 // higher of its price and the market: a sell priced under the market fills at the market.
 // Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-// leverage is gross exposure ÷ equity at account and trading account scope, and
+// leverage is gross exposure ÷ equity at account and connected account scope, and
 // gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 // portfolio and agent scope, where drawdown is measured against that capital too;
 // a portfolio without capital cannot have such rules (createRule).
@@ -2538,7 +3263,7 @@ type RuleUpdate struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and trading account scope, and
+	// leverage is gross exposure ÷ equity at account and connected account scope, and
 	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
 	// portfolio and agent scope, where drawdown is measured against that capital too;
 	// a portfolio without capital cannot have such rules (createRule).
@@ -2578,9 +3303,10 @@ type SignRequest struct {
 	AgentId string `json:"agentId"`
 
 	// Attempt Increments each time the request is handed out again after a signer took it and did not answer.
-	Attempt       int     `json:"attempt"`
-	ClientOrderId *string `json:"clientOrderId,omitempty"`
-	DecisionId    *string `json:"decisionId,omitempty"`
+	Attempt            int     `json:"attempt"`
+	ClientOrderId      *string `json:"clientOrderId,omitempty"`
+	ConnectedAccountId string  `json:"connectedAccountId"`
+	DecisionId         *string `json:"decisionId,omitempty"`
 
 	// Engine The engine's part of the round.
 	Engine *SignRequestEngine `json:"engine,omitempty"`
@@ -2622,11 +3348,10 @@ type SignRequest struct {
 	Scheme SigningScheme `json:"scheme"`
 
 	// SessionId Groups the rounds of one signature. A one-round scheme has one request per session.
-	SessionId        string `json:"sessionId"`
-	TradingAccountId string `json:"tradingAccountId"`
-	Venue            Venue  `json:"venue"`
+	SessionId string `json:"sessionId"`
+	Venue     Venue  `json:"venue"`
 
-	// VenueKeyId The agent's trading key on the trading account, so the signer picks the right share.
+	// VenueKeyId The agent's trading key on the connected account, so the signer picks the right share.
 	VenueKeyId string `json:"venueKeyId"`
 
 	// VenueRequest The venue request the signature serves. For the proxy scheme it is the
@@ -2726,7 +3451,7 @@ type SignerTransport string
 // SigningScheme The protocol a sign request runs, decided by the venue key's scheme (VenueKeyScheme), never chosen by anyone.
 type SigningScheme string
 
-// SigningStatus Where an order stands with the agent's signer, on decisions through a trading account whose venue key needs the signer (every exchange and Hyperliquid trading account).
+// SigningStatus Where an order stands with the agent's signer, on decisions through a connected account whose venue key needs the signer (every exchange and Hyperliquid connected account).
 type SigningStatus struct {
 	AnsweredAt *time.Time `json:"answeredAt,omitempty"`
 	Attempts   *int       `json:"attempts,omitempty"`
@@ -2739,6 +3464,13 @@ type SigningStatus struct {
 
 // SigningStatusStatus defines model for SigningStatus.Status.
 type SigningStatusStatus string
+
+// SnapshotSource observed: read from the venue at that moment. rebuilt: worked out
+// afterwards, for a moment nobody was reading the account (before it
+// was connected), by replaying its transactions and, for values in USD,
+// the venue's historical prices. No engine rebuilds yet: every reading
+// served today is observed.
+type SnapshotSource string
 
 // StateImport defines model for StateImport.
 type StateImport struct {
@@ -2833,168 +3565,59 @@ type SymbolRules struct {
 	TickSize *Decimal `json:"tickSize,omitempty"`
 }
 
+// SyncKind defines model for SyncKind.
+type SyncKind string
+
+// SyncState How current one kind of a connected account's data is.
+type SyncState struct {
+	// AsOf The moment the data is complete up to. Absent before the first read.
+	AsOf *time.Time `json:"asOf,omitempty"`
+
+	// Error While failing, one line for a person.
+	Error *string `json:"error,omitempty"`
+
+	// HistoryFrom How far back the account's history goes, set by the venue's limit, the plan's retention or the account's first activity.
+	HistoryFrom *time.Time `json:"historyFrom,omitempty"`
+	Kind        SyncKind   `json:"kind"`
+	LastReadAt  *time.Time `json:"lastReadAt,omitempty"`
+
+	// Progress While backfilling, the share done, 0 to 1.
+	Progress *Decimal `json:"progress,omitempty"`
+
+	// Status backfilling: reading the account's history for the first time, or
+	// catching up after a stop. current: read within the plan's freshness. behind: older than that, and catching up.
+	// failing: the last reads were refused or failed; `error` says why.
+	Status SyncStateStatus `json:"status"`
+}
+
+// SyncStateStatus backfilling: reading the account's history for the first time, or
+// catching up after a stop. current: read within the plan's freshness. behind: older than that, and catching up.
+// failing: the last reads were refused or failed; `error` says why.
+type SyncStateStatus string
+
 // Tier The account's plan: free, pro, or enterprise (by contact; billing never
 // puts an account on it by itself). There is no team plan (7 November 2026).
 type Tier string
 
-// TradingAccount defines model for TradingAccount.
-type TradingAccount struct {
-	CreatedAt time.Time `json:"createdAt"`
-	Id        string    `json:"id"`
+// TransactionOrigin Who placed a trade, so that an agent can tell its own activity from the rest.
+type TransactionOrigin struct {
+	AgentId   *string `json:"agentId,omitempty"`
+	AgentName *string `json:"agentName,omitempty"`
 
-	// Kind An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
-	Kind TradingAccountKind `json:"kind"`
+	// DecisionId The decision that allowed it.
+	DecisionId *string `json:"decisionId,omitempty"`
 
-	// Maintenance An open maintenance window (openMaintenance). Absent when none is open.
-	Maintenance *MaintenanceWindow `json:"maintenance,omitempty"`
+	// Kind agent: an agent placed it through Mishmar. outside: Mishmar did not
+	// place it: the owner by hand, another program, or the venue itself.
+	Kind TransactionOriginKind `json:"kind"`
 
-	// Mode What a fill Mishmar did not place means on the trading account. Several agents
-	// may share a trading account in either mode, and transfers, funding, liquidations
-	// and the venue's other entries are handled the same way in both.
-	// agents_only (the default): Mishmar is the only thing trading on the
-	// trading account, so such a fill restricts new risk on the trading account, exits still
-	// passing, until the owner assigns it (resolveDiscrepancy) or it falls in
-	// a maintenance window. shared: such a fill is booked to the unassigned book
-	// and trading continues; account and trading account rules see it, agent rules do not.
-	Mode TradingAccountMode `json:"mode"`
-	Name string             `json:"name"`
-
-	// Restrictions What blocks new risk on the trading account right now, set by the engine
-	// rather than by a person (pause and stop are `status`). Exits pass
-	// under every restriction. Absent when there is none.
-	Restrictions *[]TradingAccountRestriction `json:"restrictions,omitempty"`
-	Setup        TradingAccountSetup          `json:"setup"`
-	Status       TradingAccountStatus         `json:"status"`
-	UpdatedAt    time.Time                    `json:"updatedAt"`
-	Venue        Venue                        `json:"venue"`
-	Verification *TradingAccountVerification  `json:"verification,omitempty"`
+	// Own On the agent-facing reads only. True when the calling agent placed it.
+	Own *bool `json:"own,omitempty"`
 }
 
-// TradingAccountCreate defines model for TradingAccountCreate.
-type TradingAccountCreate struct {
-	// Exchange An exchange account. The trading keys come later, one per agent
-	// (VenueKey). The read-only key may come later too (`setReadKey`):
-	// without it the account is created with `readKeyRegistered` false
-	// and cannot verify or stream until it has one.
-	Exchange *struct {
-		// ReadApiKey A key with read permissions only, for the account's margin, positions and fills. Write-only.
-		ReadApiKey *string `json:"readApiKey,omitempty"`
-
-		// ReadApiSecret The read-only key's secret (HMAC). Write-only and stored whole; it cannot trade or withdraw.
-		ReadApiSecret *string `json:"readApiSecret,omitempty"`
-		Subaccount    *string `json:"subaccount,omitempty"`
-	} `json:"exchange,omitempty"`
-	Fireblocks *struct {
-		ApiUserId string `json:"apiUserId"`
-	} `json:"fireblocks,omitempty"`
-	Hyperliquid *struct {
-		// MasterAddress The master account. Absent, the engine learns it from the first
-		// API wallet an agent gets on this account that the master approves
-		// at Hyperliquid (`userRole` names the approving account), and
-		// verifies the account then; until that the account is pending.
-		MasterAddress *string `json:"masterAddress,omitempty"`
-
-		// Network A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
-		Network TradingAccountCreateHyperliquidNetwork `json:"network"`
-	} `json:"hyperliquid,omitempty"`
-
-	// Mode Default agents_only.
-	Mode  *TradingAccountMode `json:"mode,omitempty"`
-	Name  string              `json:"name"`
-	Venue Venue               `json:"venue"`
-}
-
-// TradingAccountCreateHyperliquidNetwork A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
-type TradingAccountCreateHyperliquidNetwork string
-
-// TradingAccountKind An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
-type TradingAccountKind string
-
-// TradingAccountMode What a fill Mishmar did not place means on the trading account. Several agents
-// may share a trading account in either mode, and transfers, funding, liquidations
-// and the venue's other entries are handled the same way in both.
-// agents_only (the default): Mishmar is the only thing trading on the
-// trading account, so such a fill restricts new risk on the trading account, exits still
-// passing, until the owner assigns it (resolveDiscrepancy) or it falls in
-// a maintenance window. shared: such a fill is booked to the unassigned book
-// and trading continues; account and trading account rules see it, agent rules do not.
-type TradingAccountMode string
-
-// TradingAccountRestriction defines model for TradingAccountRestriction.
-type TradingAccountRestriction struct {
-	// Asset The asset
-	Asset *string `json:"asset,omitempty"`
-
-	// Cause foreign_fill: an agents-only trading account saw a fill Mishmar did not place.
-	// unexplained_position: the venue's position in the asset disagrees
-	// with the books and nothing explains it. ambiguous_transfer: an
-	// asset several agents hold was transferred out beyond what the unassigned
-	// book holds. stream_gap: the venue's stream missed more than its
-	// history can fill. state_unavailable: the venue's state cannot be read.
-	// venue_unreachable: the engine has no live stream of the trading account's
-	// fills and orders from the venue: the venue refused the subscription, or the
-	// stream has been down past its grace. It lifts by itself once the stream is
-	// back and the engine has caught up.
-	Cause TradingAccountRestrictionCause `json:"cause"`
-
-	// Detail More than the cause says, when there is more: for venue_unreachable,
-	// why the stream is down, in the venue's words where it gave any.
-	Detail *string `json:"detail,omitempty"`
-
-	// DiscrepancyId The discrepancy that lifts it once resolved
-	DiscrepancyId *string `json:"discrepancyId,omitempty"`
-
-	// Scope The whole trading account, or one asset on it (every market that trades that asset).
-	Scope TradingAccountRestrictionScope `json:"scope"`
-	Since time.Time                      `json:"since"`
-}
-
-// TradingAccountRestrictionCause foreign_fill: an agents-only trading account saw a fill Mishmar did not place.
-// unexplained_position: the venue's position in the asset disagrees
-// with the books and nothing explains it. ambiguous_transfer: an
-// asset several agents hold was transferred out beyond what the unassigned
-// book holds. stream_gap: the venue's stream missed more than its
-// history can fill. state_unavailable: the venue's state cannot be read.
-// venue_unreachable: the engine has no live stream of the trading account's
-// fills and orders from the venue: the venue refused the subscription, or the
-// stream has been down past its grace. It lifts by itself once the stream is
-// back and the engine has caught up.
-type TradingAccountRestrictionCause string
-
-// TradingAccountRestrictionScope The whole trading account, or one asset on it (every market that trades that asset).
-type TradingAccountRestrictionScope string
-
-// TradingAccountSetup defines model for TradingAccountSetup.
-type TradingAccountSetup struct {
-	union json.RawMessage
-}
-
-// TradingAccountStatus defines model for TradingAccountStatus.
-type TradingAccountStatus string
-
-// TradingAccountUpdate defines model for TradingAccountUpdate.
-type TradingAccountUpdate struct {
-	// Mode What a fill Mishmar did not place means on the trading account. Several agents
-	// may share a trading account in either mode, and transfers, funding, liquidations
-	// and the venue's other entries are handled the same way in both.
-	// agents_only (the default): Mishmar is the only thing trading on the
-	// trading account, so such a fill restricts new risk on the trading account, exits still
-	// passing, until the owner assigns it (resolveDiscrepancy) or it falls in
-	// a maintenance window. shared: such a fill is booked to the unassigned book
-	// and trading continues; account and trading account rules see it, agent rules do not.
-	Mode *TradingAccountMode `json:"mode,omitempty"`
-	Name *string             `json:"name,omitempty"`
-}
-
-// TradingAccountVerification defines model for TradingAccountVerification.
-type TradingAccountVerification struct {
-	Checks []struct {
-		Detail *string `json:"detail,omitempty"`
-		Name   string  `json:"name"`
-		Passed bool    `json:"passed"`
-	} `json:"checks"`
-	VerifiedAt *time.Time `json:"verifiedAt,omitempty"`
-}
+// TransactionOriginKind agent: an agent placed it through Mishmar. outside: Mishmar did not
+// place it: the owner by hand, another program, or the venue itself.
+type TransactionOriginKind string
 
 // Venue defines model for Venue.
 type Venue string
@@ -3017,13 +3640,14 @@ type VenueBudget struct {
 	WeightPerMinute int `json:"weightPerMinute"`
 }
 
-// VenueKey One agent's trading key on one trading account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
+// VenueKey One agent's trading key on one connected account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
 type VenueKey struct {
 	AgentId string `json:"agentId"`
 
 	// ApiKeyRegistered Whether the engine holds the key id the exchange issued (`register`). True from creation for HMAC keys, whose id the signer carries, and for Hyperliquid, which has none.
-	ApiKeyRegistered bool      `json:"apiKeyRegistered"`
-	CreatedAt        time.Time `json:"createdAt"`
+	ApiKeyRegistered   bool      `json:"apiKeyRegistered"`
+	ConnectedAccountId string    `json:"connectedAccountId"`
+	CreatedAt          time.Time `json:"createdAt"`
 
 	// ExpiresAt When the key stops working: 100 days after it became active, or
 	// the venue's own expiry if that comes first (a Hyperliquid
@@ -3073,11 +3697,10 @@ type VenueKey struct {
 	// Status pending until the venue accepts a co-signed read, active until
 	// `expiresAt` or revocation. An expired key never signs again: the
 	// engine forgets its share, as on revocation.
-	Status              VenueKeyStatus              `json:"status"`
-	TradingAccountId    string                      `json:"tradingAccountId"`
-	Venue               Venue                       `json:"venue"`
-	Verification        *TradingAccountVerification `json:"verification,omitempty"`
-	WithdrawalsDisabled *bool                       `json:"withdrawalsDisabled,omitempty"`
+	Status              VenueKeyStatus                `json:"status"`
+	Venue               Venue                         `json:"venue"`
+	Verification        *ConnectedAccountVerification `json:"verification,omitempty"`
+	WithdrawalsDisabled *bool                         `json:"withdrawalsDisabled,omitempty"`
 }
 
 // VenueKeyHyperliquidApprovalStatus defines model for VenueKey.Hyperliquid.ApprovalStatus.
@@ -3090,6 +3713,8 @@ type VenueKeyKeygen string
 
 // VenueKeyCreate defines model for VenueKeyCreate.
 type VenueKeyCreate struct {
+	ConnectedAccountId string `json:"connectedAccountId"`
+
 	// EngineShare The engine's share as `mishmar keygen` printed it (JSON). Required for
 	// venues with Ed25519 or RSA keys, refused for HMAC venues. For
 	// venues with ECDSA keys leave it out: the key is made by two-party
@@ -3098,12 +3723,11 @@ type VenueKeyCreate struct {
 	// the public key is derived from this share.
 	EngineShare *string `json:"engineShare,omitempty"`
 
-	// Replaces The agent's live key on the same trading account that this one
+	// Replaces The agent's live key on the same connected account that this one
 	// replaces. It must be active and not expired, and nothing else may
 	// be replacing it. It keeps signing until this key becomes active,
 	// and is revoked then.
-	Replaces         *string `json:"replaces,omitempty"`
-	TradingAccountId string  `json:"tradingAccountId"`
+	Replaces *string `json:"replaces,omitempty"`
 }
 
 // VenueKeyRegistration defines model for VenueKeyRegistration.
@@ -3149,10 +3773,10 @@ type VenueResponse struct {
 // VenueRules defines model for VenueRules.
 type VenueRules struct {
 	// AsOf When the engine last read the rules from the venue.
-	AsOf             time.Time     `json:"asOf"`
-	Symbols          []SymbolRules `json:"symbols"`
-	TradingAccountId string        `json:"tradingAccountId"`
-	Venue            Venue         `json:"venue"`
+	AsOf               time.Time     `json:"asOf"`
+	ConnectedAccountId string        `json:"connectedAccountId"`
+	Symbols            []SymbolRules `json:"symbols"`
+	Venue              Venue         `json:"venue"`
 }
 
 // Verdict defines model for Verdict.
@@ -3190,6 +3814,9 @@ type AgentId = string
 // ApprovalId defines model for approvalId.
 type ApprovalId = string
 
+// ConnectedAccountId defines model for connectedAccountId.
+type ConnectedAccountId = string
+
 // DiscrepancyId defines model for discrepancyId.
 type DiscrepancyId = string
 
@@ -3199,40 +3826,77 @@ type PortfolioId = string
 // RuleId defines model for ruleId.
 type RuleId = string
 
-// TradingAccountId defines model for tradingAccountId.
-type TradingAccountId = string
-
 // VenueKeyId defines model for venueKeyId.
 type VenueKeyId = string
 
 // AgentUnauthorized defines model for AgentUnauthorized.
 type AgentUnauthorized = Error
 
+// ListAccessLogParams defines parameters for ListAccessLog.
+type ListAccessLogParams struct {
+	AgentId            *string `form:"agentId,omitempty" json:"agentId,omitempty"`
+	ConnectedAccountId *string `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
+	Limit              *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor             *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // AgentListApprovalsParams defines parameters for AgentListApprovals.
 type AgentListApprovalsParams struct {
 	Status *ApprovalStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
-// AgentListDecisionsParams defines parameters for AgentListDecisions.
-type AgentListDecisionsParams struct {
-	TradingAccountId *string    `form:"tradingAccountId,omitempty" json:"tradingAccountId,omitempty"`
-	Verdict          *Verdict   `form:"verdict,omitempty" json:"verdict,omitempty"`
-	From             *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To               *time.Time `form:"to,omitempty" json:"to,omitempty"`
-	Cursor           *string    `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit            *int       `form:"limit,omitempty" json:"limit,omitempty"`
+// AgentGetAccountBalancesParams defines parameters for AgentGetAccountBalances.
+type AgentGetAccountBalancesParams struct {
+	// At The moment to answer for. Absent means now.
+	At *time.Time `form:"at,omitempty" json:"at,omitempty"`
 }
 
-// AgentGetPnlParams defines parameters for AgentGetPnl.
-type AgentGetPnlParams struct {
-	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
-	To   *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+// AgentGetAccountEquityParams defines parameters for AgentGetAccountEquity.
+type AgentGetAccountEquityParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Resolution How far apart the points are. Absent, the engine picks one that
+	// gives a few hundred points over the range. Never finer than the
+	// plan allows (`Entitlements.accountData.resolutionSeconds`).
+	Resolution *EquityResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+}
+
+// AgentGetAccountPositionsParams defines parameters for AgentGetAccountPositions.
+type AgentGetAccountPositionsParams struct {
+	// At The moment to answer for. Absent means now.
+	At *time.Time `form:"at,omitempty" json:"at,omitempty"`
+}
+
+// AgentListAccountTransactionsParams defines parameters for AgentListAccountTransactions.
+type AgentListAccountTransactionsParams struct {
+	From   *time.Time              `form:"from,omitempty" json:"from,omitempty"`
+	To     *time.Time              `form:"to,omitempty" json:"to,omitempty"`
+	Kind   *AccountTransactionKind `form:"kind,omitempty" json:"kind,omitempty"`
+	Limit  *int                    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string                 `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // AgentGetVenueRulesParams defines parameters for AgentGetVenueRules.
 type AgentGetVenueRulesParams struct {
 	// Symbol Only this symbol.
 	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
+}
+
+// AgentListDecisionsParams defines parameters for AgentListDecisions.
+type AgentListDecisionsParams struct {
+	ConnectedAccountId *string    `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
+	Verdict            *Verdict   `form:"verdict,omitempty" json:"verdict,omitempty"`
+	From               *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To                 *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	Cursor             *string    `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit              *int       `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// AgentGetPnlParams defines parameters for AgentGetPnl.
+type AgentGetPnlParams struct {
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+	To   *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // ListAgentsParams defines parameters for ListAgents.
@@ -3246,22 +3910,54 @@ type ListApprovalsParams struct {
 	Status *ApprovalStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// GetConnectedAccountBalancesParams defines parameters for GetConnectedAccountBalances.
+type GetConnectedAccountBalancesParams struct {
+	// At The moment to answer for. Absent means now.
+	At *time.Time `form:"at,omitempty" json:"at,omitempty"`
+}
+
+// GetConnectedAccountEquityParams defines parameters for GetConnectedAccountEquity.
+type GetConnectedAccountEquityParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Resolution How far apart the points are. Absent, the engine picks one that
+	// gives a few hundred points over the range. Never finer than the
+	// plan allows (`Entitlements.accountData.resolutionSeconds`).
+	Resolution *EquityResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+}
+
+// GetConnectedAccountPositionsParams defines parameters for GetConnectedAccountPositions.
+type GetConnectedAccountPositionsParams struct {
+	// At The moment to answer for. Absent means now.
+	At *time.Time `form:"at,omitempty" json:"at,omitempty"`
+}
+
+// ListConnectedAccountTransactionsParams defines parameters for ListConnectedAccountTransactions.
+type ListConnectedAccountTransactionsParams struct {
+	From   *time.Time              `form:"from,omitempty" json:"from,omitempty"`
+	To     *time.Time              `form:"to,omitempty" json:"to,omitempty"`
+	Kind   *AccountTransactionKind `form:"kind,omitempty" json:"kind,omitempty"`
+	Limit  *int                    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string                 `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListDecisionsParams defines parameters for ListDecisions.
 type ListDecisionsParams struct {
-	AgentId          *string    `form:"agentId,omitempty" json:"agentId,omitempty"`
-	PortfolioId      *string    `form:"portfolioId,omitempty" json:"portfolioId,omitempty"`
-	TradingAccountId *string    `form:"tradingAccountId,omitempty" json:"tradingAccountId,omitempty"`
-	Verdict          *Verdict   `form:"verdict,omitempty" json:"verdict,omitempty"`
-	From             *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To               *time.Time `form:"to,omitempty" json:"to,omitempty"`
-	Cursor           *string    `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit            *int       `form:"limit,omitempty" json:"limit,omitempty"`
+	AgentId            *string    `form:"agentId,omitempty" json:"agentId,omitempty"`
+	PortfolioId        *string    `form:"portfolioId,omitempty" json:"portfolioId,omitempty"`
+	ConnectedAccountId *string    `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
+	Verdict            *Verdict   `form:"verdict,omitempty" json:"verdict,omitempty"`
+	From               *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To                 *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	Cursor             *string    `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit              *int       `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListDiscrepanciesParams defines parameters for ListDiscrepancies.
 type ListDiscrepanciesParams struct {
-	TradingAccountId *string            `form:"tradingAccountId,omitempty" json:"tradingAccountId,omitempty"`
-	Status           *DiscrepancyStatus `form:"status,omitempty" json:"status,omitempty"`
+	ConnectedAccountId *string            `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
+	Status             *DiscrepancyStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
 // ListLedgerEventsParams defines parameters for ListLedgerEvents.
@@ -3336,6 +4032,21 @@ type ApproveApprovalJSONRequestBody = ApprovalDecide
 // RejectApprovalJSONRequestBody defines body for RejectApproval for application/json ContentType.
 type RejectApprovalJSONRequestBody = ApprovalDecide
 
+// CreateConnectedAccountJSONRequestBody defines body for CreateConnectedAccount for application/json ContentType.
+type CreateConnectedAccountJSONRequestBody = ConnectedAccountCreate
+
+// UpdateConnectedAccountJSONRequestBody defines body for UpdateConnectedAccount for application/json ContentType.
+type UpdateConnectedAccountJSONRequestBody = ConnectedAccountUpdate
+
+// OpenMaintenanceJSONRequestBody defines body for OpenMaintenance for application/json ContentType.
+type OpenMaintenanceJSONRequestBody = MaintenanceOpen
+
+// ReassignPositionJSONRequestBody defines body for ReassignPosition for application/json ContentType.
+type ReassignPositionJSONRequestBody = PositionReassign
+
+// SetReadKeyJSONRequestBody defines body for SetReadKey for application/json ContentType.
+type SetReadKeyJSONRequestBody = ExchangeReadKey
+
 // ResolveDiscrepancyJSONRequestBody defines body for ResolveDiscrepancy for application/json ContentType.
 type ResolveDiscrepancyJSONRequestBody = DiscrepancyResolve
 
@@ -3357,30 +4068,15 @@ type CreateRuleJSONRequestBody = RuleCreate
 // UpdateRuleJSONRequestBody defines body for UpdateRule for application/json ContentType.
 type UpdateRuleJSONRequestBody = RuleUpdate
 
-// CreateTradingAccountJSONRequestBody defines body for CreateTradingAccount for application/json ContentType.
-type CreateTradingAccountJSONRequestBody = TradingAccountCreate
-
-// UpdateTradingAccountJSONRequestBody defines body for UpdateTradingAccount for application/json ContentType.
-type UpdateTradingAccountJSONRequestBody = TradingAccountUpdate
-
-// OpenMaintenanceJSONRequestBody defines body for OpenMaintenance for application/json ContentType.
-type OpenMaintenanceJSONRequestBody = MaintenanceOpen
-
-// ReassignPositionJSONRequestBody defines body for ReassignPosition for application/json ContentType.
-type ReassignPositionJSONRequestBody = PositionReassign
-
-// SetReadKeyJSONRequestBody defines body for SetReadKey for application/json ContentType.
-type SetReadKeyJSONRequestBody = ExchangeReadKey
-
-// AsHyperliquidSetup returns the union data inside the TradingAccountSetup as a HyperliquidSetup
-func (t TradingAccountSetup) AsHyperliquidSetup() (HyperliquidSetup, error) {
+// AsHyperliquidSetup returns the union data inside the ConnectedAccountSetup as a HyperliquidSetup
+func (t ConnectedAccountSetup) AsHyperliquidSetup() (HyperliquidSetup, error) {
 	var body HyperliquidSetup
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromHyperliquidSetup overwrites any union data inside the TradingAccountSetup as the provided HyperliquidSetup
-func (t *TradingAccountSetup) FromHyperliquidSetup(v HyperliquidSetup) error {
+// FromHyperliquidSetup overwrites any union data inside the ConnectedAccountSetup as the provided HyperliquidSetup
+func (t *ConnectedAccountSetup) FromHyperliquidSetup(v HyperliquidSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3390,8 +4086,8 @@ func (t *TradingAccountSetup) FromHyperliquidSetup(v HyperliquidSetup) error {
 	return err
 }
 
-// MergeHyperliquidSetup performs a merge with any union data inside the TradingAccountSetup, using the provided HyperliquidSetup
-func (t *TradingAccountSetup) MergeHyperliquidSetup(v HyperliquidSetup) error {
+// MergeHyperliquidSetup performs a merge with any union data inside the ConnectedAccountSetup, using the provided HyperliquidSetup
+func (t *ConnectedAccountSetup) MergeHyperliquidSetup(v HyperliquidSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3406,15 +4102,15 @@ func (t *TradingAccountSetup) MergeHyperliquidSetup(v HyperliquidSetup) error {
 	return err
 }
 
-// AsExchangeSetup returns the union data inside the TradingAccountSetup as a ExchangeSetup
-func (t TradingAccountSetup) AsExchangeSetup() (ExchangeSetup, error) {
+// AsExchangeSetup returns the union data inside the ConnectedAccountSetup as a ExchangeSetup
+func (t ConnectedAccountSetup) AsExchangeSetup() (ExchangeSetup, error) {
 	var body ExchangeSetup
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromExchangeSetup overwrites any union data inside the TradingAccountSetup as the provided ExchangeSetup
-func (t *TradingAccountSetup) FromExchangeSetup(v ExchangeSetup) error {
+// FromExchangeSetup overwrites any union data inside the ConnectedAccountSetup as the provided ExchangeSetup
+func (t *ConnectedAccountSetup) FromExchangeSetup(v ExchangeSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3424,8 +4120,8 @@ func (t *TradingAccountSetup) FromExchangeSetup(v ExchangeSetup) error {
 	return err
 }
 
-// MergeExchangeSetup performs a merge with any union data inside the TradingAccountSetup, using the provided ExchangeSetup
-func (t *TradingAccountSetup) MergeExchangeSetup(v ExchangeSetup) error {
+// MergeExchangeSetup performs a merge with any union data inside the ConnectedAccountSetup, using the provided ExchangeSetup
+func (t *ConnectedAccountSetup) MergeExchangeSetup(v ExchangeSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3440,15 +4136,15 @@ func (t *TradingAccountSetup) MergeExchangeSetup(v ExchangeSetup) error {
 	return err
 }
 
-// AsCosignerCallbackSetup returns the union data inside the TradingAccountSetup as a CosignerCallbackSetup
-func (t TradingAccountSetup) AsCosignerCallbackSetup() (CosignerCallbackSetup, error) {
+// AsCosignerCallbackSetup returns the union data inside the ConnectedAccountSetup as a CosignerCallbackSetup
+func (t ConnectedAccountSetup) AsCosignerCallbackSetup() (CosignerCallbackSetup, error) {
 	var body CosignerCallbackSetup
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromCosignerCallbackSetup overwrites any union data inside the TradingAccountSetup as the provided CosignerCallbackSetup
-func (t *TradingAccountSetup) FromCosignerCallbackSetup(v CosignerCallbackSetup) error {
+// FromCosignerCallbackSetup overwrites any union data inside the ConnectedAccountSetup as the provided CosignerCallbackSetup
+func (t *ConnectedAccountSetup) FromCosignerCallbackSetup(v CosignerCallbackSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3458,8 +4154,8 @@ func (t *TradingAccountSetup) FromCosignerCallbackSetup(v CosignerCallbackSetup)
 	return err
 }
 
-// MergeCosignerCallbackSetup performs a merge with any union data inside the TradingAccountSetup, using the provided CosignerCallbackSetup
-func (t *TradingAccountSetup) MergeCosignerCallbackSetup(v CosignerCallbackSetup) error {
+// MergeCosignerCallbackSetup performs a merge with any union data inside the ConnectedAccountSetup, using the provided CosignerCallbackSetup
+func (t *ConnectedAccountSetup) MergeCosignerCallbackSetup(v CosignerCallbackSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3474,7 +4170,7 @@ func (t *TradingAccountSetup) MergeCosignerCallbackSetup(v CosignerCallbackSetup
 	return err
 }
 
-func (t TradingAccountSetup) Discriminator() (string, error) {
+func (t ConnectedAccountSetup) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
 	}
@@ -3482,7 +4178,7 @@ func (t TradingAccountSetup) Discriminator() (string, error) {
 	return discriminator.Discriminator, err
 }
 
-func (t TradingAccountSetup) ValueByDiscriminator() (interface{}, error) {
+func (t ConnectedAccountSetup) ValueByDiscriminator() (interface{}, error) {
 	discriminator, err := t.Discriminator()
 	if err != nil {
 		return nil, err
@@ -3499,12 +4195,12 @@ func (t TradingAccountSetup) ValueByDiscriminator() (interface{}, error) {
 	}
 }
 
-func (t TradingAccountSetup) MarshalJSON() ([]byte, error) {
+func (t ConnectedAccountSetup) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *TradingAccountSetup) UnmarshalJSON(b []byte) error {
+func (t *ConnectedAccountSetup) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

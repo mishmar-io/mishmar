@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.19.0
+  version: 0.20.0
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -30,7 +30,7 @@ tags:
   - name: account
   - name: portfolios
   - name: agents
-  - name: trading-accounts
+  - name: connected-accounts
   - name: rules
   - name: decisions
   - name: approvals
@@ -41,9 +41,10 @@ tags:
   - name: agent
     description: |
       Agent-facing: what a bot needs to function without acting on the account.
-      Reads of the agent's own decisions, approvals, positions, PnL and trading accounts,
-      and the signer channel through which the agent's signer co-signs venue
-      requests. Authenticated with the agent's key (agentAuth), never the
+      Reads of the agent's own decisions, approvals, positions and PnL, of the
+      connected accounts it was given and their data (balances, positions,
+      transactions, equity), and the signer channel through which a trade
+      agent's signer co-signs venue requests. Authenticated with the agent's key (agentAuth), never the
       operator token.
 
 paths:
@@ -122,6 +123,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Account' }
+        default: { $ref: '#/components/responses/Error' }
+  /account/data-usage:
+    get:
+      tags: [account]
+      operationId: getAccountDataUsage
+      summary: How much the account's stored connected-account data takes, against what the plan includes
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataUsage' }
         default: { $ref: '#/components/responses/Error' }
   /whoami:
     get:
@@ -275,7 +288,14 @@ paths:
     post:
       tags: [agents]
       operationId: createAgent
-      summary: Add an agent. It starts active with no key and no trading accounts, in the portfolio named or else the account's default.
+      summary: Add an agent. It starts active with no key, in the portfolio named or else the account's default.
+      description: |
+        `permission` says what the agent is for: `read` (it reads the connected
+        accounts it is given and can never trade) or `trade` (it may also hold
+        trading keys). `connectedAccountIds` gives it accounts from the start;
+        more are given and taken away with giveAgentConnectedAccount and
+        takeAgentConnectedAccount. A read agent counts against
+        `Entitlements.maxAgents` like any other.
       requestBody:
         required: true
         content:
@@ -326,8 +346,8 @@ paths:
       operationId: deleteAgent
       summary: Delete an agent. Its keys are revoked and its decisions are kept.
       description: |
-        Retiring an agent releases its whole book: its positions on every trading account
-        move to that trading account's unassigned book at the mark, so a withdrawal of what it
+        Retiring an agent releases its whole book: its positions on every connected account
+        move to that connected account's unassigned book at the mark, so a withdrawal of what it
         held afterwards comes from the unassigned book and restricts nothing.
       responses:
         '204': { description: Deleted }
@@ -365,7 +385,7 @@ paths:
     get:
       tags: [agents]
       operationId: listVenueKeys
-      summary: The agent's trading keys, one per trading account it may use
+      summary: The agent's trading keys, one per connected account it may use
       responses:
         '200':
           description: OK
@@ -378,9 +398,9 @@ paths:
     post:
       tags: [agents]
       operationId: createVenueKey
-      summary: Give the agent a trading key on a trading account
+      summary: Give the agent a trading key on a connected account
       description: |
-        The agent may then propose through the trading account. The key is a
+        The agent may then propose through the connected account. The key is a
         two-party key and the engine never holds it whole. For venues with
         ECDSA keys (Hyperliquid, Coinbase) it is made by two-party key
         generation: send no `engineShare`, and the agent's signer runs
@@ -397,7 +417,7 @@ paths:
         a co-signed read.
 
         A key lives 100 days from when it becomes active (`expiresAt`), then
-        expires for good. The agent holds one live key per trading account; a
+        expires for good. The agent holds one live key per connected account; a
         second is a conflict (409) unless it `replaces` the live one while that
         one is active and has not expired. The old key keeps signing until the
         new one becomes active, and is revoked at that moment, so the agent
@@ -543,6 +563,44 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/VenueKey' }
         default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/connected-accounts/{connectedAccountId}:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/connectedAccountId'
+    put:
+      tags: [agents]
+      operationId: giveAgentConnectedAccount
+      summary: Give the agent a connected account
+      description: |
+        The agent may then read the whole account: its balances, positions,
+        transactions and equity, what other agents and the owner did there
+        included (each transaction says who placed it). A trade agent may
+        also get a trading key on it (createVenueKey, which gives the account
+        by itself when the agent does not have it yet). Giving an account the
+        agent already has changes nothing.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [agents]
+      operationId: takeAgentConnectedAccount
+      summary: Take a connected account away from the agent
+      description: |
+        The agent's reads of it are refused from then on (403 `forbidden`);
+        what it already read cannot be taken back. Refused with 409 `conflict`
+        while the agent holds an unrevoked trading key on the account: revoke
+        the key first.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        default: { $ref: '#/components/responses/Error' }
   /agents/{agentId}/pause:
     parameters:
       - $ref: '#/components/parameters/agentId'
@@ -585,10 +643,10 @@ paths:
               schema: { $ref: '#/components/schemas/Agent' }
         default: { $ref: '#/components/responses/Error' }
 
-  /trading-accounts:
+  /connected-accounts:
     get:
-      tags: [trading-accounts]
-      operationId: listTradingAccounts
+      tags: [connected-accounts]
+      operationId: listConnectedAccounts
       responses:
         '200':
           description: OK
@@ -596,76 +654,80 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/TradingAccount' }
+                items: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
     post:
-      tags: [trading-accounts]
-      operationId: createTradingAccount
-      summary: |
-        Add a venue account: for an exchange, a read-only key the engine uses for
-        margin, positions and fills; for Hyperliquid, the master address and the
-        network; for Fireblocks, the callback. The trading account stays `pending` until
-        `verify` passes. Trading keys are not here: each agent gets its own on
-        the trading account (VenueKey).
+      tags: [connected-accounts]
+      operationId: createConnectedAccount
+      summary: Connect a venue account with read access
+      description: |
+        For an exchange, a read-only key the engine uses for balances,
+        positions and history; for Hyperliquid, the account's address and the
+        network, nothing secret; for Fireblocks, the callback. The connected
+        account stays `pending` until `verify` passes, which also checks that
+        the access given cannot trade or withdraw. Then the engine reads its
+        current state, and its history as far back as the venue serves it
+        (`sync`). No agent is needed. Trading keys are not here: each trade
+        agent gets its own on the connected account (VenueKey).
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/TradingAccountCreate' }
+            schema: { $ref: '#/components/schemas/ConnectedAccountCreate' }
       responses:
         '201':
           description: Created
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}:
+  /connected-accounts/{connectedAccountId}:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     get:
-      tags: [trading-accounts]
-      operationId: getTradingAccount
+      tags: [connected-accounts]
+      operationId: getConnectedAccount
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
     patch:
-      tags: [trading-accounts]
-      operationId: updateTradingAccount
+      tags: [connected-accounts]
+      operationId: updateConnectedAccount
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/TradingAccountUpdate' }
+            schema: { $ref: '#/components/schemas/ConnectedAccountUpdate' }
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
     delete:
-      tags: [trading-accounts]
-      operationId: deleteTradingAccount
-      summary: Remove the trading account. Refused while any agent holds a venue key on it.
+      tags: [connected-accounts]
+      operationId: deleteConnectedAccount
+      summary: Remove the connected account. Refused while any agent holds a venue key on it.
       responses:
         '204': { description: Deleted }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/read-key:
+  /connected-accounts/{connectedAccountId}/read-key:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     put:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: setReadKey
       summary: Give an exchange account its read-only key
       description: |
         For an exchange account added without one (or whose key the venue
         refused before it was ever verified): the key is stored whole, like at
         creation, `readKeyRegistered` turns true, and the account can be
-        verified. Refused (409 `conflict`) for a trading account that is not an
+        verified. Refused (409 `conflict`) for a connected account that is not an
         exchange account, or one already active: an active account's key is
         not replaced; delete the account and add it again.
       requestBody:
@@ -678,19 +740,19 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/verify:
+  /connected-accounts/{connectedAccountId}/verify:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
-      operationId: verifyTradingAccount
+      tags: [connected-accounts]
+      operationId: verifyConnectedAccount
       summary: |
         Run the venue checks: the exchange's read-only key is accepted and can
         neither trade nor withdraw, the account has margin and is in one-way
         mode, the environment matches; the Hyperliquid master exists on the
-        network; the Fireblocks callback is registered. All pass and the trading account
+        network; the Fireblocks callback is registered. All pass and the connected account
         becomes `active`. Each agent's trading key is verified on its own
         (`verifyVenueKey`).
       responses:
@@ -698,59 +760,59 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/pause:
+  /connected-accounts/{connectedAccountId}/pause:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
-      operationId: pauseTradingAccount
+      tags: [connected-accounts]
+      operationId: pauseConnectedAccount
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/resume:
+  /connected-accounts/{connectedAccountId}/resume:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
-      operationId: resumeTradingAccount
+      tags: [connected-accounts]
+      operationId: resumeConnectedAccount
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/kill:
+  /connected-accounts/{connectedAccountId}/kill:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
-      operationId: killTradingAccount
+      tags: [connected-accounts]
+      operationId: killConnectedAccount
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/maintenance:
+  /connected-accounts/{connectedAccountId}/maintenance:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: openMaintenance
       summary: Open a maintenance window to trade the account by hand
       description: |
-        While the window is open the trading account's agents are paused (only
+        While the window is open the connected account's agents are paused (only
         reduce-only orders pass) and fills Mishmar did not place are expected:
         each is booked to the unassigned book for now and listed as a discrepancy
-        with `duringMaintenance`, and an agents-only trading account is not restricted by
+        with `duringMaintenance`, and an agents-only connected account is not restricted by
         them. Opening a window that is already open is a conflict (409).
       requestBody:
         content:
@@ -761,13 +823,13 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/maintenance/close:
+  /connected-accounts/{connectedAccountId}/maintenance/close:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: closeMaintenance
       summary: Close the maintenance window and resume the agents it paused
       description: |
@@ -780,15 +842,15 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
-  /trading-accounts/{tradingAccountId}/positions/reassign:
+  /connected-accounts/{connectedAccountId}/positions/reassign:
     parameters:
-      - $ref: '#/components/parameters/tradingAccountId'
+      - $ref: '#/components/parameters/connectedAccountId'
     post:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: reassignPosition
-      summary: Move part or all of a position between books on the trading account, at the mark
+      summary: Move part or all of a position between books on the connected account, at the mark
       description: |
         Release an agent's holding to the unassigned book (before withdrawing it),
         hand an unassigned holding to an agent (an asset deposited for it to trade),
@@ -805,7 +867,7 @@ paths:
             schema: { $ref: '#/components/schemas/PositionReassign' }
       responses:
         '200':
-          description: The trading account's positions in the symbol, every book, after the move.
+          description: The connected account's positions in the symbol, every book, after the move.
           content:
             application/json:
               schema:
@@ -813,9 +875,136 @@ paths:
                 items: { $ref: '#/components/schemas/Position' }
         default: { $ref: '#/components/responses/Error' }
 
+  /connected-accounts/{connectedAccountId}/balances:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [connected-accounts]
+      operationId: getConnectedAccountBalances
+      summary: The connected account's balances, now or at a past moment
+      description: |
+        Every asset the account holds at the venue, spot and margin, with its
+        value in USD at that moment. A past moment the engine did not observe
+        is rebuilt from the account's transactions and the venue's historical
+        prices (`source` says which). A moment before the plan's retention
+        or before the account's history starts is 404.
+      parameters:
+        - name: at
+          in: query
+          description: The moment to answer for. Absent means now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BalanceSnapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /connected-accounts/{connectedAccountId}/positions:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [connected-accounts]
+      operationId: getConnectedAccountPositions
+      summary: The connected account's positions at the venue, now or at a past moment
+      description: |
+        The venue's own net position per symbol, whoever placed the orders
+        behind it. The per-agent book is `listPositions` (people) and
+        `agentListPositions` (the calling agent's own).
+      parameters:
+        - name: at
+          in: query
+          description: The moment to answer for. Absent means now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountPositionSnapshot' }
+        default: { $ref: '#/components/responses/Error' }
+  /connected-accounts/{connectedAccountId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [connected-accounts]
+      operationId: listConnectedAccountTransactions
+      summary: Trades, transfers, funding and fees on the connected account, as the venue reports them
+      description: |
+        Newest first, as the venue reports them, each once. `origin` says who
+        placed a trade: an agent through Mishmar, or something outside it.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: kind
+          in: query
+          schema: { $ref: '#/components/schemas/AccountTransactionKind' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountTransactionPage' }
+        default: { $ref: '#/components/responses/Error' }
+  /connected-accounts/{connectedAccountId}/equity:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [connected-accounts]
+      operationId: getConnectedAccountEquity
+      summary: The connected account's value in USD over time
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: resolution
+          in: query
+          description: |
+            How far apart the points are. Absent, the engine picks one that
+            gives a few hundred points over the range. Never finer than the
+            plan allows (`Entitlements.accountData.resolutionSeconds`).
+          schema: { $ref: '#/components/schemas/EquityResolution' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EquitySeries' }
+        default: { $ref: '#/components/responses/Error' }
+  /connected-accounts/{connectedAccountId}/sync:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    post:
+      tags: [connected-accounts]
+      operationId: syncConnectedAccount
+      summary: Read the connected account from the venue now
+      description: |
+        Asks the collector to catch up at once instead of at its next pass:
+        the console's Refresh. Answers with the account as it stands; `sync`
+        on it moves as the reads finish.
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
+        default: { $ref: '#/components/responses/Error' }
   /discrepancies:
     get:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: listDiscrepancies
       summary: Changes at the venue the books could not explain, newest first
       description: |
@@ -823,7 +1012,7 @@ paths:
         positions or balances that disagree with the books, and stream gaps.
         Each says what it restricts while open (`restricts`).
       parameters:
-        - name: tradingAccountId
+        - name: connectedAccountId
           in: query
           schema: { type: string }
         - name: status
@@ -842,7 +1031,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/discrepancyId'
     get:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: getDiscrepancy
       responses:
         '200':
@@ -855,12 +1044,12 @@ paths:
     parameters:
       - $ref: '#/components/parameters/discrepancyId'
     post:
-      tags: [trading-accounts]
+      tags: [connected-accounts]
       operationId: resolveDiscrepancy
       summary: Say what the change was, which lifts whatever it restricted
       description: |
         Assign a fill or a position difference to the unassigned book or to an
-        agent on the trading account, or record a balance change as a transfer
+        agent on the connected account, or record a balance change as a transfer
         (`capital`). A resolved discrepancy can be resolved again to move it,
         so a re-attribution after the fact is the same call. Resolving a
         stream gap is refused (409): the engine clears it when it has re-read
@@ -974,7 +1163,7 @@ paths:
         - name: portfolioId
           in: query
           schema: { type: string }
-        - name: tradingAccountId
+        - name: connectedAccountId
           in: query
           schema: { type: string }
         - name: verdict
@@ -1061,10 +1250,10 @@ paths:
     post:
       tags: [approvals]
       operationId: approveApproval
-      summary: Co-sign. The engine forwards the proposal to its trading account.
+      summary: Co-sign. The engine forwards the proposal to its connected account.
       description: |
         The engine checks the statuses first (a stop, a pause, a stopped agent,
-        portfolio or trading account, a lost grant, a restriction: 409
+        portfolio or connected account, a lost grant, a restriction: 409
         `conflict`, the approval stays pending), then runs the rules once more
         against the account as it is now. A verdict of `block` now refuses the
         approve (409 `conflict`, `details.now` says which rule); `require_approval`
@@ -1129,7 +1318,7 @@ paths:
         Venue-shaped endpoints wrap this in later build steps.
 
         Exits: a reduce-only order that moves both the agent's own position
-        and the trading account's net position in the symbol toward zero, without
+        and the connected account's net position in the symbol toward zero, without
         crossing zero, is an exit. Its size may be at most the smaller of the
         two, and zero when they point opposite ways. Every rule without
         `appliesToExits` is waived for an exit and recorded as waived; a stop
@@ -1143,7 +1332,7 @@ paths:
         every rule like a plain one.
 
         Cancels (`kind: cancel`) pull a resting order the same agent placed
-        through Mishmar on the same trading account: no rules run, nothing waits for a
+        through Mishmar on the same connected account: no rules run, nothing waits for a
         person, and a stop does not refuse them.
 
         One-shot (`venueMessage`): the agent's signer has already built the
@@ -1207,7 +1396,7 @@ paths:
         agent the key belongs to, so a bot can follow what happened to its
         proposals without an operator token.
       parameters:
-        - name: tradingAccountId
+        - name: connectedAccountId
           in: query
           schema: { type: string }
         - name: verdict
@@ -1332,28 +1521,44 @@ paths:
                 items: { $ref: '#/components/schemas/VenueKey' }
         '401': { $ref: '#/components/responses/AgentUnauthorized' }
         default: { $ref: '#/components/responses/Error' }
-  /agent/trading-accounts/{tradingAccountId}:
-    parameters:
-      - name: tradingAccountId
-        in: path
-        required: true
-        schema: { type: string }
+  /agent/connected-accounts:
     get:
       tags: [agent]
-      operationId: agentGetTradingAccount
+      operationId: agentListConnectedAccounts
       security: [{ agentAuth: [] }]
-      summary: A trading account as the agent may see it, its setup without any secret
+      summary: The connected accounts the calling agent was given
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TradingAccount' }
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConnectedAccount' }
         '401': { $ref: '#/components/responses/AgentUnauthorized' }
         default: { $ref: '#/components/responses/Error' }
-  /agent/trading-accounts/{tradingAccountId}/venue-rules:
+  /agent/connected-accounts/{connectedAccountId}:
     parameters:
-      - name: tradingAccountId
+      - name: connectedAccountId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [agent]
+      operationId: agentGetConnectedAccount
+      security: [{ agentAuth: [] }]
+      summary: A connected account as the agent may see it, its setup without any secret
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectedAccount' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/connected-accounts/{connectedAccountId}/venue-rules:
+    parameters:
+      - name: connectedAccountId
         in: path
         required: true
         schema: { type: string }
@@ -1361,12 +1566,12 @@ paths:
       tags: [agent]
       operationId: agentGetVenueRules
       security: [{ agentAuth: [] }]
-      summary: What the trading account's venue accepts, per symbol, for the signer that builds orders
+      summary: What the connected account's venue accepts, per symbol, for the signer that builds orders
       description: |
         Tick, step and minimums, and the venue's own encoding of each symbol,
         as the engine last read them from the venue. The signer caches them
         and builds venue requests within them; the engine checks a one-shot
-        message against the same rules when it decodes it. A trading account the agent
+        message against the same rules when it decodes it. A connected account the agent
         holds no venue key on is 404.
       parameters:
         - name: symbol
@@ -1379,6 +1584,124 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VenueRules' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/connected-accounts/{connectedAccountId}/balances:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [agent]
+      operationId: agentGetAccountBalances
+      security: [{ agentAuth: [] }]
+      summary: The connected account's balances, now or at a past moment
+      description: |
+        Only for an account the agent was given (403 `forbidden` otherwise);
+        each read is written to the access log. Every asset the account holds at the venue, spot and margin, with its
+        value in USD at that moment. A past moment the engine did not observe
+        is rebuilt from the account's transactions and the venue's historical
+        prices (`source` says which). A moment before the plan's retention
+        or before the account's history starts is 404.
+      parameters:
+        - name: at
+          in: query
+          description: The moment to answer for. Absent means now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BalanceSnapshot' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/connected-accounts/{connectedAccountId}/positions:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [agent]
+      operationId: agentGetAccountPositions
+      security: [{ agentAuth: [] }]
+      summary: The connected account's positions at the venue, now or at a past moment
+      description: |
+        The venue's own net position per symbol, whoever placed the orders
+        behind it. The per-agent book is `listPositions` (people) and
+        `agentListPositions` (the calling agent's own).
+      parameters:
+        - name: at
+          in: query
+          description: The moment to answer for. Absent means now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountPositionSnapshot' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/connected-accounts/{connectedAccountId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [agent]
+      operationId: agentListAccountTransactions
+      security: [{ agentAuth: [] }]
+      summary: Trades, transfers, funding and fees on the connected account, as the venue reports them
+      description: |
+        Newest first, as the venue reports them, each once. `origin` says who
+        placed a trade: an agent through Mishmar, or something outside it.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: kind
+          in: query
+          schema: { $ref: '#/components/schemas/AccountTransactionKind' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountTransactionPage' }
+        '401': { $ref: '#/components/responses/AgentUnauthorized' }
+        default: { $ref: '#/components/responses/Error' }
+  /agent/connected-accounts/{connectedAccountId}/equity:
+    parameters:
+      - $ref: '#/components/parameters/connectedAccountId'
+    get:
+      tags: [agent]
+      operationId: agentGetAccountEquity
+      security: [{ agentAuth: [] }]
+      summary: The connected account's value in USD over time
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: resolution
+          in: query
+          description: |
+            How far apart the points are. Absent, the engine picks one that
+            gives a few hundred points over the range. Never finer than the
+            plan allows (`Entitlements.accountData.resolutionSeconds`).
+          schema: { $ref: '#/components/schemas/EquityResolution' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EquitySeries' }
         '401': { $ref: '#/components/responses/AgentUnauthorized' }
         default: { $ref: '#/components/responses/Error' }
   /agent/signer/commitments:
@@ -1550,6 +1873,31 @@ paths:
         '401': { $ref: '#/components/responses/AgentUnauthorized' }
         default: { $ref: '#/components/responses/Error' }
 
+  /access-log:
+    get:
+      tags: [connected-accounts]
+      operationId: listAccessLog
+      summary: Which agent read which connected account's data, newest first
+      parameters:
+        - name: agentId
+          in: query
+          schema: { type: string }
+        - name: connectedAccountId
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessLogPage' }
+        default: { $ref: '#/components/responses/Error' }
   /ledger/head:
     get:
       tags: [ledger]
@@ -1635,7 +1983,7 @@ paths:
       description: |
         Until venue streams feed the state service, this is how positions,
         marks and equity get into the engine so rules have something to check.
-        Replaces the whole set. Goes away when the trading accounts report real fills.
+        Replaces the whole set. Goes away when the connected accounts report real fills.
       requestBody:
         required: true
         content:
@@ -1712,8 +2060,8 @@ components:
       in: path
       required: true
       schema: { type: string }
-    tradingAccountId:
-      name: tradingAccountId
+    connectedAccountId:
+      name: connectedAccountId
       in: path
       required: true
       schema: { type: string }
@@ -1768,7 +2116,7 @@ components:
             answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
             signer and send the same request again.
             `limit_reached` (403) means the account's plan holds no more of what
-            the request would add (`Entitlements.maxAgents`, `maxTradingAccounts`).
+            the request would add (`Entitlements.maxAgents`, `maxConnectedAccounts`).
             Sending it again changes nothing: delete one, or move to a larger plan.
             `unavailable` (503) means the request did nothing: the engine cannot read its
             state, it is starting or waiting for its account, or it is stopping. Send the
@@ -1794,7 +2142,7 @@ components:
 
     ScopeKind:
       type: string
-      enum: [account, portfolio, agent, trading_account]
+      enum: [account, portfolio, agent, connected_account]
     Scope:
       type: object
       required: [kind, id]
@@ -1876,16 +2224,18 @@ components:
           type: integer
           minimum: 1
           description: |
-            The most agents the account may have, stopped ones included. Absent
-            means no limit. An account already over it keeps what it has;
+            The most agents the account may have, stopped ones and read agents
+            included. Absent means no limit. An account already over it keeps what it has;
             createAgent is refused with `limit_reached` until one is deleted.
-        maxTradingAccounts:
+        maxConnectedAccounts:
           type: integer
           minimum: 1
           description: |
-            The most trading accounts the account may have, on every venue
-            together. Absent means no limit. createTradingAccount is refused
-            with `limit_reached` past it, as createAgent is.
+            The most connected accounts the account may have, on every venue
+            together. Absent means no limit. createConnectedAccount is refused
+            with `limit_reached` past it, as createAgent is. One Mishmar only
+            reads counts like one agents trade on.
+        accountData: { $ref: '#/components/schemas/AccountDataEntitlements' }
         venueBudgets:
           type: array
           description: |
@@ -1915,7 +2265,7 @@ components:
       description: |
         paper: venues are simulated or test networks; fixtures may be imported.
         live: real venues and real money; the engine refuses fixtures and refuses
-        to start if any trading account's venue lacks a live adapter.
+        to start if any connected account's venue lacks a live adapter.
     Operator:
       type: object
       required: [name, mode]
@@ -2020,13 +2370,22 @@ components:
     AgentIdentity:
       type: object
       description: Who an agent key belongs to, as `GET /agent/me` answers the key.
-      required: [agentId, agentName, accountId, keyId, portfolioId]
+      required: [agentId, agentName, accountId, keyId, portfolioId, permission]
       properties:
         agentId: { type: string }
         agentName: { type: string }
         accountId: { type: string }
         keyId: { type: string }
         portfolioId: { type: string }
+        permission:
+          $ref: '#/components/schemas/AgentPermission'
+          description: |
+            What the agent may do. A signer or MCP server started with the
+            key reads it first: for a read agent it starts no signer channel
+            and no key sync, so every call it makes is a read of
+            connected-account data, which a hosted account's collector
+            answers while the engine sleeps. An engine from before this field
+            sends none; a client treats that as trade.
     SignerPresence:
       type: object
       description: |
@@ -2042,11 +2401,12 @@ components:
         lastSeenAt: { type: string, format: date-time }
     Agent:
       type: object
-      required: [id, name, portfolioId, status, keys, venueKeys, tradingAccountIds, createdAt, updatedAt]
+      required: [id, name, permission, portfolioId, status, keys, venueKeys, connectedAccountIds, createdAt, updatedAt]
       properties:
         id: { type: string }
         name: { type: string }
         description: { type: string }
+        permission: { $ref: '#/components/schemas/AgentPermission' }
         portfolioId: { type: string }
         status: { $ref: '#/components/schemas/AgentStatus' }
         keys:
@@ -2054,11 +2414,16 @@ components:
           items: { $ref: '#/components/schemas/AgentKey' }
         venueKeys:
           type: array
-          description: The agent's trading keys, one per trading account it may use.
+          description: The agent's trading keys, one per connected account it may trade on. Always empty for a read agent.
           items: { $ref: '#/components/schemas/VenueKey' }
-        tradingAccountIds:
+        connectedAccountIds:
           type: array
-          description: The trading accounts the agent holds an unrevoked venue key on. Derived from `venueKeys`.
+          description: |
+            The connected accounts the agent was given: it may read each one
+            whole. A trade agent trades on those where it holds an unrevoked
+            venue key (`venueKeys`); getting a key on an account gives the
+            account. Before contract 0.20.0 this list was derived from the
+            keys alone.
           items: { type: string }
         signer:
           $ref: '#/components/schemas/SignerPresence'
@@ -2066,12 +2431,28 @@ components:
         lastDecisionAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    AgentPermission:
+      type: string
+      enum: [read, trade]
+      description: |
+        read: the agent has a Mishmar API key and reads the connected accounts
+        it is given; it has no signer and can hold no trading key
+        (createVenueKey answers 409 `conflict`), and its proposals are refused
+        (403 `forbidden`). trade: it may also hold trading keys and propose
+        orders on the accounts it holds one on.
     AgentCreate:
       type: object
-      required: [name]
+      required: [name, permission]
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
+        permission:
+          $ref: '#/components/schemas/AgentPermission'
+          description: Required, with no default, so that whoever adds an agent says what it may do.
+        connectedAccountIds:
+          type: array
+          description: Connected accounts to give the agent from the start. Default none.
+          items: { type: string }
         portfolioId:
           type: string
           description: Absent for the account's default portfolio (Account.defaultPortfolioId).
@@ -2081,6 +2462,12 @@ components:
         name: { type: string, minLength: 1 }
         description: { type: string }
         portfolioId: { type: string }
+        permission:
+          $ref: '#/components/schemas/AgentPermission'
+          description: |
+            read to trade lets the agent get trading keys from then on; each
+            still needs its own setup at the venue. trade to read is refused
+            with 409 `conflict` while the agent holds an unrevoked trading key.
     VenueKeyScheme:
       type: string
       enum: [ed25519, ecdsa, rsa, hmac]
@@ -2101,12 +2488,12 @@ components:
         engine forgets its share, as on revocation.
     VenueKey:
       type: object
-      description: One agent's trading key on one trading account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
-      required: [id, agentId, tradingAccountId, venue, scheme, status, apiKeyRegistered, createdAt]
+      description: One agent's trading key on one connected account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
+      required: [id, agentId, connectedAccountId, venue, scheme, status, apiKeyRegistered, createdAt]
       properties:
         id: { type: string }
         agentId: { type: string }
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
         venue: { $ref: '#/components/schemas/Venue' }
         scheme: { $ref: '#/components/schemas/VenueKeyScheme' }
         status: { $ref: '#/components/schemas/VenueKeyStatus' }
@@ -2144,7 +2531,7 @@ components:
               description: When the venue will expire the approval, as the venue reports it.
         withdrawalsDisabled: { type: boolean }
         ipAllowlisted: { type: boolean }
-        verification: { $ref: '#/components/schemas/TradingAccountVerification' }
+        verification: { $ref: '#/components/schemas/ConnectedAccountVerification' }
         expiresAt:
           type: string
           format: date-time
@@ -2161,13 +2548,13 @@ components:
         revokedAt: { type: string, format: date-time }
     VenueKeyCreate:
       type: object
-      required: [tradingAccountId]
+      required: [connectedAccountId]
       properties:
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
         replaces:
           type: string
           description: |
-            The agent's live key on the same trading account that this one
+            The agent's live key on the same connected account that this one
             replaces. It must be active and not expired, and nothing else may
             be replacing it. It keeps signing until this key becomes active,
             and is revoked then.
@@ -2192,67 +2579,86 @@ components:
     Venue:
       type: string
       enum: [hyperliquid, binance, bybit, okx, coinbase, fireblocks]
-    TradingAccountKind:
+    ConnectedAccountKind:
       type: string
       enum: [exchange, hyperliquid, cosigner_callback]
       description: An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
-    TradingAccountStatus:
+    ConnectedAccountStatus:
       type: string
       enum: [pending, active, paused, killed]
-    TradingAccountMode:
+    ConnectedAccountMode:
       type: string
       enum: [agents_only, shared]
       description: |
-        What a fill Mishmar did not place means on the trading account. Several agents
-        may share a trading account in either mode, and transfers, funding, liquidations
+        What a fill Mishmar did not place means on a connected account agents
+        trade on (`traded`); on one Mishmar only reads it means nothing and
+        such fills are simply recorded. Several agents
+        may share a connected account in either mode, and transfers, funding, liquidations
         and the venue's other entries are handled the same way in both.
         agents_only (the default): Mishmar is the only thing trading on the
-        trading account, so such a fill restricts new risk on the trading account, exits still
+        connected account, so such a fill restricts new risk on the connected account, exits still
         passing, until the owner assigns it (resolveDiscrepancy) or it falls in
         a maintenance window. shared: such a fill is booked to the unassigned book
-        and trading continues; account and trading account rules see it, agent rules do not.
-    TradingAccount:
+        and trading continues; account and connected account rules see it, agent rules do not.
+    ConnectedAccount:
       type: object
-      required: [id, name, venue, kind, status, mode, setup, createdAt, updatedAt]
+      required: [id, name, venue, kind, status, mode, traded, setup, createdAt, updatedAt]
+      description: |
+        One account at a venue, connected with read access. It needs no agent:
+        it is connected by itself, the engine keeps its balances, positions,
+        equity and transactions over time, and agents are then given it to
+        read or to trade on. Before contract 0.20.0 this was TradingAccount.
       properties:
         id: { type: string }
         name: { type: string }
         venue: { $ref: '#/components/schemas/Venue' }
-        kind: { $ref: '#/components/schemas/TradingAccountKind' }
-        status: { $ref: '#/components/schemas/TradingAccountStatus' }
-        mode: { $ref: '#/components/schemas/TradingAccountMode' }
-        setup: { $ref: '#/components/schemas/TradingAccountSetup' }
-        verification: { $ref: '#/components/schemas/TradingAccountVerification' }
+        kind: { $ref: '#/components/schemas/ConnectedAccountKind' }
+        status: { $ref: '#/components/schemas/ConnectedAccountStatus' }
+        mode: { $ref: '#/components/schemas/ConnectedAccountMode' }
+        traded:
+          type: boolean
+          description: |
+            Whether any agent holds an unrevoked trading key on the account.
+            False, Mishmar can only read it: every trade there is recorded as
+            it is, `mode` restricts nothing and no discrepancy is opened.
+        sync:
+          type: array
+          description: |
+            How current each kind of the account's data is. Absent until the
+            account is verified.
+          items: { $ref: '#/components/schemas/SyncState' }
+        setup: { $ref: '#/components/schemas/ConnectedAccountSetup' }
+        verification: { $ref: '#/components/schemas/ConnectedAccountVerification' }
         restrictions:
           type: array
           description: |
-            What blocks new risk on the trading account right now, set by the engine
+            What blocks new risk on the connected account right now, set by the engine
             rather than by a person (pause and stop are `status`). Exits pass
             under every restriction. Absent when there is none.
-          items: { $ref: '#/components/schemas/TradingAccountRestriction' }
+          items: { $ref: '#/components/schemas/ConnectedAccountRestriction' }
         maintenance: { $ref: '#/components/schemas/MaintenanceWindow' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-    TradingAccountRestriction:
+    ConnectedAccountRestriction:
       type: object
       required: [scope, cause, since]
       properties:
         scope:
           type: string
-          enum: [trading_account, asset]
-          description: The whole trading account, or one asset on it (every market that trades that asset).
+          enum: [connected_account, asset]
+          description: The whole connected account, or one asset on it (every market that trades that asset).
         asset: { type: string, description: The asset, when `scope` is asset. }
         cause:
           type: string
           enum: [foreign_fill, unexplained_position, ambiguous_transfer, stream_gap, state_unavailable, venue_unreachable]
           description: |
-            foreign_fill: an agents-only trading account saw a fill Mishmar did not place.
+            foreign_fill: an agents-only connected account saw a fill Mishmar did not place.
             unexplained_position: the venue's position in the asset disagrees
             with the books and nothing explains it. ambiguous_transfer: an
             asset several agents hold was transferred out beyond what the unassigned
             book holds. stream_gap: the venue's stream missed more than its
             history can fill. state_unavailable: the venue's state cannot be read.
-            venue_unreachable: the engine has no live stream of the trading account's
+            venue_unreachable: the engine has no live stream of the connected account's
             fills and orders from the venue: the venue refused the subscription, or the
             stream has been down past its grace. It lifts by itself once the stream is
             back and the engine has caught up.
@@ -2275,7 +2681,7 @@ components:
       type: object
       properties:
         comment: { type: string }
-    TradingAccountSetup:
+    ConnectedAccountSetup:
       oneOf:
         - $ref: '#/components/schemas/HyperliquidSetup'
         - $ref: '#/components/schemas/ExchangeSetup'
@@ -2315,7 +2721,7 @@ components:
           description: |
             Whether the engine holds the account's read-only key, for margin,
             positions and fills. The trading keys belong to the agents (VenueKey);
-            a trading account without a read key verifies and streams nothing.
+            a connected account without a read key verifies and streams nothing.
         readKeyFingerprint: { type: string }
         engineEgressIp:
           type: string
@@ -2331,8 +2737,8 @@ components:
         callbackPublicKey: { type: string }
         apiUserId:
           type: string
-          description: The Fireblocks API user that maps to this trading account.
-    TradingAccountVerification:
+          description: The Fireblocks API user that maps to this connected account.
+    ConnectedAccountVerification:
       type: object
       required: [checks]
       properties:
@@ -2346,14 +2752,14 @@ components:
               name: { type: string }
               passed: { type: boolean }
               detail: { type: string }
-    TradingAccountCreate:
+    ConnectedAccountCreate:
       type: object
       required: [name, venue]
       properties:
         name: { type: string, minLength: 1 }
         venue: { $ref: '#/components/schemas/Venue' }
         mode:
-          $ref: '#/components/schemas/TradingAccountMode'
+          $ref: '#/components/schemas/ConnectedAccountMode'
           description: Default agents_only.
         hyperliquid:
           type: object
@@ -2390,11 +2796,11 @@ components:
           required: [apiUserId]
           properties:
             apiUserId: { type: string }
-    TradingAccountUpdate:
+    ConnectedAccountUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1 }
-        mode: { $ref: '#/components/schemas/TradingAccountMode' }
+        mode: { $ref: '#/components/schemas/ConnectedAccountMode' }
     ExchangeReadKey:
       type: object
       required: [readApiKey, readApiSecret]
@@ -2405,11 +2811,258 @@ components:
         subaccount:
           type: string
           description: Replaces the account's subaccount name when given.
+    SyncKind:
+      type: string
+      enum: [balances, positions, equity, transactions]
+    SyncState:
+      type: object
+      required: [kind, status]
+      description: How current one kind of a connected account's data is.
+      properties:
+        kind: { $ref: '#/components/schemas/SyncKind' }
+        status:
+          type: string
+          enum: [backfilling, current, behind, failing]
+          description: |
+            backfilling: reading the account's history for the first time, or
+            catching up after a stop. current: read within the plan's freshness. behind: older than that, and catching up.
+            failing: the last reads were refused or failed; `error` says why.
+        asOf:
+          type: string
+          format: date-time
+          description: The moment the data is complete up to. Absent before the first read.
+        historyFrom:
+          type: string
+          format: date-time
+          description: How far back the account's history goes, set by the venue's limit, the plan's retention or the account's first activity.
+        lastReadAt: { type: string, format: date-time }
+        progress:
+          $ref: '#/components/schemas/Decimal'
+          description: While backfilling, the share done, 0 to 1.
+        error:
+          type: string
+          description: While failing, one line for a person.
+    SnapshotSource:
+      type: string
+      enum: [observed, rebuilt]
+      description: |
+        observed: read from the venue at that moment. rebuilt: worked out
+        afterwards, for a moment nobody was reading the account (before it
+        was connected), by replaying its transactions and, for values in USD,
+        the venue's historical prices. No engine rebuilds yet: every reading
+        served today is observed.
+    Balance:
+      type: object
+      required: [asset, wallet, amount]
+      properties:
+        asset: { type: string, description: 'The asset as the venue names it, e.g. USDC, BTC.' }
+        wallet:
+          type: string
+          enum: [spot, margin, other]
+          description: Where the venue holds it. margin is what backs derivatives positions.
+        amount: { $ref: '#/components/schemas/Decimal' }
+        usdValue:
+          $ref: '#/components/schemas/Decimal'
+          description: Absent when the engine has no price for the asset.
+    BalanceSnapshot:
+      type: object
+      required: [connectedAccountId, asOf, source, balances]
+      properties:
+        connectedAccountId: { type: string }
+        asOf: { type: string, format: date-time }
+        source: { $ref: '#/components/schemas/SnapshotSource' }
+        balances:
+          type: array
+          items: { $ref: '#/components/schemas/Balance' }
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The account's whole value, balances plus unrealised PnL.
+    AccountPosition:
+      type: object
+      required: [symbol, side, size, entryPrice]
+      description: The venue's own net position in one symbol, whoever placed the orders behind it.
+      properties:
+        symbol: { type: string }
+        side: { type: string, enum: [long, short] }
+        size: { $ref: '#/components/schemas/Decimal' }
+        entryPrice: { $ref: '#/components/schemas/Decimal' }
+        markPrice: { $ref: '#/components/schemas/Decimal' }
+        notionalUsd: { $ref: '#/components/schemas/Decimal' }
+        unrealizedUsd: { $ref: '#/components/schemas/Decimal' }
+        leverage: { $ref: '#/components/schemas/Decimal' }
+    AccountPositionSnapshot:
+      type: object
+      required: [connectedAccountId, asOf, source, positions]
+      properties:
+        connectedAccountId: { type: string }
+        asOf: { type: string, format: date-time }
+        source: { $ref: '#/components/schemas/SnapshotSource' }
+        positions:
+          type: array
+          items: { $ref: '#/components/schemas/AccountPosition' }
+    AccountTransactionKind:
+      type: string
+      enum: [trade, transfer_in, transfer_out, funding, fee, liquidation, rebate, other]
+    TransactionOrigin:
+      type: object
+      required: [kind]
+      description: Who placed a trade, so that an agent can tell its own activity from the rest.
+      properties:
+        kind:
+          type: string
+          enum: [agent, outside]
+          description: |
+            agent: an agent placed it through Mishmar. outside: Mishmar did not
+            place it: the owner by hand, another program, or the venue itself.
+        agentId: { type: string }
+        agentName: { type: string }
+        decisionId:
+          type: string
+          description: The decision that allowed it.
+        own:
+          type: boolean
+          description: On the agent-facing reads only. True when the calling agent placed it.
+    AccountTransaction:
+      type: object
+      required: [id, connectedAccountId, kind, at]
+      description: |
+        One thing that happened on a connected account, as the venue reports
+        it. A trade Mishmar placed is here as the venue saw it and, as a
+        fill, in its agent's book.
+      properties:
+        id: { type: string }
+        connectedAccountId: { type: string }
+        venueId:
+          type: string
+          description: The venue's own id for it; each is recorded once.
+        kind: { $ref: '#/components/schemas/AccountTransactionKind' }
+        at: { type: string, format: date-time }
+        symbol:
+          type: string
+          description: Trades, funding and liquidations.
+        side: { $ref: '#/components/schemas/Side' }
+        size: { $ref: '#/components/schemas/Decimal' }
+        price: { $ref: '#/components/schemas/Decimal' }
+        asset:
+          type: string
+          description: What `amount` is in.
+        amount:
+          $ref: '#/components/schemas/Decimal'
+          description: What the account gained (positive) or lost (negative), in `asset`. Transfers, funding, fees, rebates.
+        amountUsd: { $ref: '#/components/schemas/Decimal' }
+        feeUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: A trade's fee.
+        origin:
+          $ref: '#/components/schemas/TransactionOrigin'
+          description: Trades and liquidations. Absent on the rest.
+    AccountTransactionPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AccountTransaction' }
+        nextCursor: { type: string }
+    EquityResolution:
+      type: string
+      enum: [minute, hour, day]
+    EquityPoint:
+      type: object
+      required: [at, equityUsd, source]
+      properties:
+        at: { type: string, format: date-time }
+        equityUsd: { $ref: '#/components/schemas/Decimal' }
+        source: { $ref: '#/components/schemas/SnapshotSource' }
+    EquitySeries:
+      type: object
+      required: [connectedAccountId, resolution, points]
+      properties:
+        connectedAccountId: { type: string }
+        resolution: { $ref: '#/components/schemas/EquityResolution' }
+        points:
+          type: array
+          description: Oldest first.
+          items: { $ref: '#/components/schemas/EquityPoint' }
+    AccessLogRead:
+      type: string
+      enum: [accounts, balances, positions, transactions, equity]
+    AccessLogEntry:
+      type: object
+      required: [id, at, agentId, agentName, read]
+      description: One read of connected-account data by an agent.
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        agentId: { type: string }
+        agentName: { type: string }
+        keyId:
+          type: string
+          description: The agent key the read was signed with.
+        connectedAccountId:
+          type: string
+          description: Absent for `accounts`, the agent's list of what it was given.
+        read: { $ref: '#/components/schemas/AccessLogRead' }
+        from:
+          type: string
+          format: date-time
+          description: The start of the range asked for, or the moment for a snapshot.
+        to: { type: string, format: date-time }
+    AccessLogPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AccessLogEntry' }
+        nextCursor: { type: string }
+    AccountDataEntitlements:
+      type: object
+      required: [history, retentionDays]
+      description: |
+        What the plan includes of connected-account data. The values come from
+        the plan file, not from code. The data is collected by polling, whether
+        or not the engine that judges orders is up: on the hosted service a
+        collector stays up for an account whose engine was stopped for being
+        quiet, until the account is released.
+      properties:
+        history:
+          type: boolean
+          description: |
+            True, a reading of each connected account's positions, balances and
+            value is kept per stretch of `resolutionSeconds`, and they are
+            served over time and at a past moment. False, only the latest
+            reading is kept, and those reads are refused with `limit_reached`.
+        resolutionSeconds:
+          type: integer
+          minimum: 60
+          description: How often each connected account is read, and the stretch one stored reading stands for. Absent means 60.
+        retentionDays:
+          type: integer
+          minimum: 1
+          description: How long snapshots and transactions are kept and served.
+        includedStorageMb:
+          type: integer
+          minimum: 1
+          description: The stored data the plan includes; beyond it is charged for. Absent means not metered.
+    DataUsage:
+      type: object
+      required: [storageBytes, asOf]
+      properties:
+        storageBytes:
+          type: integer
+          format: int64
+          description: What the account's connected-account data takes in the engine's database.
+        includedBytes:
+          type: integer
+          format: int64
+          description: From `Entitlements.accountData.includedStorageMb`. Absent when not metered.
+        asOf: { type: string, format: date-time }
     VenueRules:
       type: object
-      required: [tradingAccountId, venue, asOf, symbols]
+      required: [connectedAccountId, venue, asOf, symbols]
       properties:
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
         venue: { $ref: '#/components/schemas/Venue' }
         asOf:
           type: string
@@ -2480,7 +3133,7 @@ components:
         order_size, and the projected book every exposure metric reads, value an order at the
         higher of its price and the market: a sell priced under the market fills at the market.
         Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-        leverage is gross exposure ÷ equity at account and trading account scope, and
+        leverage is gross exposure ÷ equity at account and connected account scope, and
         gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
         portfolio and agent scope, where drawdown is measured against that capital too;
         a portfolio without capital cannot have such rules (createRule).
@@ -2642,14 +3295,24 @@ components:
             reports under it are attributed to this decision, also after the engine restarts.
     Decision:
       type: object
-      required: [id, createdAt, agentId, agentName, portfolioId, tradingAccountId, verdict, proposal, evaluations, state, configRevision, latencyMs, agentSignature]
+      required: [id, createdAt, agentId, agentName, portfolioId, connectedAccountId, verdict, proposal, evaluations, state, configRevision, latencyMs, agentSignature]
       properties:
         id: { type: string }
         createdAt: { type: string, format: date-time }
         agentId: { type: string }
         agentName: { type: string }
         portfolioId: { type: string }
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
+        signingVersion:
+          type: integer
+          enum: [1, 2]
+          description: |
+            Which shape the agent's and the engine's signatures on this
+            decision cover. 2: this contract's, the account's id under
+            `connectedAccountId`. 1: a decision from before contract 0.20.0,
+            whose signed bytes carry the same id under `tradingAccountId`; the
+            record is served under today's names, and a verifier rebuilds the
+            bytes with the old name. Absent means 1.
         verdict: { $ref: '#/components/schemas/Verdict' }
         reason:
           type: string
@@ -2684,7 +3347,7 @@ components:
         signing:
           $ref: '#/components/schemas/SigningStatus'
           description: |
-            Where the order stands with the agent's signer. Absent on trading accounts that
+            Where the order stands with the agent's signer. Absent on connected accounts that
             need no signer (the paper simulator, co-signer callbacks).
         cancellation:
           $ref: '#/components/schemas/OrderCancellation'
@@ -2939,7 +3602,7 @@ components:
 
     ProposalSubmit:
       type: object
-      required: [keyId, tradingAccountId, kind, symbol, nonce, proposedAt, expiresAt, signature]
+      required: [keyId, connectedAccountId, kind, symbol, nonce, proposedAt, expiresAt, signature]
       description: |
         Every kind but cancel needs side, size, orderType and reduceOnly; a
         cancel needs targetClientOrderId and must leave the order fields
@@ -2949,7 +3612,12 @@ components:
         keyId:
           type: string
           description: The id returned when the key was issued.
-        tradingAccountId: { type: string }
+        connectedAccountId:
+          type: string
+          description: |
+            The connected account to trade on. Part of the signed bytes under
+            this name since contract 0.20.0 (before, `tradingAccountId`): a
+            client built for an earlier contract is refused with 422.
         kind: { $ref: '#/components/schemas/ProposalKind' }
         symbol:
           type: string
@@ -2979,7 +3647,7 @@ components:
           description: |
             Cancels only, and required for them: the clientOrderId the engine
             assigned on the decision of the order to pull. That order must be
-            the same agent's, on the same trading account, and must have reached the
+            the same agent's, on the same connected account, and must have reached the
             venue. Refused on every other kind.
         venueMessage: { $ref: '#/components/schemas/ProposalVenueMessage' }
         nonce:
@@ -3013,7 +3681,7 @@ components:
         The one-shot path. The agent's signer builds the venue request and
         signs its half before the proposal leaves the agent's machine, so an
         allowed order needs no round trip to the signer: the engine decodes
-        `message`, checks it against the proposal and the trading account's venue rules,
+        `message`, checks it against the proposal and the connected account's venue rules,
         runs the rules, and only then adds its own half and forwards. It is
         inside the signed proposal, so nobody can pair a proposal with a
         message the agent did not mean. The engine spends the commitment named
@@ -3025,7 +3693,7 @@ components:
       properties:
         venueKeyId:
           type: string
-          description: The agent's trading key on the trading account.
+          description: The agent's trading key on the connected account.
         scheme:
           $ref: '#/components/schemas/SigningScheme'
           description: |
@@ -3041,7 +3709,7 @@ components:
             exchange endpoint takes them, plus the order's Mishmar client
             order id, which the cloid on the order is derived from and the
             venue never sees: `{"action": …, "nonce": …, "clientOrderId": …}`,
-            no vault, built by the signer from the trading account's venue
+            no vault, built by the signer from the connected account's venue
             rules, from which the engine derives the EIP-712 digest itself.
         engineCommitmentId:
           type: string
@@ -3202,7 +3870,7 @@ components:
           description: How long the engine may hold the poll open waiting for something to sign.
     SignRequest:
       type: object
-      required: [id, sessionId, round, agentId, tradingAccountId, venueKeyId, venue, scheme, purpose, message, issuedAt, expiresAt, attempt]
+      required: [id, sessionId, round, agentId, connectedAccountId, venueKeyId, venue, scheme, purpose, message, issuedAt, expiresAt, attempt]
       properties:
         id:
           type: string
@@ -3212,10 +3880,10 @@ components:
           description: Groups the rounds of one signature. A one-round scheme has one request per session.
         round: { type: integer, minimum: 1 }
         agentId: { type: string }
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
         venueKeyId:
           type: string
-          description: The agent's trading key on the trading account, so the signer picks the right share.
+          description: The agent's trading key on the connected account, so the signer picks the right share.
         venue: { $ref: '#/components/schemas/Venue' }
         scheme: { $ref: '#/components/schemas/SigningScheme' }
         purpose:
@@ -3348,7 +4016,7 @@ components:
     SigningStatus:
       type: object
       required: [status]
-      description: Where an order stands with the agent's signer, on decisions through a trading account whose venue key needs the signer (every exchange and Hyperliquid trading account).
+      description: Where an order stands with the agent's signer, on decisions through a connected account whose venue key needs the signer (every exchange and Hyperliquid connected account).
       properties:
         status:
           type: string
@@ -3361,7 +4029,7 @@ components:
           description: The signer's refusal reason, or why it could not be reached.
     PositionInput:
       type: object
-      required: [venue, symbol, side, size, entryPrice, markPrice, agentId, tradingAccountId]
+      required: [venue, symbol, side, size, entryPrice, markPrice, agentId, connectedAccountId]
       properties:
         venue: { $ref: '#/components/schemas/Venue' }
         symbol: { type: string }
@@ -3370,7 +4038,7 @@ components:
         entryPrice: { $ref: '#/components/schemas/Decimal' }
         markPrice: { $ref: '#/components/schemas/Decimal' }
         agentId: { type: string }
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
     MarkInput:
       type: object
       required: [venue, symbol, price]
@@ -3487,14 +4155,14 @@ components:
         leverage: { $ref: '#/components/schemas/Decimal' }
         agentId: { type: string }
         portfolioId: { type: string }
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
         book:
           type: string
           enum: [agent, unassigned]
           description: |
             unassigned: a holding no agent owns, such as a manual trade on a shared
-            trading account, an asset deposited in kind, or what a retired agent held;
-            agentId and portfolioId are then absent. Account and trading account rules see
+            connected account, an asset deposited in kind, or what a retired agent held;
+            agentId and portfolioId are then absent. Account and connected account rules see
             the unassigned book; agent and portfolio rules do not. Absent means agent.
     PositionReassign:
       type: object
@@ -3517,10 +4185,10 @@ components:
       enum: [foreign_fill, unexplained_position, unexplained_balance, ambiguous_transfer, stream_gap]
       description: |
         foreign_fill: a fill the venue reported that Mishmar did not place;
-        restricts an agents-only trading account, and on a shared trading account is already in the
+        restricts an agents-only connected account, and on a shared connected account is already in the
         unassigned book and listed only for re-attribution. unexplained_position: a
         venue position that disagrees with the books with nothing to explain
-        it; that asset on the trading account is degraded, and every agent holding it has
+        it; that asset on the connected account is degraded, and every agent holding it has
         the difference added to its agent rules in whichever direction is
         worse. unexplained_balance: a cash or collateral change with nothing to
         explain it; nothing is degraded, a drop counts as a loss and a rise is
@@ -3528,21 +4196,21 @@ components:
         hold was transferred out beyond what the unassigned book holds; that asset
         is degraded until the owner names the agent it came from. stream_gap:
         the venue's stream missed more than its history can fill; the whole
-        trading account is degraded until the engine has re-read the venue.
+        connected account is degraded until the engine has re-read the venue.
     DiscrepancyStatus:
       type: string
       enum: [open, resolved]
     Discrepancy:
       type: object
-      required: [id, tradingAccountId, kind, status, restricts, detectedAt]
+      required: [id, connectedAccountId, kind, status, restricts, detectedAt]
       properties:
         id: { type: string }
-        tradingAccountId: { type: string }
+        connectedAccountId: { type: string }
         kind: { $ref: '#/components/schemas/DiscrepancyKind' }
         status: { $ref: '#/components/schemas/DiscrepancyStatus' }
         restricts:
           type: string
-          enum: [trading_account, asset, none]
+          enum: [connected_account, asset, none]
           description: What it blocks for new risk while open. Exits always pass.
         asset: { type: string, description: The asset concerned, when there is one. }
         detectedAt: { type: string, format: date-time }
@@ -3590,8 +4258,8 @@ components:
       type: string
       enum: [unassigned, agent, capital]
       description: |
-        unassigned: book it to the trading account's unassigned book. agent: book it to `agentId`'s
-        book, an agent on the trading account (for an ambiguous transfer, the agent it
+        unassigned: book it to the connected account's unassigned book. agent: book it to `agentId`'s
+        book, an agent on the connected account (for an ambiguous transfer, the agent it
         came from). capital: it was a transfer in or out, recorded at the mark,
         moving equity and the drawdown baseline together.
     DiscrepancyResolve:

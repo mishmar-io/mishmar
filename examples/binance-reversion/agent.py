@@ -1,4 +1,4 @@
-"""Binance Reversion Agent: a test bot for a Binance demo-trading account.
+"""Binance Reversion Agent: a test bot for a Binance demo-connected account.
 
 It trades through the agent's signer only and holds no key. By default the
 Python SDK runs the signer as a child of this process; with --connect it
@@ -23,7 +23,7 @@ BTCUSDT and $20 on ETHUSDT, which is why the sizes are larger than the
 Hyperliquid test's.
 
     pip install mishmar      # plus the mishmar binary on the PATH or in MISHMAR_BIN
-    python agent.py --trading-account ta_… --results results.json
+    python agent.py --connected-account ta_… --results results.json
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class Agent:
         self, symbol: str, side: str, usd: str, valid_for: int = 60
     ) -> dict[str, Any]:
         return {
-            "tradingAccountId": self.ta,
+            "connectedAccountId": self.ta,
             "symbol": symbol,
             "side": side,
             "size": self.size_for(symbol, usd),
@@ -106,7 +106,7 @@ class Agent:
 
     def position(self, symbol: str) -> dict[str, Any] | None:
         for p in self.s.positions():
-            if p["symbol"] == symbol and p.get("tradingAccountId", self.ta) == self.ta:
+            if p["symbol"] == symbol and p.get("connectedAccountId", self.ta) == self.ta:
                 return p
         return None
 
@@ -281,7 +281,7 @@ def steps(sequence: str = "full") -> list[Step]:
             Decimal(1), rounding=ROUND_DOWN
         )
         return {
-            "tradingAccountId": a.ta,
+            "connectedAccountId": a.ta,
             "symbol": "BTCUSDT",
             "side": "buy",
             "size": a.size_for("BTCUSDT", "60", price=price, up=True),
@@ -294,7 +294,7 @@ def steps(sequence: str = "full") -> list[Step]:
     def cancel_rest(a: Agent) -> dict[str, Any]:
         coid = a.decisions[REST]["proposal"]["clientOrderId"]
         return {
-            "tradingAccountId": a.ta,
+            "connectedAccountId": a.ta,
             "symbol": "BTCUSDT",
             "kind": "cancel",
             "targetClientOrderId": coid,
@@ -326,7 +326,7 @@ def steps(sequence: str = "full") -> list[Step]:
         p = a.position("BTCUSDT")
         size = p["size"].lstrip("-") if p else "0"
         return {
-            "tradingAccountId": a.ta,
+            "connectedAccountId": a.ta,
             "symbol": "BTCUSDT",
             "side": "sell",
             "size": size,
@@ -419,10 +419,10 @@ def main() -> int:
         "with its token in MISHMAR_LOCAL_TOKEN) instead of starting one",
     )
     ap.add_argument(
-        "--trading-account",
-        default=os.environ.get("MISHMAR_TRADING_ACCOUNT"),
-        required="MISHMAR_TRADING_ACCOUNT" not in os.environ,
-        help="the trading account's id, ta_…",
+        "--connected-account",
+        default=os.environ.get("MISHMAR_CONNECTED_ACCOUNT"),
+        required="MISHMAR_CONNECTED_ACCOUNT" not in os.environ,
+        help="the connected account's id, ta_…",
     )
     ap.add_argument("--approval-timeout", type=float, default=900)
     ap.add_argument("--results", default="results.json")
@@ -443,7 +443,7 @@ def main() -> int:
         else Signer(args.config, log_level="info")
     )
     with signer as s:
-        agent = Agent(s, args.trading_account, args.approval_timeout)
+        agent = Agent(s, args.connected_account, args.approval_timeout)
         print(f"signer up: {s.health()}", flush=True)
         for i, step in enumerate(steps(args.sequence), start=1):
             if only and i not in only:
@@ -455,7 +455,7 @@ def main() -> int:
         time.sleep(4)
         positions = s.positions()
         pnl = s.pnl()
-        page = s.decisions(trading_account_id=args.trading_account, limit=50)
+        page = s.decisions(connected_account_id=args.connected_account, limit=50)
 
     print("\n== result")
     for r in results:

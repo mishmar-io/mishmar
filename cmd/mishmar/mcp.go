@@ -21,10 +21,18 @@ func newMCPCmd() *cobra.Command {
 		Short:   "Serve the agent's tools to a language model over MCP (stdio), the signer built in",
 		Long: `An MCP server for one agent: a model gets tools to propose orders and
 cancels, follow a decision parked for a person, and read positions, PnL,
-approvals, the trading account and its venue rules. The agent's signer runs
-inside this process with the config's key and shares, so the model never
-sees a key, every order it proposes is checked by the engine's rules, and
-nothing reaches a venue without both signatures.
+approvals, and the venue rules; and to read each connected account the agent
+was given: its balances, the venue's positions, its transactions (with who
+placed each trade) and its value over time. The agent's signer runs inside
+this process with the config's key and shares, so the model never sees a
+key, every order it proposes is checked by the engine's rules, and nothing
+reaches a venue without both signatures.
+
+For a read agent (GET /agent/me says so; it is asked again every minute)
+the signer polls nothing and syncs no keys, and every tool but the account
+reads answers that it is not open to a read agent, without calling Mishmar:
+the server's only calls are the reads of connected-account data, which a
+hosted account answers while its engine sleeps.
 
 Point an MCP client at it with the command "mishmar mcp" (and --config when
 the config is not at the default path). The protocol runs on stdin and

@@ -43,8 +43,8 @@ gross cap, and the exit.
 ## Run it
 
 1. Sign up at https://app.testnet.mishmar.io, add a Binance demo-trading
-   trading account and an agent
-   (https://docs.mishmar.io/binance/add-a-trading-account/ and
+   connected account and an agent
+   (https://docs.mishmar.io/binance/add-a-connected-account/ and
    https://docs.mishmar.io/binance/add-an-agent/), and install the
    `mishmar` binary (https://docs.mishmar.io/start/install-the-cli/). Put the
    agent's Mishmar API key, shown once when the agent is added, in
@@ -55,7 +55,7 @@ gross cap, and the exit.
 
    ```sh
    pip install -r requirements.txt
-   python agent.py --trading-account ta_… --results results.json
+   python agent.py --connected-account ta_… --results results.json
    ```
 
    `--config ~/.mishmar/agents/<name>.json` when the agent's config is not at
@@ -68,7 +68,7 @@ gross cap, and the exit.
 
    ```sh
    mishmar signer run --local unix:/tmp/mishmar-binance.sock &
-   python agent.py --connect unix:/tmp/mishmar-binance.sock --trading-account ta_…
+   python agent.py --connect unix:/tmp/mishmar-binance.sock --connected-account ta_…
    ```
 
 Steps 4 and 6 wait for you: approve or reject them in the console. The exit

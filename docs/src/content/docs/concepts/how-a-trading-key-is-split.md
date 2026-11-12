@@ -6,7 +6,7 @@ sidebar:
 lastUpdated: 2026-11-08
 ---
 
-Every agent trades with its own **trading key** on each trading account: on Hyperliquid an API wallet, on Binance an Ed25519 API key. The venue sees an ordinary key and checks ordinary signatures. But the private key behind it never exists in one place. It is split in two: one half lives with the agent's signer, on the machine your agent runs on, and the other with Mishmar's signer. The venue accepts a signature only if both halves made it.
+Every trade agent trades with its own **trading key** on each connected account it trades on: on Hyperliquid an API wallet, on Binance an Ed25519 API key. The venue sees an ordinary key and checks ordinary signatures. But the private key behind it never exists in one place. It is split in two: one half lives with the agent's signer, on the machine your agent runs on, and the other with Mishmar's signer. The venue accepts a signature only if both halves made it.
 
 ## Why split it
 
@@ -34,7 +34,9 @@ Agent's machine                       Mishmar
 An agent has two kinds of key, for two different jobs:
 
 - **Its Mishmar API key** (`msk_…`) is its identity with Mishmar. It signs every proposal the agent sends and every read it makes. Mishmar keeps only its public half. It can sign nothing for a venue. It is also all the agent's signer needs to set itself up: the key names the engine and the key id.
-- **A trading key** on each trading account is what the venue knows. This is the key that is split.
+- **A trading key** on each connected account it trades on is what the venue knows. This is the key that is split.
+
+A read agent has only the first: it reads the accounts it was given and never holds a trading key.
 
 ## How the key is made
 
@@ -71,7 +73,7 @@ Each signer checks the order for itself, so neither has to trust the other.
 
 **The agent's signer** signs only:
 
-- an order your agent proposed itself: signed with its own API key, for this trading account, before the proposal's deadline;
+- an order your agent proposed itself: signed with its own API key, for this connected account, before the proposal's deadline;
 - that order as proposed, read from the bytes the venue will verify, not from a summary: the same market and side, a size no larger, a limit price within 1% of the proposal's and never on the wrong side of it, reduce-only if the proposal said so;
 - or a cancel of the agent's own order.
 
@@ -94,7 +96,7 @@ A trading key places and cancels orders. On Hyperliquid, an API wallet cannot wi
 | --- | --- | --- |
 | Someone takes over the agent's machine | They hold the agent's API key and its half. They can propose orders as the agent, but only orders your rules allow get Mishmar's half. | **Revoke** the trading key on the agent's **Keys** tab, and the agent's API key. Mishmar stops signing at once, and the venue key can then sign nothing. |
 | Mishmar is breached | Mishmar's half alone signs nothing, and the agent's signer refuses any order your agent didn't propose. The worst case is that an order your agent did propose gets through when your rules would have blocked it. | To stop all trading at once, stop the agent's signer: without its half, nothing can be signed. |
-| Both, at the same time | Whoever has both halves can trade on that trading account, within what the key allows. | This is why trading keys can't withdraw on Hyperliquid, why each agent has its own key on each trading account, and why every key expires. |
+| Both, at the same time | Whoever has both halves can trade on that connected account, within what the key allows. | This is why trading keys can't withdraw on Hyperliquid, why each agent has its own key on each connected account, and why every key expires. |
 | The agent's half is lost (the machine is wiped) | The key can no longer sign. No funds are at risk. | Make a new trading key for the agent and approve or register it again. |
 | Mishmar loses its half | The same: the key can no longer sign. No funds are at risk. | Each agent makes a new trading key, and you approve or register it again. |
 

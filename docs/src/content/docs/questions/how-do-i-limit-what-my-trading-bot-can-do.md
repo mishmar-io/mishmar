@@ -39,10 +39,10 @@ A limit has a scope, and every rule in scope runs on every order:
 
 - **The account**: everything you run.
 - **A portfolio**: a group of agents that share limits and [allocated capital](/start/portfolios/). Drawdown and leverage on a portfolio are measured against its capital.
-- **An agent**: one bot or model, across every trading account it trades on.
-- **A trading account**: one account at one exchange, whatever trades on it.
+- **An agent**: one bot or model, across every connected account it trades on.
+- **A connected account**: one account at one exchange, whatever trades on it.
 
-So a portfolio can cap the total, each agent inside it its own share, and a single trading account the leverage the exchange account can bear.
+So a portfolio can cap the total, each agent inside it its own share, and a single connected account the leverage the exchange account can bear.
 
 ## What happens when a limit is crossed
 
@@ -54,15 +54,15 @@ So a portfolio can cap the total, each agent inside it its own share, and a sing
 
 Two levels, both outside the bot:
 
-- **Pause all trading**, on the account, an agent or a trading account: only reduce-only orders that close a position pass, so a bot can wind down. Everything else is refused.
-- **Stop all trading** is the kill switch, on the account, a portfolio, an agent or a trading account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
+- **Pause all trading**, on the account, an agent or a connected account: only reduce-only orders that close a position pass, so a bot can wind down. Everything else is refused.
+- **Stop all trading** is the kill switch, on the account, a portfolio, an agent or a connected account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
 
 [How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) goes through both.
 
 ## Beyond the limits
 
 - **A check of your own.** The bot's signer can run a program of yours before every signature, with the order on its stdin; if it exits non-zero, the signer refuses. Use it for anything the eight limits do not express: trading hours, a symbol allowlist, a sanity check against your own price feed.
-- **One key per agent per account.** Each bot has its own trading key on each trading account, so stopping or revoking one touches nothing else.
+- **One key per agent per account.** Each bot has its own trading key on each connected account, so stopping or revoking one touches nothing else.
 - **Keys expire** 100 days after they become active.
 - **A record.** Every decision, allowed, held or blocked, is signed and chained in a ledger you can export and verify.
 
@@ -72,4 +72,4 @@ The same limits apply to a model's orders. The `mishmar mcp` server gives a mode
 
 ## Set it up
 
-Rules live in the console, on the account, a portfolio, an agent or a trading account. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Portfolios](/start/portfolios/) through shared limits and capital.
+Rules live in the console, on the account, a portfolio, an agent or a connected account. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Portfolios](/start/portfolios/) through shared limits and capital.

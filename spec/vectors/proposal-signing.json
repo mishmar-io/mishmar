@@ -14,13 +14,13 @@
         "proposedAt": "2026-10-18T10:00:00Z",
         "expiresAt": "2026-10-18T10:10:00Z",
         "reduceOnly": false,
-        "tradingAccountId": "rt_hl",
+        "connectedAccountId": "rt_hl",
         "side": "buy",
         "size": "0.5",
         "symbol": "BTC"
       },
-      "signingBytes": "{\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.5\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"BTC\",\"tradingAccountId\":\"rt_hl\"}",
-      "signature": "DzRr9HQob21omXl5Qr/1jHsv8goqq+s0KS9VJXByVPYZFF64ALY2aZ/dbtNCqQUAhuaLBoFMMco//+h/wbcLAA=="
+      "signingBytes": "{\"connectedAccountId\":\"rt_hl\",\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.5\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"BTC\"}",
+      "signature": "9cr11Y/q3JMV6YW26lntb+m4L+4U9U/aSYAtHbJ9T4ZEtUtC5csV5auiFMeCdAIwc0dHPgO/MLU44ERGeK2sBA=="
     },
     {
       "name": "market order with leverage, a fractional second, a non-UTC offset normalised to Z",
@@ -33,13 +33,13 @@
         "proposedAt": "2026-10-18T11:00:00.25+01:00",
         "expiresAt": "2026-10-18T10:10:00Z",
         "reduceOnly": true,
-        "tradingAccountId": "rt_hl",
+        "connectedAccountId": "rt_hl",
         "side": "buy",
         "size": "0.5",
         "symbol": "BTC"
       },
-      "signingBytes": "{\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"leverage\":\"2\",\"nonce\":\"n1\",\"orderType\":\"market\",\"proposedAt\":\"2026-10-18T10:00:00.25Z\",\"reduceOnly\":true,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"BTC\",\"tradingAccountId\":\"rt_hl\"}",
-      "signature": "6lvYx4huY8uE54SL92TielciCM2NdppjVVqtIg78DEZEVqPPS5Ka5Kf3VQLzKbErFTMQn975i2m+AyejcADYAw=="
+      "signingBytes": "{\"connectedAccountId\":\"rt_hl\",\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"leverage\":\"2\",\"nonce\":\"n1\",\"orderType\":\"market\",\"proposedAt\":\"2026-10-18T10:00:00.25Z\",\"reduceOnly\":true,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"BTC\"}",
+      "signature": "d2MImcLM2S3/SPnMG+nextAr01i/m2PbHUS6gz2WyFuATPbu/rt6MVuot5u2PF/8UY+YvjMC0No3hSajVaY2Bg=="
     },
     {
       "name": "decimals signed as written, trailing zeros and all",
@@ -53,13 +53,13 @@
         "proposedAt": "2026-10-18T11:00:00.25+01:00",
         "expiresAt": "2026-10-18T10:10:00Z",
         "reduceOnly": true,
-        "tradingAccountId": "rt_hl",
+        "connectedAccountId": "rt_hl",
         "side": "buy",
         "size": "0.50",
         "symbol": "BTC"
       },
-      "signingBytes": "{\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"leverage\":\"2.0\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.2500000001\",\"proposedAt\":\"2026-10-18T10:00:00.25Z\",\"reduceOnly\":true,\"side\":\"buy\",\"size\":\"0.50\",\"symbol\":\"BTC\",\"tradingAccountId\":\"rt_hl\"}",
-      "signature": "jWeTnhRfoXvLaLcUSradZfvrKKG6M+9IOjGBVf1MgT/MECmC5kxrh4mq2mlB3kcqzCSuMDXUHSjGugYihc+pAw=="
+      "signingBytes": "{\"connectedAccountId\":\"rt_hl\",\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"leverage\":\"2.0\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.2500000001\",\"proposedAt\":\"2026-10-18T10:00:00.25Z\",\"reduceOnly\":true,\"side\":\"buy\",\"size\":\"0.50\",\"symbol\":\"BTC\"}",
+      "signature": "wEkKHlpi8pX9fyrjKzhrhlzTvd11FjteOamJitV0MoZUbctho5ew7ZtypaVbJtWaFfT/ymnBvEndy/s4T/0zAA=="
     },
     {
       "name": "string escapes as Go's encoding/json writes them",
@@ -72,13 +72,13 @@
         "proposedAt": "2026-10-18T10:00:00Z",
         "expiresAt": "2026-10-18T10:10:00Z",
         "reduceOnly": false,
-        "tradingAccountId": "rt_\"q\"\\",
+        "connectedAccountId": "rt_\"q\"\\",
         "side": "buy",
         "size": "0.5",
         "symbol": "A\u003cB\u003e\u0026C"
       },
-      "signingBytes": "{\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.5\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"A\\u003cB\\u003e\\u0026C\",\"tradingAccountId\":\"rt_\\\"q\\\"\\\\\"}",
-      "signature": "omQD1AIQIYvLom2jTjkkRCI29oGyqINRh44XErhebDB6oRQcyUqf8SQ6sUJUGM5fP5CGLh6LVR4WtS3NSaAwDQ=="
+      "signingBytes": "{\"connectedAccountId\":\"rt_\\\"q\\\"\\\\\",\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.5\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"A\\u003cB\\u003e\\u0026C\"}",
+      "signature": "DammfVMK2CW02YADSobNmaSQU2vZ8NQDRPXckv3ZerZKs/I9iPIU/n9XYHhMvQkZv8KCiCPz7V9gkEv7LYjWAQ=="
     },
     {
       "name": "cancel: the target and no order fields",
@@ -88,12 +88,12 @@
         "nonce": "n2",
         "proposedAt": "2026-10-18T10:00:00Z",
         "expiresAt": "2026-10-18T10:01:00Z",
-        "tradingAccountId": "rt_bn",
+        "connectedAccountId": "rt_bn",
         "symbol": "BTCUSDT",
         "targetClientOrderId": "msh-a1b2c3-k3j9xq"
       },
-      "signingBytes": "{\"expiresAt\":\"2026-10-18T10:01:00Z\",\"keyId\":\"key_a\",\"kind\":\"cancel\",\"nonce\":\"n2\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"symbol\":\"BTCUSDT\",\"targetClientOrderId\":\"msh-a1b2c3-k3j9xq\",\"tradingAccountId\":\"rt_bn\"}",
-      "signature": "k7Bf27VOGrVA+D8GBxb+n1KZF1r0xQMme8r+fleOTqxQLJ8xLaUaZsD7Y9aPHwJ+ZRm6aT5nJHN+kL1yf1JsAQ=="
+      "signingBytes": "{\"connectedAccountId\":\"rt_bn\",\"expiresAt\":\"2026-10-18T10:01:00Z\",\"keyId\":\"key_a\",\"kind\":\"cancel\",\"nonce\":\"n2\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"symbol\":\"BTCUSDT\",\"targetClientOrderId\":\"msh-a1b2c3-k3j9xq\"}",
+      "signature": "T/m7VamSiQruvYyqPFYyYyEtT6HKg3E/dHeROPD08eBmb6gpWRblfiJMkommTeuS1zxf9rEzcHg2k+vksdmxBQ=="
     },
     {
       "name": "one-shot order: the signer's venue message nested, its keys sorted too",
@@ -106,7 +106,7 @@
         "proposedAt": "2026-10-18T10:00:00Z",
         "expiresAt": "2026-10-18T10:10:00Z",
         "reduceOnly": false,
-        "tradingAccountId": "rt_bn",
+        "connectedAccountId": "rt_bn",
         "side": "buy",
         "size": "0.5",
         "symbol": "BTCUSDT",
@@ -119,8 +119,8 @@
           "share": "c2hhcmU="
         }
       },
-      "signingBytes": "{\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.5\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"BTCUSDT\",\"tradingAccountId\":\"rt_bn\",\"venueMessage\":{\"commitment\":\"Y29tbWl0bWVudA==\",\"engineCommitmentId\":\"cm_1\",\"message\":\"c3ltYm9sPUJUQ1VTRFQmc2lkZT1CVVkmdHlwZT1MSU1JVCZxdWFudGl0eT0wLjUmcHJpY2U9OTgwMDAuNSZ0aW1lc3RhbXA9MTc5MjMxNzYwMDAwMCZyZWN2V2luZG93PTEwMDAw\",\"scheme\":\"frost-ed25519\",\"share\":\"c2hhcmU=\",\"venueKeyId\":\"vk_1\"}}",
-      "signature": "8hARCGaQzSK4Taymf1USCzxlbWn7+e+WYNOXx0Z5xCuIERVL2nLdIKprjLyECsxSA5yrFq0ILEZCxmGF7ZWuDA=="
+      "signingBytes": "{\"connectedAccountId\":\"rt_bn\",\"expiresAt\":\"2026-10-18T10:10:00Z\",\"keyId\":\"key_a\",\"kind\":\"order\",\"nonce\":\"n1\",\"orderType\":\"limit\",\"price\":\"98000.5\",\"proposedAt\":\"2026-10-18T10:00:00Z\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.5\",\"symbol\":\"BTCUSDT\",\"venueMessage\":{\"commitment\":\"Y29tbWl0bWVudA==\",\"engineCommitmentId\":\"cm_1\",\"message\":\"c3ltYm9sPUJUQ1VTRFQmc2lkZT1CVVkmdHlwZT1MSU1JVCZxdWFudGl0eT0wLjUmcHJpY2U9OTgwMDAuNSZ0aW1lc3RhbXA9MTc5MjMxNzYwMDAwMCZyZWN2V2luZG93PTEwMDAw\",\"scheme\":\"frost-ed25519\",\"share\":\"c2hhcmU=\",\"venueKeyId\":\"vk_1\"}}",
+      "signature": "yD7HMm6nmkyEB4EbIiTjl46/vG4wiqI+AIH4HpzFhZcMGfaSqLzjmzeUbO1+re4r0YcF3Jkzs9eInLuJWND3Dg=="
     }
   ]
 }

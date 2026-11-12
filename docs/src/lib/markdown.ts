@@ -1,4 +1,5 @@
 import { getCollection, type CollectionEntry } from 'astro:content'
+import { PLACEHOLDER } from './cli-version.mjs'
 
 export type Page = CollectionEntry<'docs'>
 
@@ -37,11 +38,12 @@ export async function pages(): Promise<Page[]> {
 
 /**
  * A page as an agent reads it: title, description, then the source with every site link made
- * absolute, links to other pages pointing at their Markdown, so it stands on its own.
+ * absolute, links to other pages pointing at their Markdown, and the CLI version filled in, so it
+ * stands on its own.
  * Pages are plain Markdown (no MDX), so the source is what a person reads, less the layout.
  */
 export function toMarkdown(page: Page, site: URL): string {
-  const body = (page.body ?? '').replace(
+  const body = (page.body ?? '').replaceAll(PLACEHOLDER, __MISHMAR_VERSION__).replace(
     /\]\(\/([^)\s#]*)(#[^)\s]*)?\)/g,
     (_, path: string, hash = '') => {
       // A page link ends in a slash; anything with an extension is a file (a screenshot).

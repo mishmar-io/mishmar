@@ -25,7 +25,8 @@ const (
 )
 
 // Signer holds the agent's shares, polls the engine and answers its sign
-// requests. Run is the loop; Handle answers one request without it.
+// requests. Run is the loop (for a read agent, only a slow GET /agent/me:
+// permission.go); Handle answers one request without it.
 type Signer struct {
 	Config *Config
 	Client *Client
@@ -49,7 +50,11 @@ type Signer struct {
 	// KeySyncInterval (DefaultKeySyncInterval). Empty, Run syncs nothing.
 	ConfigPath      string
 	KeySyncInterval time.Duration
+	// PermissionInterval is how often Run asks GET /agent/me again whether
+	// the agent reads or trades (DefaultPermissionInterval).
+	PermissionInterval time.Duration
 
+	perm      *permissionState
 	key       *agentkey.Key
 	pub       string
 	mu        sync.Mutex
@@ -98,8 +103,8 @@ func (s *Signer) Policy() Policy {
 func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnswer {
 	if req.Venue == api.VenueHyperliquid && req.Proposal != nil {
 		// The checks need the coin's rules; fetched here, read in Check.
-		if _, err := s.hlRules(ctx, req.TradingAccountId, req.Proposal.Symbol); err != nil {
-			s.Logger.Warn("signer: venue rules", "tradingAccount", req.TradingAccountId, "symbol", req.Proposal.Symbol, "err", err)
+		if _, err := s.hlRules(ctx, req.ConnectedAccountId, req.Proposal.Symbol); err != nil {
+			s.Logger.Warn("signer: venue rules", "connectedAccount", req.ConnectedAccountId, "symbol", req.Proposal.Symbol, "err", err)
 		}
 	}
 	message, refusal := s.Policy().Check(req)
@@ -204,12 +209,14 @@ func (s *Signer) share(venueKeyID string) (*frost.Share, error) {
 	return sh, nil
 }
 
-// Run polls the engine until ctx ends and answers what it gets, each
-// request in its own goroutine, at most Workers at once. A poll that fails
-// is retried after a backoff that doubles from one second to thirty. The
-// first poll after a start or a failure does not wait, so a new engine
-// instance (a restart) is seen as soon as the engine answers.
-func (s *Signer) Run(ctx context.Context) error {
+// runChannel is the signer channel of an agent that trades (Run starts it):
+// it polls the engine until ctx ends and answers what it gets, each request
+// in its own goroutine, at most Workers at once, and with ConfigPath keeps
+// the trading keys in line with the engine's. A poll that fails is retried
+// after a backoff that doubles from one second to thirty. The first poll
+// after a start or a failure does not wait, so a new engine instance (a
+// restart) is seen as soon as the engine answers.
+func (s *Signer) runChannel(ctx context.Context) error {
 	workers := s.Workers
 	if workers <= 0 {
 		workers = DefaultWorkers

@@ -11,7 +11,7 @@
  * child the same way.
  *
  *     const s = await new Signer().start();          // ~/.mishmar/agent.json, mishmar on PATH
- *     let d = await s.order({ tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
+ *     let d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
  *     if (d.verdict === "require_approval") d = await s.wait(d.id);
  *     await s.stop();
  *
@@ -44,8 +44,9 @@ import * as http from "node:http";
 import * as net from "node:net";
 import { arch, homedir, platform, tmpdir } from "node:os";
 import * as path from "node:path";
-import { EngineError, resolved } from "./client.ts";
+import { EngineError, resolved, when } from "./client.ts";
 import type { Decision, DecisionPage } from "./client.ts";
+import type { AccountPositionSnapshot, AccountTransactionPage, AgentIdentity, BalanceSnapshot, ConnectedAccount, EquityQuery, EquitySeries, TransactionQuery, When } from "./data.ts";
 
 export const RELEASES = "https://github.com/mishmar-io/mishmar/releases/download";
 /** The release the SDK fetches when it has to (the npm bin: `npx -y mishmar …`); bumped with each release. */
@@ -164,7 +165,7 @@ export async function downloadBinary(version: string, destDir?: string, fetchImp
 
 /** An order to propose. Sizes and prices are decimal strings as the venue quotes them. */
 export interface OrderIntent {
-  tradingAccountId: string;
+  connectedAccountId: string;
   symbol: string;
   side: "buy" | "sell";
   size: string;
@@ -370,8 +371,8 @@ export class Signer {
   }
 
   /** Cancel a resting order this agent placed, by the clientOrderId its decision carries. */
-  async cancel(tradingAccountId: string, symbol: string, clientOrderId: string, validForSeconds = 60): Promise<Decision> {
-    return this.propose({ tradingAccountId, symbol, kind: "cancel", targetClientOrderId: clientOrderId, validForSeconds });
+  async cancel(connectedAccountId: string, symbol: string, clientOrderId: string, validForSeconds = 60): Promise<Decision> {
+    return this.propose({ connectedAccountId, symbol, kind: "cancel", targetClientOrderId: clientOrderId, validForSeconds });
   }
 
   // Reads, through the child
@@ -384,7 +385,7 @@ export class Signer {
     return (await this.#request("GET", `/decisions/${encodeURIComponent(decisionId)}`)) as Decision;
   }
 
-  async decisions(query: { tradingAccountId?: string; verdict?: string; from?: string; to?: string; cursor?: string; limit?: number } = {}): Promise<DecisionPage> {
+  async decisions(query: { connectedAccountId?: string; verdict?: string; from?: string; to?: string; cursor?: string; limit?: number } = {}): Promise<DecisionPage> {
     return (await this.#request("GET", "/decisions", { query })) as DecisionPage;
   }
 
@@ -400,12 +401,46 @@ export class Signer {
     return (await this.#request("GET", "/pnl", { query })) as Record<string, unknown>;
   }
 
-  async tradingAccount(tradingAccountId: string): Promise<Record<string, unknown>> {
-    return (await this.#request("GET", `/trading-accounts/${encodeURIComponent(tradingAccountId)}`)) as Record<string, unknown>;
+  async connectedAccount(connectedAccountId: string): Promise<Record<string, unknown>> {
+    return (await this.#request("GET", `/connected-accounts/${encodeURIComponent(connectedAccountId)}`)) as Record<string, unknown>;
   }
 
-  async venueRules(tradingAccountId: string, symbol?: string): Promise<Record<string, unknown>> {
-    return (await this.#request("GET", `/trading-accounts/${encodeURIComponent(tradingAccountId)}/venue-rules`, { query: { symbol } })) as Record<string, unknown>;
+  async venueRules(connectedAccountId: string, symbol?: string): Promise<Record<string, unknown>> {
+    return (await this.#request("GET", `/connected-accounts/${encodeURIComponent(connectedAccountId)}/venue-rules`, { query: { symbol } })) as Record<string, unknown>;
+  }
+
+  // Connected-account data, through the child: the same reads as Client's, signed with the agent's key there.
+
+  /** Who the agent's key belongs to: the agent, its account and portfolio. */
+  async me(): Promise<AgentIdentity> {
+    return (await this.#request("GET", "/me")) as AgentIdentity;
+  }
+
+  /** The connected accounts this agent was given. */
+  async connectedAccounts(): Promise<ConnectedAccount[]> {
+    return (await this.#request("GET", "/connected-accounts")) as ConnectedAccount[];
+  }
+
+  /** The connected account's balances, each with its value in USD, at `at` (default now). */
+  async accountBalances(connectedAccountId: string, { at }: { at?: When } = {}): Promise<BalanceSnapshot> {
+    return (await this.#request("GET", `/connected-accounts/${encodeURIComponent(connectedAccountId)}/balances`, { query: { at: when(at) } })) as BalanceSnapshot;
+  }
+
+  /** The venue's net positions on the connected account, whoever placed them, at `at` (default now). */
+  async accountPositions(connectedAccountId: string, { at }: { at?: When } = {}): Promise<AccountPositionSnapshot> {
+    return (await this.#request("GET", `/connected-accounts/${encodeURIComponent(connectedAccountId)}/positions`, { query: { at: when(at) } })) as AccountPositionSnapshot;
+  }
+
+  /** A page of the connected account's transactions, newest first; `origin.own` marks this agent's trades. */
+  async accountTransactions(connectedAccountId: string, q: TransactionQuery = {}): Promise<AccountTransactionPage> {
+    const query = { from: when(q.from), to: when(q.to), kind: q.kind, cursor: q.cursor, limit: q.limit };
+    return (await this.#request("GET", `/connected-accounts/${encodeURIComponent(connectedAccountId)}/transactions`, { query })) as AccountTransactionPage;
+  }
+
+  /** The connected account's value in USD over time, oldest point first. */
+  async accountEquity(connectedAccountId: string, q: EquityQuery = {}): Promise<EquitySeries> {
+    const query = { from: when(q.from), to: when(q.to), resolution: q.resolution };
+    return (await this.#request("GET", `/connected-accounts/${encodeURIComponent(connectedAccountId)}/equity`, { query })) as EquitySeries;
   }
 
   /** Poll a decision until it no longer waits for a person, or until timeoutMs. */

@@ -2,7 +2,7 @@
 title: Portfolios
 description: What a portfolio is in Mishmar (a group of agents that share rules and allocated capital), how to add one, give it capital, move agents into it, and stop or delete it.
 sidebar:
-  order: 2
+  order: 3
 lastUpdated: 2026-11-04
 ---
 
@@ -22,12 +22,12 @@ Account                      rules on all trading
 └── Portfolio "Main" (default)
     └── Agent "Binance basis"
 
-Trading account              rules on everything through one venue account
+Connected account            rules on everything through one venue account
 ```
 
-An order from **HL trend bot** on a Hyperliquid trading account is checked against the account's rules, Perp sleeve's rules, HL trend bot's own rules and the trading account's rules.
+An order from **HL trend bot** on a Hyperliquid connected account is checked against the account's rules, Perp sleeve's rules, HL trend bot's own rules and the connected account's rules.
 
-Positions that no agent placed (trades you make by hand, or fills from before Mishmar) belong to no portfolio. Account and trading account rules see them; portfolio and agent rules do not.
+Positions that no agent placed (trades you make by hand, or fills from before Mishmar) belong to no portfolio. Account and connected account rules see them; portfolio and agent rules do not.
 
 ## The default portfolio
 

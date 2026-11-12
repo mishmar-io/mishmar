@@ -20,7 +20,7 @@ import (
 )
 
 // keyEngine is the engine's side of what SyncKeys does: the agent's list of
-// venue keys, the trading account they are on, and FROST's distributed key
+// venue keys, the connected account they are on, and FROST's distributed key
 // generation for a key made without a share. It checks agentAuth the way
 // fakeEngine does.
 type keyEngine struct {
@@ -108,7 +108,7 @@ func (k *keyEngine) keygen(w http.ResponseWriter, r *http.Request, body []byte) 
 // pendingKey is a Binance key the console added without a share.
 func pendingKey(id string) api.VenueKey {
 	kg := api.VenueKeyKeygenPending
-	return api.VenueKey{Id: id, AgentId: "agt_1", TradingAccountId: "ta_bn", Venue: api.VenueBinance, Scheme: api.VenueKeySchemeEd25519, Status: api.VenueKeyStatusPending, Keygen: &kg}
+	return api.VenueKey{Id: id, AgentId: "agt_1", ConnectedAccountId: "ta_bn", Venue: api.VenueBinance, Scheme: api.VenueKeySchemeEd25519, Status: api.VenueKeyStatusPending, Keygen: &kg}
 }
 
 // syncSigner is a signer on a saved config with no trading keys, against the
@@ -160,7 +160,7 @@ func TestSyncKeysGeneratesWhatTheConsoleAdded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if k, ok := saved.VenueKeys["vk_1"]; !ok || k.TradingAccountID != "ta_bn" || k.Venue != "binance" || k.Scheme != SchemeFrostEd25519 {
+	if k, ok := saved.VenueKeys["vk_1"]; !ok || k.ConnectedAccountID != "ta_bn" || k.Venue != "binance" || k.Scheme != SchemeFrostEd25519 {
 		t.Fatalf("saved %+v", saved.VenueKeys)
 	}
 	// The engine's public key is the one the share derives.
@@ -194,7 +194,7 @@ func TestSyncKeysDropsRevokedKeysAndAdoptsTheFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := onDisk.AddVenueKey("vk_dealt", VenueKey{TradingAccountID: "ta_2", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}); err != nil {
+	if err := onDisk.AddVenueKey("vk_dealt", VenueKey{ConnectedAccountID: "ta_2", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}); err != nil {
 		t.Fatal(err)
 	}
 	if err := onDisk.Save(path); err != nil {
@@ -203,7 +203,7 @@ func TestSyncKeysDropsRevokedKeysAndAdoptsTheFile(t *testing.T) {
 	// The dealt key the engine lists as active; the generated one it now reports revoked.
 	revoked := eng.keys[0]
 	revoked.Status = api.VenueKeyStatusRevoked
-	eng.set(revoked, api.VenueKey{Id: "vk_dealt", AgentId: "agt_1", TradingAccountId: "ta_2", Venue: api.VenueBinance, Scheme: api.VenueKeySchemeEd25519, Status: api.VenueKeyStatusActive})
+	eng.set(revoked, api.VenueKey{Id: "vk_dealt", AgentId: "agt_1", ConnectedAccountId: "ta_2", Venue: api.VenueBinance, Scheme: api.VenueKeySchemeEd25519, Status: api.VenueKeyStatusActive})
 	if made, err := s.SyncKeys(ctx); err != nil || len(made) != 0 {
 		t.Fatalf("sync: %v %v", made, err)
 	}

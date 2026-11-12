@@ -36,7 +36,7 @@ venue. Neither share alone can sign.
 Two-party ECDSA keys (Hyperliquid API wallets, Coinbase) are not dealt:
 they are made by key generation between the agent's signer and the engine's,
 so no machine ever holds both shares. "mishmar add-agent" runs it for each
-Hyperliquid trading account of a new agent, and "mishmar signer keygen" for a
+Hyperliquid connected account of a new agent, and "mishmar signer keygen" for a
 venue key the console created without a share. RSA (Bybit) and HMAC (OKX)
 keys are not supported yet.`,
 		Args: cobra.NoArgs,
@@ -109,11 +109,11 @@ func keygen(o keygenOptions, out, errOut io.Writer) error {
   %s:
 %s
 Next:
-  1. Give the engine its share: in the console, add a venue key to the agent on the trading account and paste the
+  1. Give the engine its share: in the console, add a venue key to the agent on the connected account and paste the
      engine share (POST /agents/{agentId}/venue-keys, engineShare). The id in the answer is the venue key id (vk_…).
-     "mishmar add-agent" does this for every trading account of a new agent in one go.
+     "mishmar add-agent" does this for every connected account of a new agent in one go.
   2. Give the signer its share:
-       mishmar signer add-key --venue-key vk_… --trading-account ta_… --venue <venue> --share %s
+       mishmar signer add-key --venue-key vk_… --connected-account ta_… --venue <venue> --share %s
   3. Register the public key at the venue (an exchange: a trading-only key, no withdrawals; Hyperliquid: approve
      the API wallet), enter what the venue issued in the console, and verify the key with "mishmar signer run" running.
 `, o.scheme, o.agentOut, engineWhere, publicLabel, indent(public), o.agentOut)

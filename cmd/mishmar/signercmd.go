@@ -255,7 +255,7 @@ func serve(ctx context.Context, o serveOptions) error {
 }
 
 type signerKeygenOptions struct {
-	config, venueKey, tradingAccount, venue, network string
+	config, venueKey, connectedAccount, venue, network string
 }
 
 func newSignerWrapKeyCmd() *cobra.Command {
@@ -293,7 +293,7 @@ holds the engine's, no machine ever held both, and the venue key carries the
 key's public side: a Hyperliquid API wallet's address for the master wallet
 to approve (two-party ECDSA), or the Ed25519 public key for the owner to
 register at the exchange (two-party FROST). "mishmar add-agent" does this
-for every trading account of a new agent.`,
+for every connected account of a new agent.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configPath(o.config)
@@ -323,7 +323,7 @@ for every trading account of a new agent.`,
 			if err != nil {
 				return err
 			}
-			if err := cfg.AddVenueKey(o.venueKey, signer.VenueKey{TradingAccountID: o.tradingAccount, Venue: o.venue, Scheme: key.Scheme, Share: key.Share, Network: o.network}); err != nil {
+			if err := cfg.AddVenueKey(o.venueKey, signer.VenueKey{ConnectedAccountID: o.connectedAccount, Venue: o.venue, Scheme: key.Scheme, Share: key.Share, Network: o.network}); err != nil {
 				return err
 			}
 			// A new key often follows one that expired or was revoked: its share goes.
@@ -343,27 +343,27 @@ for every trading account of a new agent.`,
 			}
 			warnRunningSigner(out, path)
 			if key.Scheme == signer.SchemeECDSA2p {
-				fmt.Fprintf(out, "generated the agent's key for %s (%s %s, trading account %s) in %s\n  approve the API wallet %s from the master wallet in the console, then verify the key.\n", o.venueKey, o.venue, o.network, o.tradingAccount, path, key.Address)
+				fmt.Fprintf(out, "generated the agent's key for %s (%s %s, connected account %s) in %s\n  approve the API wallet %s from the master wallet in the console, then verify the key.\n", o.venueKey, o.venue, o.network, o.connectedAccount, path, key.Address)
 				return nil
 			}
-			fmt.Fprintf(out, "generated the agent's key for %s (%s, trading account %s) in %s\n  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the trading account, if it shows one):\n%s  then enter the key id the venue issued in the console (the agent's Keys tab, Register key id) and verify the key with the signer running.\n", o.venueKey, o.venue, o.tradingAccount, path, o.venue, indent(frost.PublicKeyPEM(key.PublicKey)))
+			fmt.Fprintf(out, "generated the agent's key for %s (%s, connected account %s) in %s\n  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the connected account, if it shows one):\n%s  then enter the key id the venue issued in the console (the agent's Keys tab, Register key id) and verify the key with the signer running.\n", o.venueKey, o.venue, o.connectedAccount, path, o.venue, indent(frost.PublicKeyPEM(key.PublicKey)))
 			return nil
 		},
 	}
 	f := cmd.Flags()
 	configFlag(cmd, &o.config)
 	f.StringVar(&o.venueKey, "venue-key", "", "the venue key id the engine returned (vk_…)")
-	f.StringVar(&o.tradingAccount, "trading-account", "", "the trading account the key is on (ta_…)")
-	f.StringVar(&o.venue, "venue", string(api.VenueHyperliquid), "the trading account's venue: hyperliquid | binance")
-	f.StringVar(&o.network, "network", "", "a Hyperliquid trading account's network: mainnet | testnet")
-	for _, name := range []string{"venue-key", "trading-account"} {
+	f.StringVar(&o.connectedAccount, "connected-account", "", "the connected account the key is on (ta_…)")
+	f.StringVar(&o.venue, "venue", string(api.VenueHyperliquid), "the connected account's venue: hyperliquid | binance")
+	f.StringVar(&o.network, "network", "", "a Hyperliquid connected account's network: mainnet | testnet")
+	for _, name := range []string{"venue-key", "connected-account"} {
 		_ = cmd.MarkFlagRequired(name)
 	}
 	return cmd
 }
 
 type addKeyOptions struct {
-	config, venueKey, tradingAccount, venue, share, agent string
+	config, venueKey, connectedAccount, venue, share, agent string
 }
 
 func newSignerAddKeyCmd() *cobra.Command {
@@ -397,7 +397,7 @@ refused: it never belongs in this file.`,
 			if err != nil {
 				return err
 			}
-			if err := cfg.AddVenueKey(o.venueKey, signer.VenueKey{TradingAccountID: o.tradingAccount, Venue: o.venue, Scheme: scheme, Share: share}); err != nil {
+			if err := cfg.AddVenueKey(o.venueKey, signer.VenueKey{ConnectedAccountID: o.connectedAccount, Venue: o.venue, Scheme: scheme, Share: share}); err != nil {
 				return err
 			}
 			switch {
@@ -411,18 +411,18 @@ refused: it never belongs in this file.`,
 				return err
 			}
 			warnRunningSigner(cmd.OutOrStdout(), path)
-			fmt.Fprintf(cmd.OutOrStdout(), "stored the agent's share of %s (%s on trading account %s, %s) in %s\n", o.venueKey, o.venue, o.tradingAccount, scheme, path)
+			fmt.Fprintf(cmd.OutOrStdout(), "stored the agent's share of %s (%s on connected account %s, %s) in %s\n", o.venueKey, o.venue, o.connectedAccount, scheme, path)
 			return nil
 		},
 	}
 	f := cmd.Flags()
 	configFlag(cmd, &o.config)
 	f.StringVar(&o.venueKey, "venue-key", "", "the venue key id the engine returned (vk_…)")
-	f.StringVar(&o.tradingAccount, "trading-account", "", "the trading account the key is on (ta_…)")
-	f.StringVar(&o.venue, "venue", "", "the trading account's venue: binance, hyperliquid, coinbase")
+	f.StringVar(&o.connectedAccount, "connected-account", "", "the connected account the key is on (ta_…)")
+	f.StringVar(&o.venue, "venue", "", "the connected account's venue: binance, hyperliquid, coinbase")
 	f.StringVar(&o.share, "share", "", "the agent share file mishmar keygen wrote")
 	f.StringVar(&o.agent, "agent", "", "the agent the key belongs to (agt_…), stored in the config when it names none; one-shot signing needs it")
-	for _, name := range []string{"venue-key", "trading-account", "venue", "share"} {
+	for _, name := range []string{"venue-key", "connected-account", "venue", "share"} {
 		_ = cmd.MarkFlagRequired(name)
 	}
 	return cmd
@@ -436,7 +436,7 @@ func newSignerRunCmd() *cobra.Command {
 		Short: "Run the signer until SIGINT or SIGTERM",
 		Long: `Poll the engine for requests addressed to this agent and answer them: an
 order is signed only when it is the one the agent proposed (the proposal in
-the request is signed by this agent's key, for this trading account, and the venue
+the request is signed by this agent's key, for this connected account, and the venue
 request decodes to that order and nothing more); a verify request is signed
 when it decodes to a read and not an order. Everything else is refused with
 a reason the engine records on the decision. One line is logged per request.
@@ -453,6 +453,15 @@ here, two rounds with the engine's signer, and what the venue needs next is
 logged (the API wallet to approve at Hyperliquid, the public key to register
 at Binance); a key another command wrote into the config is picked up; the
 shares of revoked and expired keys are dropped. No restart needed.
+
+It asks GET /agent/me first, and again every minute, whether the agent reads
+or trades. A read agent's signer polls nothing and syncs no keys: its only
+calls are the reads of connected-account data, which a hosted account
+answers while its engine sleeps, and everything else it is asked for (a
+proposal through the local API among them) is refused here, unsent. When the
+agent is made a trade agent the signer starts polling within a minute, and
+stops again if it is made a read agent. An engine that does not say is
+taken as trade.
 
 With --local the signer also serves its local API, which the SDKs use when
 they run the signer as a child process: POST /propose turns an order or a

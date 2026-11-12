@@ -32,7 +32,7 @@ func vectorSeed() []byte {
 func cases() []vectorCase {
 	limit := Submit{
 		KeyID: "key_a", Kind: KindOrder, Nonce: "n1", OrderType: Limit, Price: str("98000.5"), ReduceOnly: Bool(false),
-		ProposedAt: t0, ExpiresAt: t0.Add(10 * time.Minute), TradingAccountID: "rt_hl", Side: Buy, Size: "0.5", Symbol: "BTC",
+		ProposedAt: t0, ExpiresAt: t0.Add(10 * time.Minute), ConnectedAccountID: "rt_hl", Side: Buy, Size: "0.5", Symbol: "BTC",
 	}
 	market := limit
 	market.Leverage, market.Price, market.OrderType = str("2"), nil, Market
@@ -41,13 +41,13 @@ func cases() []vectorCase {
 	zeros := market
 	zeros.Leverage, zeros.Price, zeros.Size, zeros.OrderType = str("2.0"), str("98000.2500000001"), "0.50", Limit
 	escaped := limit
-	escaped.Symbol, escaped.TradingAccountID = "A<B>&C", "rt_\"q\"\\"
+	escaped.Symbol, escaped.ConnectedAccountID = "A<B>&C", "rt_\"q\"\\"
 	cancel := Submit{
 		KeyID: "key_a", Kind: KindCancel, Nonce: "n2", ProposedAt: t0, ExpiresAt: t0.Add(time.Minute),
-		TradingAccountID: "rt_bn", Symbol: "BTCUSDT", TargetClientOrderID: "msh-a1b2c3-k3j9xq",
+		ConnectedAccountID: "rt_bn", Symbol: "BTCUSDT", TargetClientOrderID: "msh-a1b2c3-k3j9xq",
 	}
 	oneShot := limit
-	oneShot.TradingAccountID, oneShot.Symbol = "rt_bn", "BTCUSDT"
+	oneShot.ConnectedAccountID, oneShot.Symbol = "rt_bn", "BTCUSDT"
 	oneShot.VenueMessage = &VenueMessage{
 		VenueKeyID: "vk_1", Scheme: "frost-ed25519",
 		// base64 of a Binance parameter string; the bytes are opaque to the proposal.
@@ -56,17 +56,17 @@ func cases() []vectorCase {
 	}
 	return []vectorCase{
 		{Name: "limit order, whole seconds", Submit: limit,
-			SigningBytes: `{"expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","nonce":"n1","orderType":"limit","price":"98000.5","proposedAt":"2026-10-18T10:00:00Z","reduceOnly":false,"side":"buy","size":"0.5","symbol":"BTC","tradingAccountId":"rt_hl"}`},
+			SigningBytes: `{"connectedAccountId":"rt_hl","expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","nonce":"n1","orderType":"limit","price":"98000.5","proposedAt":"2026-10-18T10:00:00Z","reduceOnly":false,"side":"buy","size":"0.5","symbol":"BTC"}`},
 		{Name: "market order with leverage, a fractional second, a non-UTC offset normalised to Z", Submit: market,
-			SigningBytes: `{"expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","leverage":"2","nonce":"n1","orderType":"market","proposedAt":"2026-10-18T10:00:00.25Z","reduceOnly":true,"side":"buy","size":"0.5","symbol":"BTC","tradingAccountId":"rt_hl"}`},
+			SigningBytes: `{"connectedAccountId":"rt_hl","expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","leverage":"2","nonce":"n1","orderType":"market","proposedAt":"2026-10-18T10:00:00.25Z","reduceOnly":true,"side":"buy","size":"0.5","symbol":"BTC"}`},
 		{Name: "decimals signed as written, trailing zeros and all", Submit: zeros,
-			SigningBytes: `{"expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","leverage":"2.0","nonce":"n1","orderType":"limit","price":"98000.2500000001","proposedAt":"2026-10-18T10:00:00.25Z","reduceOnly":true,"side":"buy","size":"0.50","symbol":"BTC","tradingAccountId":"rt_hl"}`},
+			SigningBytes: `{"connectedAccountId":"rt_hl","expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","leverage":"2.0","nonce":"n1","orderType":"limit","price":"98000.2500000001","proposedAt":"2026-10-18T10:00:00.25Z","reduceOnly":true,"side":"buy","size":"0.50","symbol":"BTC"}`},
 		{Name: "string escapes as Go's encoding/json writes them", Submit: escaped,
-			SigningBytes: `{"expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","nonce":"n1","orderType":"limit","price":"98000.5","proposedAt":"2026-10-18T10:00:00Z","reduceOnly":false,"side":"buy","size":"0.5","symbol":"A\u003cB\u003e\u0026C","tradingAccountId":"rt_\"q\"\\"}`},
+			SigningBytes: `{"connectedAccountId":"rt_\"q\"\\","expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","nonce":"n1","orderType":"limit","price":"98000.5","proposedAt":"2026-10-18T10:00:00Z","reduceOnly":false,"side":"buy","size":"0.5","symbol":"A\u003cB\u003e\u0026C"}`},
 		{Name: "cancel: the target and no order fields", Submit: cancel,
-			SigningBytes: `{"expiresAt":"2026-10-18T10:01:00Z","keyId":"key_a","kind":"cancel","nonce":"n2","proposedAt":"2026-10-18T10:00:00Z","symbol":"BTCUSDT","targetClientOrderId":"msh-a1b2c3-k3j9xq","tradingAccountId":"rt_bn"}`},
+			SigningBytes: `{"connectedAccountId":"rt_bn","expiresAt":"2026-10-18T10:01:00Z","keyId":"key_a","kind":"cancel","nonce":"n2","proposedAt":"2026-10-18T10:00:00Z","symbol":"BTCUSDT","targetClientOrderId":"msh-a1b2c3-k3j9xq"}`},
 		{Name: "one-shot order: the signer's venue message nested, its keys sorted too", Submit: oneShot,
-			SigningBytes: `{"expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","nonce":"n1","orderType":"limit","price":"98000.5","proposedAt":"2026-10-18T10:00:00Z","reduceOnly":false,"side":"buy","size":"0.5","symbol":"BTCUSDT","tradingAccountId":"rt_bn","venueMessage":{"commitment":"Y29tbWl0bWVudA==","engineCommitmentId":"cm_1","message":"c3ltYm9sPUJUQ1VTRFQmc2lkZT1CVVkmdHlwZT1MSU1JVCZxdWFudGl0eT0wLjUmcHJpY2U9OTgwMDAuNSZ0aW1lc3RhbXA9MTc5MjMxNzYwMDAwMCZyZWN2V2luZG93PTEwMDAw","scheme":"frost-ed25519","share":"c2hhcmU=","venueKeyId":"vk_1"}}`},
+			SigningBytes: `{"connectedAccountId":"rt_bn","expiresAt":"2026-10-18T10:10:00Z","keyId":"key_a","kind":"order","nonce":"n1","orderType":"limit","price":"98000.5","proposedAt":"2026-10-18T10:00:00Z","reduceOnly":false,"side":"buy","size":"0.5","symbol":"BTCUSDT","venueMessage":{"commitment":"Y29tbWl0bWVudA==","engineCommitmentId":"cm_1","message":"c3ltYm9sPUJUQ1VTRFQmc2lkZT1CVVkmdHlwZT1MSU1JVCZxdWFudGl0eT0wLjUmcHJpY2U9OTgwMDAuNSZ0aW1lc3RhbXA9MTc5MjMxNzYwMDAwMCZyZWN2V2luZG93PTEwMDAw","scheme":"frost-ed25519","share":"c2hhcmU=","venueKeyId":"vk_1"}}`},
 	}
 }
 

@@ -94,13 +94,13 @@ func (e *oneShotEngine) handler() http.Handler {
 		e.keyReads++
 		writeJSON(w, http.StatusOK, e.keys)
 	})
-	mux.HandleFunc("GET /v1/agent/trading-accounts/{id}/venue-rules", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /v1/agent/connected-accounts/{id}/venue-rules", func(w http.ResponseWriter, r *http.Request) {
 		if !e.authed(r) {
 			writeJSON(w, http.StatusUnauthorized, api.Error{Code: "unauthorized", Message: "Invalid signature"})
 			return
 		}
 		tick, step, min := "0.10", "0.001", "0.001"
-		writeJSON(w, http.StatusOK, api.VenueRules{TradingAccountId: r.PathValue("id"), Venue: api.VenueBinance, AsOf: now,
+		writeJSON(w, http.StatusOK, api.VenueRules{ConnectedAccountId: r.PathValue("id"), Venue: api.VenueBinance, AsOf: now,
 			Symbols: []api.SymbolRules{{Symbol: "BTCUSDT", TickSize: &tick, StepSize: &step, MinSize: &min}}})
 	})
 	mux.HandleFunc("POST /v1/agent/signer/commitments", func(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +224,7 @@ func newOneShot(t *testing.T, mod func(*Config)) (*Signer, *oneShotEngine) {
 	t.Cleanup(srv.Close)
 	cfg := &Config{
 		Engine: srv.URL + "/v1", KeyID: "key_a", Secret: agentkey.Secret("msk_abcdef", testSeed(1)), AgentID: "agt_ag1",
-		VenueKeys: map[string]VenueKey{"vk_1": {TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}},
+		VenueKeys: map[string]VenueKey{"vk_1": {ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}},
 	}
 	if mod != nil {
 		mod(cfg)
@@ -240,7 +240,7 @@ func newOneShot(t *testing.T, mod func(*Config)) (*Signer, *oneShotEngine) {
 func limitProposal() api.ProposalSubmit {
 	price := "60000.55"
 	return api.ProposalSubmit{
-		KeyId: "key_a", TradingAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5009",
+		KeyId: "key_a", ConnectedAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5009",
 		Price: &price, OrderType: api.ProposalSubmitOrderTypeLimit, Nonce: "n1", ProposedAt: now, ExpiresAt: now.Add(time.Minute),
 	}
 }
@@ -278,7 +278,7 @@ func TestOneShotOrder(t *testing.T) {
 func TestOneShotCancel(t *testing.T) {
 	s, eng := newOneShot(t, nil)
 	target := "msh-ag1-abcdef"
-	p := api.ProposalSubmit{KeyId: "key_a", TradingAccountId: "rt_1", Kind: api.ProposalKindCancel, Symbol: "BTCUSDT",
+	p := api.ProposalSubmit{KeyId: "key_a", ConnectedAccountId: "rt_1", Kind: api.ProposalKindCancel, Symbol: "BTCUSDT",
 		TargetClientOrderId: &target, Nonce: "n2", ProposedAt: now, ExpiresAt: now.Add(time.Minute)}
 	if _, err := s.Propose(context.Background(), p); err != nil {
 		t.Fatal(err)
@@ -305,7 +305,7 @@ func TestOneShotFallsBack(t *testing.T) {
 
 	s, eng = newOneShot(t, nil)
 	p := limitProposal()
-	p.TradingAccountId = "rt_other"
+	p.ConnectedAccountId = "rt_other"
 	if _, err := s.Propose(context.Background(), p); err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +396,7 @@ func TestOneShotEngineRestart(t *testing.T) {
 }
 
 // TestOneShotDuringAReplacement: with a replacement pending the config holds
-// two keys on the trading account, and the one the engine reports active
+// two keys on the connected account, and the one the engine reports active
 // signs. The engine is asked only when there is a choice, and its word is
 // kept for keysTTL.
 func TestOneShotDuringAReplacement(t *testing.T) {
@@ -406,9 +406,9 @@ func TestOneShotDuringAReplacement(t *testing.T) {
 	}
 	raw, _ := json.Marshal(next)
 	s, eng := newOneShot(t, func(c *Config) {
-		c.VenueKeys["vk_2"] = VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}
+		c.VenueKeys["vk_2"] = VenueKey{ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}
 	})
-	eng.keys = []api.VenueKey{{Id: "vk_1", TradingAccountId: "rt_1", Status: api.VenueKeyStatusActive}, {Id: "vk_2", TradingAccountId: "rt_1", Status: api.VenueKeyStatusPending}}
+	eng.keys = []api.VenueKey{{Id: "vk_1", ConnectedAccountId: "rt_1", Status: api.VenueKeyStatusActive}, {Id: "vk_2", ConnectedAccountId: "rt_1", Status: api.VenueKeyStatusPending}}
 	if _, err := s.Propose(context.Background(), limitProposal()); err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +419,7 @@ func TestOneShotDuringAReplacement(t *testing.T) {
 	// The replacement takes over: the old answer holds for keysTTL, then the
 	// engine is asked again.
 	eng.mu.Lock()
-	eng.keys = []api.VenueKey{{Id: "vk_1", TradingAccountId: "rt_1", Status: api.VenueKeyStatusRevoked}, {Id: "vk_2", TradingAccountId: "rt_1", Status: api.VenueKeyStatusActive}}
+	eng.keys = []api.VenueKey{{Id: "vk_1", ConnectedAccountId: "rt_1", Status: api.VenueKeyStatusRevoked}, {Id: "vk_2", ConnectedAccountId: "rt_1", Status: api.VenueKeyStatusActive}}
 	eng.mu.Unlock()
 	if id, _, err := s.venueKeyOn(context.Background(), "rt_1"); err != nil || id != "vk_1" || eng.keyReads != 1 {
 		t.Fatalf("within keysTTL: %s %v, %d reads", id, err, eng.keyReads)
@@ -431,7 +431,7 @@ func TestOneShotDuringAReplacement(t *testing.T) {
 
 	// Neither active (the engine down to two pending keys): no one-shot.
 	eng.mu.Lock()
-	eng.keys = []api.VenueKey{{Id: "vk_2", TradingAccountId: "rt_1", Status: api.VenueKeyStatusExpired}}
+	eng.keys = []api.VenueKey{{Id: "vk_2", ConnectedAccountId: "rt_1", Status: api.VenueKeyStatusExpired}}
 	eng.mu.Unlock()
 	s.Now = func() time.Time { return now.Add(2 * keysTTL) }
 	var no *NoOneShot
@@ -439,7 +439,7 @@ func TestOneShotDuringAReplacement(t *testing.T) {
 		t.Fatalf("no active key: %v", err)
 	}
 
-	// One key on a trading account is used without asking.
+	// One key on a connected account is used without asking.
 	s, eng = newOneShot(t, nil)
 	if _, err := s.Propose(context.Background(), limitProposal()); err != nil || eng.keyReads != 0 {
 		t.Fatalf("one key: %v, %d reads", err, eng.keyReads)

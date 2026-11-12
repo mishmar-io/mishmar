@@ -24,9 +24,9 @@ const maxSyncBackoff = time.Minute
 
 // Generated is a trading key SyncKeys made: what the venue needs to know it.
 type Generated struct {
-	VenueKeyID       string
-	TradingAccountID string
-	Venue            string
+	VenueKeyID         string
+	ConnectedAccountID string
+	Venue              string
 	// Network is a Hyperliquid key's network, mainnet or testnet.
 	Network string
 	// Scheme is SchemeECDSA2p or SchemeFrostEd25519.
@@ -92,22 +92,22 @@ func (s *Signer) SyncKeys(ctx context.Context) ([]Generated, error) {
 		}
 		network := ""
 		if k.Venue == api.VenueHyperliquid {
-			if network, err = s.hyperliquidNetwork(ctx, k.TradingAccountId); err != nil {
+			if network, err = s.hyperliquidNetwork(ctx, k.ConnectedAccountId); err != nil {
 				return made, err
 			}
 		}
-		s.Logger.Info("signer: generating a trading key with the engine's signer", "venueKey", k.Id, "tradingAccount", k.TradingAccountId, "venue", k.Venue, "scheme", scheme)
+		s.Logger.Info("signer: generating a trading key with the engine's signer", "venueKey", k.Id, "connectedAccount", k.ConnectedAccountId, "venue", k.Venue, "scheme", scheme)
 		g, err := RunKeygen(ctx, s.Client, k.Id, scheme)
 		if err != nil {
 			return made, fmt.Errorf("signer: key generation for %s: %w", k.Id, err)
 		}
-		next[k.Id] = VenueKey{TradingAccountID: k.TradingAccountId, Venue: string(k.Venue), Scheme: g.Scheme, Share: g.Share, Network: network}
+		next[k.Id] = VenueKey{ConnectedAccountID: k.ConnectedAccountId, Venue: string(k.Venue), Scheme: g.Scheme, Share: g.Share, Network: network}
 		// Saved before the next key: a stop between two loses nothing.
 		if err := s.saveKeys(next); err != nil {
 			return made, err
 		}
 		s.setVenueKeys(next, nil)
-		out := Generated{VenueKeyID: k.Id, TradingAccountID: k.TradingAccountId, Venue: string(k.Venue), Network: network, Scheme: g.Scheme, Address: g.Address}
+		out := Generated{VenueKeyID: k.Id, ConnectedAccountID: k.ConnectedAccountId, Venue: string(k.Venue), Network: network, Scheme: g.Scheme, Address: g.Address}
 		if g.Scheme == SchemeFrostEd25519 {
 			out.PublicKeyPEM = frost.PublicKeyPEM(g.PublicKey)
 		}
@@ -202,19 +202,19 @@ func (s *Signer) setVenueKeys(next map[string]VenueKey, dropped []string) {
 	}
 }
 
-// hyperliquidNetwork is the network of a Hyperliquid trading account, which
+// hyperliquidNetwork is the network of a Hyperliquid connected account, which
 // the key's digests depend on.
-func (s *Signer) hyperliquidNetwork(ctx context.Context, tradingAccountID string) (string, error) {
-	ta, err := s.Client.TradingAccount(ctx, tradingAccountID)
+func (s *Signer) hyperliquidNetwork(ctx context.Context, connectedAccountID string) (string, error) {
+	ta, err := s.Client.ConnectedAccount(ctx, connectedAccountID)
 	if err != nil {
-		return "", fmt.Errorf("signer: reading trading account %s for the key's network: %w", tradingAccountID, err)
+		return "", fmt.Errorf("signer: reading connected account %s for the key's network: %w", connectedAccountID, err)
 	}
 	hl, err := ta.Setup.AsHyperliquidSetup()
 	if err != nil || hl.Network == "" {
-		return "", fmt.Errorf("signer: trading account %s names no Hyperliquid network in its setup", tradingAccountID)
+		return "", fmt.Errorf("signer: connected account %s names no Hyperliquid network in its setup", connectedAccountID)
 	}
 	if _, err := hyperliquid.ParseNetwork(string(hl.Network)); err != nil {
-		return "", fmt.Errorf("signer: trading account %s: %w", tradingAccountID, err)
+		return "", fmt.Errorf("signer: connected account %s: %w", connectedAccountID, err)
 	}
 	return string(hl.Network), nil
 }
@@ -229,7 +229,7 @@ func (s *Signer) warnOnce(k api.VenueKey, msg string) {
 	s.warned[k.Id+" "+msg] = true
 	s.mu.Unlock()
 	if !seen {
-		s.Logger.Warn(msg, "venueKey", k.Id, "tradingAccount", k.TradingAccountId, "venue", k.Venue, "status", k.Status)
+		s.Logger.Warn(msg, "venueKey", k.Id, "connectedAccount", k.ConnectedAccountId, "venue", k.Venue, "status", k.Status)
 	}
 }
 
@@ -269,12 +269,12 @@ func (s *Signer) syncLoop(ctx context.Context) {
 // logGenerated says what the venue needs for a key just made.
 func (s *Signer) logGenerated(g Generated) {
 	if g.Scheme == SchemeECDSA2p {
-		s.Logger.Info("signer: trading key made; approve its API wallet at the venue", "venueKey", g.VenueKeyID, "tradingAccount", g.TradingAccountID,
+		s.Logger.Info("signer: trading key made; approve its API wallet at the venue", "venueKey", g.VenueKeyID, "connectedAccount", g.ConnectedAccountID,
 			"venue", g.Venue, "network", g.Network, "apiWallet", g.Address, "name", HyperliquidAgentName(s.Config.AgentID),
 			"where", hyperliquidAPIPage(g.Network)+" (paste the address, give it the name), or the console")
 		return
 	}
-	s.Logger.Info("signer: trading key made; register its public key at the venue", "venueKey", g.VenueKeyID, "tradingAccount", g.TradingAccountID,
+	s.Logger.Info("signer: trading key made; register its public key at the venue", "venueKey", g.VenueKeyID, "connectedAccount", g.ConnectedAccountID,
 		"venue", g.Venue, "publicKey", g.PublicKeyPEM,
 		"then", "enter the key id the venue issues in the console (the agent's Keys tab), with this signer running")
 }

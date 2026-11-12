@@ -32,9 +32,9 @@ func newOperatorClient(engine, token string) *operatorClient {
 	return &operatorClient{base: strings.TrimRight(engine, "/"), token: token, http: &http.Client{Timeout: 30 * time.Second}}
 }
 
-func (c *operatorClient) getTradingAccount(ctx context.Context, id string) (api.TradingAccount, error) {
-	var r api.TradingAccount
-	err := c.do(ctx, http.MethodGet, "/trading-accounts/"+url.PathEscape(id), nil, &r)
+func (c *operatorClient) getConnectedAccount(ctx context.Context, id string) (api.ConnectedAccount, error) {
+	var r api.ConnectedAccount
+	err := c.do(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(id), nil, &r)
 	return r, err
 }
 

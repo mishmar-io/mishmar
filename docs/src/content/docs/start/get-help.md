@@ -2,7 +2,7 @@
 title: Get help
 description: Where to ask a question about Mishmar, what to put in it, and which questions go to email instead.
 sidebar:
-  order: 3
+  order: 4
 lastUpdated: 2026-11-05
 ---
 

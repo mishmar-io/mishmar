@@ -138,7 +138,7 @@ func (f *fakeEngine) propose(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, api.Error{Code: "unauthorized", Message: "Invalid signature"})
 		return
 	}
-	writeJSON(w, http.StatusOK, api.Decision{Id: "dec_1", Verdict: api.VerdictAllow, TradingAccountId: p.TradingAccountId,
+	writeJSON(w, http.StatusOK, api.Decision{Id: "dec_1", Verdict: api.VerdictAllow, ConnectedAccountId: p.ConnectedAccountId,
 		Proposal: api.Proposal{Symbol: p.Symbol, Side: p.Side, Size: p.Size, Venue: api.VenueBinance, ClientOrderId: "msh-1"}})
 }
 
@@ -320,7 +320,7 @@ func TestClientAgainstFakeEngine(t *testing.T) {
 	}
 	price := "60000"
 	d, err := c.Propose(ctx, api.ProposalSubmit{
-		TradingAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5", Price: &price,
+		ConnectedAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5", Price: &price,
 		OrderType: api.ProposalSubmitOrderTypeLimit, Nonce: "n1", ProposedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute),
 	})
 	if err != nil || d.Id != "dec_1" || d.Verdict != api.VerdictAllow {

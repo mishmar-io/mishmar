@@ -1,4 +1,4 @@
-// The smallest bot: start the agent's signer, read the trading account and the
+// The smallest bot: start the agent's signer, read the connected account and the
 // venue's rules for a symbol, place one small limit order, wait if a person has
 // to approve it, and print the verdict. The signer holds the agent's key and its
 // half of the trading key; this process holds nothing.
@@ -8,21 +8,21 @@
 
 import { Signer } from "mishmar";
 
-const [tradingAccountId, symbol, size, price] = process.argv.slice(2);
-if (!tradingAccountId || !symbol || !size || !price) {
-  console.error("usage: node agent.ts <trading account id> <symbol> <size> <limit price>");
+const [connectedAccountId, symbol, size, price] = process.argv.slice(2);
+if (!connectedAccountId || !symbol || !size || !price) {
+  console.error("usage: node agent.ts <connected account id> <symbol> <size> <limit price>");
   process.exit(2);
 }
 
 const s = await new Signer().start(); // ~/.mishmar/agent.json or $MISHMAR_AGENT_CONFIG
 try {
-  const account = await s.tradingAccount(tradingAccountId);
-  const rules = ((await s.venueRules(tradingAccountId, symbol)).symbols as Record<string, unknown>[])[0];
+  const account = await s.connectedAccount(connectedAccountId);
+  const rules = ((await s.venueRules(connectedAccountId, symbol)).symbols as Record<string, unknown>[])[0];
   console.log(`${account.name} on ${account.venue}: ${symbol} step ${rules?.stepSize}, min notional ${rules?.minNotional}`);
 
   // A held order expires at its own deadline (60 seconds by default) or after
   // 30 minutes, whichever is first, so give a person the ten minutes waited below.
-  let d = await s.order({ tradingAccountId, symbol, side: "buy", size, price, validForSeconds: 600 });
+  let d = await s.order({ connectedAccountId, symbol, side: "buy", size, price, validForSeconds: 600 });
   console.log(`decision ${d.id}: ${d.verdict}${d.reason ? ` (${d.reason})` : ""}`);
   if (d.verdict === "require_approval") {
     console.log("parked for a person: approve or reject it in the console (waiting up to 10 minutes)");

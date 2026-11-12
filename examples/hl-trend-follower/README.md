@@ -1,6 +1,6 @@
 # HL Trend Follower
 
-A test bot for a Hyperliquid testnet trading account. It walks eight orders
+A test bot for a Hyperliquid testnet connected account. It walks eight orders
 chosen against seven rules, states for each the verdict it expects and the
 rules that must fail, and ends with a pass/fail table, the agent's positions
 and its PnL for the day. It trades through the agent's signer only: the SDK
@@ -36,8 +36,8 @@ The bot checks the decisions against these names, so keep them as they are.
 ## Run it
 
 1. Sign up at https://app.testnet.mishmar.io, add a Hyperliquid testnet
-   trading account and an agent
-   (https://docs.mishmar.io/hyperliquid/add-a-trading-account/ and
+   connected account and an agent
+   (https://docs.mishmar.io/hyperliquid/add-a-connected-account/ and
    https://docs.mishmar.io/hyperliquid/add-an-agent/), and install the
    `mishmar` binary (https://docs.mishmar.io/start/install-the-cli/). Put the
    agent's Mishmar API key, shown once when the agent is added, in
@@ -48,7 +48,7 @@ The bot checks the decisions against these names, so keep them as they are.
 
    ```sh
    pip install -r requirements.txt
-   python agent.py --trading-account ta_… --results results.json
+   python agent.py --connected-account ta_… --results results.json
    ```
 
    `--config ~/.mishmar/agents/<name>.json` when the agent's config is not at

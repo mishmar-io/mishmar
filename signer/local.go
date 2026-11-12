@@ -49,7 +49,7 @@ func invalidRequest(format string, a ...any) error {
 // order or a cancel, without the key, nonce, times and signature, which the
 // signer supplies.
 type ProposeRequest struct {
-	TradingAccountID string `json:"tradingAccountId"`
+	ConnectedAccountID string `json:"connectedAccountId"`
 	// Kind is order (the default) or cancel.
 	Kind   string `json:"kind,omitempty"`
 	Symbol string `json:"symbol"`
@@ -95,9 +95,9 @@ func (s *Signer) proposalOf(r ProposeRequest) (api.ProposalSubmit, error) {
 	if validFor <= 0 || validFor > 24*time.Hour {
 		return api.ProposalSubmit{}, invalidRequest("validForSeconds must be 1 to 86400")
 	}
-	tradingAccount, symbol := strings.TrimSpace(r.TradingAccountID), strings.TrimSpace(r.Symbol)
-	if tradingAccount == "" {
-		return api.ProposalSubmit{}, invalidRequest("tradingAccountId is required")
+	connectedAccount, symbol := strings.TrimSpace(r.ConnectedAccountID), strings.TrimSpace(r.Symbol)
+	if connectedAccount == "" {
+		return api.ProposalSubmit{}, invalidRequest("connectedAccountId is required")
 	}
 	if symbol == "" {
 		return api.ProposalSubmit{}, invalidRequest("symbol is required")
@@ -108,7 +108,7 @@ func (s *Signer) proposalOf(r ProposeRequest) (api.ProposalSubmit, error) {
 	}
 	now := s.now().UTC()
 	p := api.ProposalSubmit{
-		KeyId: s.Config.KeyID, TradingAccountId: tradingAccount, Symbol: symbol,
+		KeyId: s.Config.KeyID, ConnectedAccountId: connectedAccount, Symbol: symbol,
 		Nonce: nonce, ProposedAt: now, ExpiresAt: now.Add(validFor),
 	}
 	switch strings.ToLower(strings.TrimSpace(r.Kind)) {
@@ -169,9 +169,10 @@ func (s *Signer) LocalHandler(token string) http.Handler {
 			ids = append(ids, id)
 		}
 		sort.Strings(ids)
+		perm, _ := s.Permission()
 		writeLocal(w, http.StatusOK, map[string]any{
 			"agentId": s.Config.AgentID, "keyId": s.Config.KeyID, "engine": s.Client.Engine,
-			"venueKeys": ids, "engineInstance": s.Client.EngineInstance(),
+			"venueKeys": ids, "engineInstance": s.Client.EngineInstance(), "permission": perm,
 		})
 	})
 	mux.HandleFunc("POST /propose", func(w http.ResponseWriter, r *http.Request) {
@@ -189,7 +190,7 @@ func (s *Signer) LocalHandler(token string) http.Handler {
 	})
 	mux.HandleFunc("GET /decisions", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		query := DecisionQuery{TradingAccountID: q.Get("tradingAccountId"), Verdict: q.Get("verdict"), Cursor: q.Get("cursor")}
+		query := DecisionQuery{ConnectedAccountID: q.Get("connectedAccountId"), Verdict: q.Get("verdict"), Cursor: q.Get("cursor")}
 		if v := q.Get("limit"); v != "" {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
@@ -226,12 +227,77 @@ func (s *Signer) LocalHandler(token string) http.Handler {
 		out, err := s.Client.Pnl(r.Context(), r.URL.Query().Get("from"), r.URL.Query().Get("to"))
 		writeLocalResult(w, out, err)
 	})
-	mux.HandleFunc("GET /trading-accounts/{id}", func(w http.ResponseWriter, r *http.Request) {
-		out, err := s.Client.TradingAccount(r.Context(), r.PathValue("id"))
+	mux.HandleFunc("GET /connected-accounts/{id}", func(w http.ResponseWriter, r *http.Request) {
+		out, err := s.Client.ConnectedAccount(r.Context(), r.PathValue("id"))
 		writeLocalResult(w, out, err)
 	})
-	mux.HandleFunc("GET /trading-accounts/{id}/venue-rules", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /connected-accounts/{id}/venue-rules", func(w http.ResponseWriter, r *http.Request) {
 		out, err := s.Client.VenueRules(r.Context(), r.PathValue("id"), r.URL.Query().Get("symbol"))
+		writeLocalResult(w, out, err)
+	})
+	// The reads of connected-account data, as the Client makes them.
+	mux.HandleFunc("GET /me", func(w http.ResponseWriter, r *http.Request) {
+		out, err := s.Client.Me(r.Context())
+		writeLocalResult(w, out, err)
+	})
+	mux.HandleFunc("GET /connected-accounts", func(w http.ResponseWriter, r *http.Request) {
+		out, err := s.Client.ConnectedAccounts(r.Context())
+		writeLocalResult(w, out, err)
+	})
+	mux.HandleFunc("GET /connected-accounts/{id}/balances", func(w http.ResponseWriter, r *http.Request) {
+		at, err := parseLocalTime(r.URL.Query().Get("at"))
+		if err != nil {
+			writeLocalError(w, invalidRequest("at: %v", err))
+			return
+		}
+		out, err := s.Client.AccountBalances(r.Context(), r.PathValue("id"), at)
+		writeLocalResult(w, out, err)
+	})
+	mux.HandleFunc("GET /connected-accounts/{id}/positions", func(w http.ResponseWriter, r *http.Request) {
+		at, err := parseLocalTime(r.URL.Query().Get("at"))
+		if err != nil {
+			writeLocalError(w, invalidRequest("at: %v", err))
+			return
+		}
+		out, err := s.Client.AccountPositions(r.Context(), r.PathValue("id"), at)
+		writeLocalResult(w, out, err)
+	})
+	mux.HandleFunc("GET /connected-accounts/{id}/transactions", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		query := TransactionQuery{Kind: q.Get("kind"), Cursor: q.Get("cursor")}
+		if v := q.Get("limit"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				writeLocalError(w, invalidRequest("limit must be a positive integer"))
+				return
+			}
+			query.Limit = n
+		}
+		var err error
+		if query.From, err = parseLocalTime(q.Get("from")); err != nil {
+			writeLocalError(w, invalidRequest("from: %v", err))
+			return
+		}
+		if query.To, err = parseLocalTime(q.Get("to")); err != nil {
+			writeLocalError(w, invalidRequest("to: %v", err))
+			return
+		}
+		out, err := s.Client.AccountTransactions(r.Context(), r.PathValue("id"), query)
+		writeLocalResult(w, out, err)
+	})
+	mux.HandleFunc("GET /connected-accounts/{id}/equity", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		query := EquityQuery{Resolution: q.Get("resolution")}
+		var err error
+		if query.From, err = parseLocalTime(q.Get("from")); err != nil {
+			writeLocalError(w, invalidRequest("from: %v", err))
+			return
+		}
+		if query.To, err = parseLocalTime(q.Get("to")); err != nil {
+			writeLocalError(w, invalidRequest("to: %v", err))
+			return
+		}
+		out, err := s.Client.AccountEquity(r.Context(), r.PathValue("id"), query)
 		writeLocalResult(w, out, err)
 	})
 	if token == "" {
@@ -339,6 +405,8 @@ func writeLocalError(w http.ResponseWriter, err error) {
 	var ee *Error
 	var ref *Refusal
 	switch {
+	case errors.Is(err, ErrReadAgent):
+		writeLocal(w, http.StatusForbidden, api.Error{Code: "forbidden", Message: err.Error()})
 	case errors.As(err, &le):
 		writeLocal(w, le.Status, api.Error{Code: le.Code, Message: le.Message})
 	case errors.As(err, &ee):

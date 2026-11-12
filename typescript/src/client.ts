@@ -2,15 +2,18 @@
  * A small client for the engine, on fetch.
  *
  * Proposals go to POST /proposals with the signature in the body. Everything
- * else an agent may call (its own decisions, approvals, positions, PnL,
- * trading accounts, and the signer channel) is under /agent and signed with the
- * agentAuth headers, so a bot can function without an operator token and
- * cannot act on the account.
+ * else an agent may call (its own decisions, approvals, positions, PnL, the
+ * connected accounts it was given and their data, and the signer channel) is
+ * under /agent and signed with the agentAuth headers, so a bot can function
+ * without an operator token and cannot act on the account.
  */
 
-import type { AgentKey } from "./agentkey.ts";
+import { parseSecret } from "./agentkey.ts";
+import type { AgentKey, ParsedSecret } from "./agentkey.ts";
+import type { AccountPositionSnapshot, AccountTransactionPage, AgentIdentity, BalanceSnapshot, ConnectedAccount, EquityQuery, EquitySeries, TransactionQuery, When } from "./data.ts";
 import { sign, toWire } from "./proposal.ts";
 import type { Proposal } from "./proposal.ts";
+import { rfc3339 } from "./time.ts";
 
 /** A decision as the engine returns it; the contract (spec/openapi.yaml) has the full shape. */
 export type Decision = {
@@ -79,6 +82,45 @@ export interface ClientOptions {
 
 type Query = Record<string, string | number | undefined>;
 
+/** The agent's API key from the console (msk_…), which names its engine and key id. */
+export const ENV_API_KEY = "MISHMAR_API_KEY";
+/** The engine's API base URL, with /v1, for a self-hosted engine or a key that names none. */
+export const ENV_ENGINE = "MISHMAR_ENGINE";
+
+/** The API host of each hosted environment a key can name; an account's engine is reached under /a/<account id>/v1 on it. */
+export const HOSTED_API: Readonly<Record<string, string>> = {
+  testnet: "https://api.testnet.mishmar.io",
+  stage: "https://api.stage.mishmar.io",
+  prod: "https://api.mishmar.io",
+};
+
+/**
+ * The API base URL a key's engine is reached at: `override` when given
+ * (trailing slashes dropped), else the hosted host the key's environment
+ * names, plus the account's path. A key that names no engine (issued before
+ * 0.19.0), or an environment that is not hosted (a self-hosted engine's),
+ * needs the override.
+ */
+export function engineUrlFor(parsed: ParsedSecret, override?: string): string {
+  if (override?.trim()) return override.trim().replace(/\/+$/, "");
+  if (!parsed.keyId || !parsed.accountId) {
+    throw new Error(`the key was issued before 0.19.0 and names no engine; pass the engine's API base URL, with /v1, or set ${ENV_ENGINE}`);
+  }
+  const host = HOSTED_API[parsed.environment ?? ""];
+  if (!host) {
+    throw new Error(`the key names environment ${JSON.stringify(parsed.environment)}, which is not a hosted one; pass the engine's API base URL, with /v1, or set ${ENV_ENGINE}`);
+  }
+  return `${host}/a/${parsed.accountId}/v1`;
+}
+
+/** A time for a query: a Date in the contract's form, a string as given. */
+export function when(value: When | undefined): string | undefined {
+  return value instanceof Date ? rfc3339(value) : value;
+}
+
+/** The agent-facing path of a connected account, or of one of its reads. */
+const accountPath = (connectedAccountId: string, sub = "") => `/agent/connected-accounts/${encodeURIComponent(connectedAccountId)}${sub}`;
+
 /**
  * Milliseconds to wait before attempt `attempt + 1` (from 0) after an answer
  * with the status and Retry-After header, `elapsedMs` after the first attempt
@@ -122,6 +164,22 @@ export class Client {
     this.#options = options;
   }
 
+  /**
+   * A client from the agent's Mishmar API key alone (default
+   * $MISHMAR_API_KEY): the key names its engine and its key id. `engineUrl`
+   * (default $MISHMAR_ENGINE) is the engine's API base URL, with /v1, for a
+   * self-hosted engine. A read agent needs nothing else; a key issued before
+   * 0.19.0 names neither, so it takes `new Client(engineUrl, AgentKey.parse(secret), keyId)`.
+   */
+  static fromApiKey(apiKey?: string, options: ClientOptions & { engineUrl?: string } = {}): Client {
+    const key = apiKey ?? process.env[ENV_API_KEY] ?? "";
+    if (!key.trim()) throw new Error(`no agent API key: pass one or set ${ENV_API_KEY}`);
+    const parsed = parseSecret(key);
+    if (!parsed.keyId) throw new Error("the key was issued before 0.19.0 and names no key id: use new Client(engineUrl, AgentKey.parse(secret), keyId)");
+    const { engineUrl, ...rest } = options;
+    return new Client(engineUrlFor(parsed, engineUrl ?? process.env[ENV_ENGINE]), parsed.key, parsed.keyId, rest);
+  }
+
   // Proposals
 
   /** Sign the proposal with the agent's key (unless already signed) and submit it. */
@@ -134,7 +192,7 @@ export class Client {
   // Reads, scoped to this agent
 
   /** A page of this agent's decisions, newest first. */
-  async decisions(query: { tradingAccountId?: string; verdict?: string; from?: string; to?: string; cursor?: string; limit?: number } = {}): Promise<DecisionPage> {
+  async decisions(query: { connectedAccountId?: string; verdict?: string; from?: string; to?: string; cursor?: string; limit?: number } = {}): Promise<DecisionPage> {
     return (await this.#agentCall("GET", "/agent/decisions", { query })) as DecisionPage;
   }
 
@@ -155,16 +213,60 @@ export class Client {
     return (await this.#agentCall("GET", "/agent/pnl", { query })) as Record<string, unknown>;
   }
 
-  async tradingAccount(tradingAccountId: string): Promise<Record<string, unknown>> {
-    return (await this.#agentCall("GET", `/agent/trading-accounts/${encodeURIComponent(tradingAccountId)}`)) as Record<string, unknown>;
+  /** A connected account as this agent may see it, its setup without any secret. */
+  async connectedAccount(connectedAccountId: string): Promise<ConnectedAccount> {
+    return (await this.#agentCall("GET", accountPath(connectedAccountId))) as ConnectedAccount;
+  }
+
+  /** What the connected account's venue accepts per symbol (tick, step, minimums), as the engine last read it. */
+  async venueRules(connectedAccountId: string, symbol?: string): Promise<Record<string, unknown>> {
+    return (await this.#agentCall("GET", accountPath(connectedAccountId, "/venue-rules"), { query: { symbol } })) as Record<string, unknown>;
+  }
+
+  // Connected-account data. The agent reads each connected account it was
+  // given whole, other agents' and the owner's activity included, and every
+  // read is written to the account's access log. On hosted Mishmar these
+  // (with connectedAccount) are answered while the account's engine sleeps,
+  // so an agent that only reads never wakes it. Times are RFC 3339 strings or Dates.
+
+  /** Who the key belongs to: the agent, its account and portfolio, and the key id. The engine answers only a key it knows, so this is the read that proves one. */
+  async me(): Promise<AgentIdentity> {
+    return (await this.#agentCall("GET", "/agent/me")) as AgentIdentity;
+  }
+
+  /** The connected accounts this agent was given, in the order it got them. */
+  async connectedAccounts(): Promise<ConnectedAccount[]> {
+    return (await this.#agentCall("GET", "/agent/connected-accounts")) as ConnectedAccount[];
+  }
+
+  /** The connected account's balances at the venue, spot and margin, each with its value in USD, at `at` (default now). */
+  async accountBalances(connectedAccountId: string, { at }: { at?: When } = {}): Promise<BalanceSnapshot> {
+    return (await this.#agentCall("GET", accountPath(connectedAccountId, "/balances"), { query: { at: when(at) } })) as BalanceSnapshot;
+  }
+
+  /** The venue's own net positions on the connected account, whoever placed the orders behind them, at `at` (default now). This agent's own book is `positions()`. */
+  async accountPositions(connectedAccountId: string, { at }: { at?: When } = {}): Promise<AccountPositionSnapshot> {
+    return (await this.#agentCall("GET", accountPath(connectedAccountId, "/positions"), { query: { at: when(at) } })) as AccountPositionSnapshot;
+  }
+
+  /**
+   * A page of the connected account's trades, transfers, funding and fees as
+   * the venue reports them, newest first. A trade's `origin` says who placed
+   * it; `origin.own` is true on this agent's own. Pass the page's
+   * `nextCursor` as `cursor` for the page after.
+   */
+  async accountTransactions(connectedAccountId: string, q: TransactionQuery = {}): Promise<AccountTransactionPage> {
+    const query = { from: when(q.from), to: when(q.to), kind: q.kind, cursor: q.cursor, limit: q.limit };
+    return (await this.#agentCall("GET", accountPath(connectedAccountId, "/transactions"), { query })) as AccountTransactionPage;
+  }
+
+  /** The connected account's value in USD over time, oldest point first. */
+  async accountEquity(connectedAccountId: string, q: EquityQuery = {}): Promise<EquitySeries> {
+    const query = { from: when(q.from), to: when(q.to), resolution: q.resolution };
+    return (await this.#agentCall("GET", accountPath(connectedAccountId, "/equity"), { query })) as EquitySeries;
   }
 
   /** Poll a decision until it no longer waits for a person, or until timeoutMs; returns the last read. */
-  /** What the trading account's venue accepts per symbol (tick, step, minimums), as the engine last read it. */
-  async venueRules(tradingAccountId: string, symbol?: string): Promise<Record<string, unknown>> {
-    return (await this.#agentCall("GET", `/agent/trading-accounts/${encodeURIComponent(tradingAccountId)}/venue-rules`, { query: { symbol } })) as Record<string, unknown>;
-  }
-
   async wait(decisionId: string, { timeoutMs = 60_000, intervalMs = 1_000 } = {}): Promise<Decision> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {

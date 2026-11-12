@@ -77,7 +77,7 @@ type Submit struct {
 	ProposedAt          time.Time     `json:"proposedAt"`
 	ExpiresAt           time.Time     `json:"expiresAt"`
 	ReduceOnly          *bool         `json:"reduceOnly,omitempty"`
-	TradingAccountID    string        `json:"tradingAccountId"`
+	ConnectedAccountID  string        `json:"connectedAccountId"`
 	Side                Side          `json:"side,omitempty"`
 	Size                string        `json:"size,omitempty"`
 	Symbol              string        `json:"symbol"`
@@ -113,7 +113,7 @@ type unsigned struct {
 	ProposedAt          time.Time     `json:"proposedAt"`
 	ExpiresAt           time.Time     `json:"expiresAt"`
 	ReduceOnly          *bool         `json:"reduceOnly,omitempty"`
-	TradingAccountID    string        `json:"tradingAccountId"`
+	ConnectedAccountID  string        `json:"connectedAccountId"`
 	Side                Side          `json:"side,omitempty"`
 	Size                string        `json:"size,omitempty"`
 	Symbol              string        `json:"symbol"`
@@ -127,7 +127,7 @@ type unsigned struct {
 func SigningBytes(s Submit) ([]byte, error) {
 	return canon.JSON(unsigned{
 		KeyID: s.KeyID, Kind: s.Kind, Leverage: s.Leverage, Nonce: s.Nonce, OrderType: s.OrderType, Price: s.Price,
-		ProposedAt: s.ProposedAt.UTC(), ExpiresAt: s.ExpiresAt.UTC(), ReduceOnly: s.ReduceOnly, TradingAccountID: s.TradingAccountID,
+		ProposedAt: s.ProposedAt.UTC(), ExpiresAt: s.ExpiresAt.UTC(), ReduceOnly: s.ReduceOnly, ConnectedAccountID: s.ConnectedAccountID,
 		Side: s.Side, Size: s.Size, Symbol: s.Symbol, TargetClientOrderID: s.TargetClientOrderID, VenueMessage: s.VenueMessage,
 	})
 }
@@ -173,8 +173,8 @@ func (s Submit) Validate() error {
 	switch {
 	case s.KeyID == "":
 		return errors.New("proposal: keyId is required")
-	case s.TradingAccountID == "":
-		return errors.New("proposal: tradingAccountId is required")
+	case s.ConnectedAccountID == "":
+		return errors.New("proposal: connectedAccountId is required")
 	case s.Nonce == "":
 		return errors.New("proposal: nonce is required")
 	case s.Symbol == "":

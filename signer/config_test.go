@@ -38,7 +38,7 @@ func testConfig(t *testing.T) (*Config, *frost.Share, *frost.Share) {
 		t.Fatal(err)
 	}
 	cfg := &Config{Engine: "http://localhost:8080/v1", KeyID: "key_a", Secret: agentkey.Secret("msk_abcdef", testSeed(1))}
-	if err := cfg.AddVenueKey("vk_1", VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: mustJSON(t, agent)}); err != nil {
+	if err := cfg.AddVenueKey("vk_1", VenueKey{ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: mustJSON(t, agent)}); err != nil {
 		t.Fatal(err)
 	}
 	return cfg, agent, engine
@@ -72,7 +72,7 @@ func TestConfigRoundTrip(t *testing.T) {
 	if got.Engine != cfg.Engine || got.KeyID != cfg.KeyID || got.Secret != cfg.Secret || got.Hook != cfg.Hook {
 		t.Fatalf("loaded %+v, want %+v", got, cfg)
 	}
-	if len(got.VenueKeys) != 1 || got.VenueKeys["vk_1"].TradingAccountID != "rt_1" || got.VenueKeys["vk_1"].Venue != "binance" || got.VenueKeys["vk_1"].Scheme != SchemeFrostEd25519 {
+	if len(got.VenueKeys) != 1 || got.VenueKeys["vk_1"].ConnectedAccountID != "rt_1" || got.VenueKeys["vk_1"].Venue != "binance" || got.VenueKeys["vk_1"].Scheme != SchemeFrostEd25519 {
 		t.Fatalf("venue keys loaded as %+v", got.VenueKeys)
 	}
 	if _, err := frost.ParseShare(got.VenueKeys["vk_1"].Share); err != nil {
@@ -98,7 +98,7 @@ func TestReplacementAndPrune(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.AddVenueKey("vk_2", VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: mustJSON(t, next)}); err != nil {
+	if err := cfg.AddVenueKey("vk_2", VenueKey{ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: mustJSON(t, next)}); err != nil {
 		t.Fatal(err)
 	}
 	if len(cfg.VenueKeys) != 2 {
@@ -137,7 +137,7 @@ func TestConfigValidate(t *testing.T) {
 		{"valid", func(c *Config) {}, ""},
 		{"no venue keys yet", func(c *Config) { c.VenueKeys = nil }, ""},
 		{"ecdsa key on hyperliquid", func(c *Config) {
-			c.VenueKeys["vk_2"] = VenueKey{TradingAccountID: "rt_2", Venue: "hyperliquid", Scheme: SchemeECDSA2p, Share: ecdsaShare}
+			c.VenueKeys["vk_2"] = VenueKey{ConnectedAccountID: "rt_2", Venue: "hyperliquid", Scheme: SchemeECDSA2p, Share: ecdsaShare}
 		}, ""},
 		{"no engine", func(c *Config) { c.Engine = "" }, "engine is required"},
 		{"engine not a URL", func(c *Config) { c.Engine = "localhost:8080" }, "not an http(s) URL"},
@@ -145,20 +145,20 @@ func TestConfigValidate(t *testing.T) {
 		{"no secret", func(c *Config) { c.Secret = "" }, "secret is required"},
 		{"bad secret", func(c *Config) { c.Secret = "msk_abc" }, "malformed agent secret"},
 		{"engine share refused", func(c *Config) {
-			c.VenueKeys["vk_1"] = VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: engineShare}
+			c.VenueKeys["vk_1"] = VenueKey{ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeFrostEd25519, Share: engineShare}
 		}, "engine's share, not the agent's"},
 		{"scheme does not fit the venue", func(c *Config) {
-			c.VenueKeys["vk_1"] = VenueKey{TradingAccountID: "rt_1", Venue: "binance", Scheme: SchemeECDSA2p, Share: ecdsaShare}
+			c.VenueKeys["vk_1"] = VenueKey{ConnectedAccountID: "rt_1", Venue: "binance", Scheme: SchemeECDSA2p, Share: ecdsaShare}
 		}, "does not fit venue binance"},
 		{"share of another scheme", func(c *Config) {
-			c.VenueKeys["vk_2"] = VenueKey{TradingAccountID: "rt_2", Venue: "hyperliquid", Scheme: SchemeECDSA2p, Share: agentShare}
+			c.VenueKeys["vk_2"] = VenueKey{ConnectedAccountID: "rt_2", Venue: "hyperliquid", Scheme: SchemeECDSA2p, Share: agentShare}
 		}, "share:"},
 		{"unknown scheme", func(c *Config) {
-			c.VenueKeys["vk_1"] = VenueKey{TradingAccountID: "rt_1", Venue: "bybit", Scheme: "rsa-2p", Share: agentShare}
+			c.VenueKeys["vk_1"] = VenueKey{ConnectedAccountID: "rt_1", Venue: "bybit", Scheme: "rsa-2p", Share: agentShare}
 		}, "not one this signer knows"},
-		{"no trading account", func(c *Config) {
+		{"no connected account", func(c *Config) {
 			c.VenueKeys["vk_1"] = VenueKey{Venue: "binance", Scheme: SchemeFrostEd25519, Share: agentShare}
-		}, "tradingAccountId is required"},
+		}, "connectedAccountId is required"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -238,4 +238,29 @@ func testECDSAAgentKey(t *testing.T) *ecdsa2p.Key {
 		t.Fatal(err)
 	}
 	return key
+}
+
+// A config file written before contract 0.20.0 names the account
+// tradingAccountId; it still loads, and saving it writes the new name.
+func TestVenueKeyReadsTheOldAccountName(t *testing.T) {
+	var old, renamed VenueKey
+	if err := json.Unmarshal([]byte(`{"tradingAccountId":"rt_old","venue":"binance","scheme":"frost-ed25519","share":{}}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.ConnectedAccountID != "rt_old" || old.Venue != "binance" {
+		t.Fatalf("old file read as %+v", old)
+	}
+	out, err := json.Marshal(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"connectedAccountId":"rt_old"`) || strings.Contains(string(out), "tradingAccountId") {
+		t.Fatalf("saved as %s", out)
+	}
+	if err := json.Unmarshal([]byte(`{"connectedAccountId":"rt_new","tradingAccountId":"rt_old","venue":"binance","scheme":"frost-ed25519","share":{}}`), &renamed); err != nil {
+		t.Fatal(err)
+	}
+	if renamed.ConnectedAccountID != "rt_new" {
+		t.Fatalf("the new name must win, got %q", renamed.ConnectedAccountID)
+	}
 }

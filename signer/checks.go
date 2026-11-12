@@ -34,23 +34,23 @@ func (r *Refusal) Error() string { return "signer: refused: " + r.Reason() }
 
 // The refusal codes, in the order the checks run.
 const (
-	RefuseScheme                 = "unsupported_scheme"
-	RefuseUnknownKey             = "unknown_venue_key"
-	RefuseKeyMismatch            = "venue_key_mismatch"
-	RefuseExpired                = "request_expired"
-	RefuseReplay                 = "request_already_answered"
-	RefusePurpose                = "unsupported_purpose"
-	RefuseNoProposal             = "no_proposal"
-	RefuseForeignProposal        = "foreign_proposal"
-	RefuseBadSignature           = "bad_proposal_signature"
-	RefuseTradingAccountMismatch = "trading_account_mismatch"
-	RefuseProposalExpired        = "proposal_expired"
-	RefuseMessage                = "message_mismatch"
-	RefuseVenue                  = "unsupported_venue"
-	RefuseHook                   = "hook_refused"
-	RefuseHookTimeout            = "hook_timeout"
-	RefuseMalformed              = "malformed_request"
-	RefuseNoSlot                 = "no_presigned_slot"
+	RefuseScheme                   = "unsupported_scheme"
+	RefuseUnknownKey               = "unknown_venue_key"
+	RefuseKeyMismatch              = "venue_key_mismatch"
+	RefuseExpired                  = "request_expired"
+	RefuseReplay                   = "request_already_answered"
+	RefusePurpose                  = "unsupported_purpose"
+	RefuseNoProposal               = "no_proposal"
+	RefuseForeignProposal          = "foreign_proposal"
+	RefuseBadSignature             = "bad_proposal_signature"
+	RefuseConnectedAccountMismatch = "connected_account_mismatch"
+	RefuseProposalExpired          = "proposal_expired"
+	RefuseMessage                  = "message_mismatch"
+	RefuseVenue                    = "unsupported_venue"
+	RefuseHook                     = "hook_refused"
+	RefuseHookTimeout              = "hook_timeout"
+	RefuseMalformed                = "malformed_request"
+	RefuseNoSlot                   = "no_presigned_slot"
 )
 
 // Policy is what the signer refuses before it signs, from what it knows
@@ -67,10 +67,10 @@ type Policy struct {
 	// in this session; nil means never. A request handed out again after it
 	// was answered is refused as a replay rather than signed twice.
 	Answered func(id string) bool
-	// Rules is the coin's Hyperliquid rules on a trading account, as the
+	// Rules is the coin's Hyperliquid rules on a connected account, as the
 	// signer cached them (Signer.Handle fetches them first); false when
 	// unknown. Nil refuses every Hyperliquid order.
-	Rules func(tradingAccountID, symbol string) (hyperliquid.Rules, bool)
+	Rules func(connectedAccountID, symbol string) (hyperliquid.Rules, bool)
 }
 
 // Check runs the checks in order and returns the first refusal, or nil with
@@ -78,11 +78,11 @@ type Policy struct {
 // exactly the bytes that were checked:
 //
 //  1. the scheme is frost-ed25519 or ecdsa-2p (the others are not built yet);
-//  2. the venue key is in the config, with that scheme, on the request's trading account;
+//  2. the venue key is in the config, with that scheme, on the request's connected account;
 //  3. the request has not expired and was not answered already;
 //  4. the purpose is order, cancel or verify;
 //  5. an order or a cancel carries the agent's own proposal: signed by this
-//     key, verifying with it, for this trading account, not yet expired;
+//     key, verifying with it, for this connected account, not yet expired;
 //  6. the message, decoded, is the order the proposal describes (Binance:
 //     checkBinanceOrder), the cancel it names (checkBinanceCancel) or, for
 //     verify, no order at all; a Hyperliquid digest is recomputed from the
@@ -102,8 +102,8 @@ func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
 		return nil, &Refusal{RefuseUnknownKey, fmt.Sprintf("this signer holds no share of %s", req.VenueKeyId)}
 	case key.Scheme != string(req.Scheme):
 		return nil, &Refusal{RefuseKeyMismatch, fmt.Sprintf("%s is a %s key, the request runs %s", req.VenueKeyId, key.Scheme, req.Scheme)}
-	case key.TradingAccountID != req.TradingAccountId:
-		return nil, &Refusal{RefuseKeyMismatch, fmt.Sprintf("%s belongs to trading account %s, the request is for %s", req.VenueKeyId, key.TradingAccountID, req.TradingAccountId)}
+	case key.ConnectedAccountID != req.ConnectedAccountId:
+		return nil, &Refusal{RefuseKeyMismatch, fmt.Sprintf("%s belongs to connected account %s, the request is for %s", req.VenueKeyId, key.ConnectedAccountID, req.ConnectedAccountId)}
 	case key.Venue != string(req.Venue):
 		return nil, &Refusal{RefuseKeyMismatch, fmt.Sprintf("%s is a %s key, the request is for %s", req.VenueKeyId, key.Venue, req.Venue)}
 	}
@@ -208,9 +208,9 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 	if p.Rules == nil {
 		return &Refusal{RefuseMalformed, "this signer has no venue rules to check Hyperliquid orders against"}
 	}
-	rules, ok := p.Rules(req.TradingAccountId, prop.Symbol)
+	rules, ok := p.Rules(req.ConnectedAccountId, prop.Symbol)
 	if !ok {
-		return &Refusal{RefuseMalformed, fmt.Sprintf("no venue rules for %s on %s", prop.Symbol, req.TradingAccountId)}
+		return &Refusal{RefuseMalformed, fmt.Sprintf("no venue rules for %s on %s", prop.Symbol, req.ConnectedAccountId)}
 	}
 	switch req.Purpose {
 	case api.SignRequestPurposeCancel:
@@ -238,7 +238,7 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 }
 
 // checkProposal checks that an order request carries the agent's own
-// proposal: this key's, verifying, for the request's trading account, not expired.
+// proposal: this key's, verifying, for the request's connected account, not expired.
 func checkProposal(p Policy, req api.SignRequest, now time.Time) *Refusal {
 	prop := req.Proposal
 	switch {
@@ -248,8 +248,8 @@ func checkProposal(p Policy, req api.SignRequest, now time.Time) *Refusal {
 		return &Refusal{RefuseForeignProposal, fmt.Sprintf("the proposal was signed by %s, this signer is %s", prop.KeyId, p.KeyID)}
 	case !proposal.Verify(p.PublicKey, submitOf(*prop)):
 		return &Refusal{RefuseBadSignature, "the proposal's signature does not verify with this signer's key"}
-	case prop.TradingAccountId != req.TradingAccountId:
-		return &Refusal{RefuseTradingAccountMismatch, fmt.Sprintf("the proposal is for trading account %s, the request for %s", prop.TradingAccountId, req.TradingAccountId)}
+	case prop.ConnectedAccountId != req.ConnectedAccountId:
+		return &Refusal{RefuseConnectedAccountMismatch, fmt.Sprintf("the proposal is for connected account %s, the request for %s", prop.ConnectedAccountId, req.ConnectedAccountId)}
 	case !now.Before(prop.ExpiresAt):
 		return &Refusal{RefuseProposalExpired, fmt.Sprintf("the proposal expired at %s", prop.ExpiresAt.UTC().Format(time.RFC3339))}
 	}

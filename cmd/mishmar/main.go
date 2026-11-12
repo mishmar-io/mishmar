@@ -55,9 +55,11 @@ This binary is the agent's side:
 
   keygen       deal a two-party venue key (the engine's share and the agent's)
   add-agent    create an agent on an engine, issue its key, deal a venue key
-               per trading account, and write the signer's config
+               per connected account, and write the signer's config
   signer       add a share to the signer's config, or run the signer
   propose      sign one proposal with the agent's key and submit it
+  read         read the connected accounts the agent was given: balances,
+               positions, transactions, value over time
   mcp          serve the agent's tools to a language model over MCP, the
                signer built in
 
@@ -82,6 +84,7 @@ engine), and the running signer generates the agent's trading keys itself.`,
 		newAddAgentCmd(),
 		newSignerCmd(),
 		newProposeCmd(),
+		newReadCmd(),
 		newMCPCmd(),
 		newVersionCmd(),
 	)

@@ -73,21 +73,21 @@ func TestLocalAPIProposesAndReadsForTheSDK(t *testing.T) {
 	}
 
 	// An intent becomes a signed proposal the engine accepts; with no venue
-	// key for the trading account it goes through the channel.
+	// key for the connected account it goes through the channel.
 	status, d := localCall(t, local.URL, "tok", http.MethodPost, "/propose", map[string]any{
-		"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "0.001", "price": "80000",
+		"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "0.001", "price": "80000",
 	})
 	if status != http.StatusOK || d["id"] != "dec_1" || d["verdict"] != "allow" || fake.proposals.Load() != 1 {
 		t.Fatalf("propose: %d %v", status, d)
 	}
 	// A bad intent is refused here, before anything is signed.
 	for _, bad := range []map[string]any{
-		{"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "price": "1"},
-		{"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "side": "hold", "size": "1", "price": "1"},
-		{"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "1"},
-		{"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "1", "orderType": "market", "price": "1"},
-		{"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "kind": "cancel"},
-		{"tradingAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "1", "price": "1", "validForSeconds": 100000},
+		{"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "price": "1"},
+		{"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "side": "hold", "size": "1", "price": "1"},
+		{"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "1"},
+		{"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "1", "orderType": "market", "price": "1"},
+		{"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "kind": "cancel"},
+		{"connectedAccountId": "ta_1", "symbol": "BTCUSDT", "side": "buy", "size": "1", "price": "1", "validForSeconds": 100000},
 	} {
 		status, e := localCall(t, local.URL, "tok", http.MethodPost, "/propose", bad)
 		if status != http.StatusUnprocessableEntity || e["code"] != "validation" {
@@ -119,20 +119,20 @@ func TestLocalAPIProposesAndReadsForTheSDK(t *testing.T) {
 func TestProposalOfAnIntent(t *testing.T) {
 	s, _ := localFixture(t)
 	price := "100"
-	p, err := s.proposalOf(ProposeRequest{TradingAccountID: " ta_1 ", Symbol: "BTC", Side: "Sell", Size: "0.5", Price: &price, ReduceOnly: ptr(true), ValidForSeconds: 120})
+	p, err := s.proposalOf(ProposeRequest{ConnectedAccountID: " ta_1 ", Symbol: "BTC", Side: "Sell", Size: "0.5", Price: &price, ReduceOnly: ptr(true), ValidForSeconds: 120})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.KeyId != "key_1" || p.TradingAccountId != "ta_1" || p.Kind != api.ProposalKindOrder || p.Side != api.Side("sell") || p.OrderType != api.ProposalSubmitOrderTypeLimit || p.Price == nil || *p.Price != "100" || p.ReduceOnly == nil || !*p.ReduceOnly || p.Nonce == "" || !p.ExpiresAt.Equal(p.ProposedAt.Add(2*60*1e9)) {
+	if p.KeyId != "key_1" || p.ConnectedAccountId != "ta_1" || p.Kind != api.ProposalKindOrder || p.Side != api.Side("sell") || p.OrderType != api.ProposalSubmitOrderTypeLimit || p.Price == nil || *p.Price != "100" || p.ReduceOnly == nil || !*p.ReduceOnly || p.Nonce == "" || !p.ExpiresAt.Equal(p.ProposedAt.Add(2*60*1e9)) {
 		t.Fatalf("order: %+v", p)
 	}
 	target := "msh-1-abc"
-	c, err := s.proposalOf(ProposeRequest{TradingAccountID: "ta_1", Symbol: "BTC", Kind: "cancel", TargetClientOrderID: &target})
+	c, err := s.proposalOf(ProposeRequest{ConnectedAccountID: "ta_1", Symbol: "BTC", Kind: "cancel", TargetClientOrderID: &target})
 	if err != nil || c.Kind != api.ProposalKindCancel || c.TargetClientOrderId == nil || *c.TargetClientOrderId != target || c.ExpiresAt.Sub(c.ProposedAt) != 60*1e9 {
 		t.Fatalf("cancel: %+v %v", c, err)
 	}
 	var le *LocalError
-	if _, err := s.proposalOf(ProposeRequest{TradingAccountID: "ta_1", Symbol: "BTC", Side: "buy", Size: "1", OrderType: "stop"}); !errors.As(err, &le) || !strings.Contains(le.Message, "orderType") {
+	if _, err := s.proposalOf(ProposeRequest{ConnectedAccountID: "ta_1", Symbol: "BTC", Side: "buy", Size: "1", OrderType: "stop"}); !errors.As(err, &le) || !strings.Contains(le.Message, "orderType") {
 		t.Fatalf("stop order: %v", err)
 	}
 }

@@ -4,6 +4,28 @@
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "cleanUrls": true,
+    "redirects": [
+      {
+        "regex": "^/hyperliquid/add-a-trading-account/?$",
+        "destination": "/hyperliquid/connect-an-account/",
+        "type": 301
+      },
+      {
+        "source": "/hyperliquid/add-a-trading-account.md",
+        "destination": "/hyperliquid/connect-an-account.md",
+        "type": 301
+      },
+      {
+        "regex": "^/binance/add-a-trading-account/?$",
+        "destination": "/binance/connect-an-account/",
+        "type": 301
+      },
+      {
+        "source": "/binance/add-a-trading-account.md",
+        "destination": "/binance/connect-an-account.md",
+        "type": 301
+      }
+    ],
     "headers": [
       {
         "source": "**/*.md",

@@ -40,7 +40,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// Scheme names this key type in key files and trading account setups.
+// Scheme names this key type in key files and connected account setups.
 const Scheme = "ecdsa-2p-secp256k1"
 
 // Role is which party a key belongs to.

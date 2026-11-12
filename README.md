@@ -26,10 +26,10 @@ api/                  the contract as Go types (generated; `make gen`)
 canon/                canonical JSON: the bytes an agent signs
 agentkey/             the agent's Ed25519 identity key: parse the secret, sign, verify, sign requests
 proposal/             build, validate and sign a proposal for POST /v1/proposals
-frost/                two-party FROST over Ed25519: the split key behind a Binance tradingAccount
+frost/                two-party FROST over Ed25519: the split key behind a Binance connectedAccount
 ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
 signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
-cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, mcp
+cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, read, mcp
 mcp/                  the MCP server behind `mishmar mcp`: the signer's tools for a language model, over stdio
 python/               the Python SDK (`mishmar` on PyPI)
 typescript/           the TypeScript SDK (`mishmar` on npm); no runtime dependencies
@@ -72,7 +72,7 @@ by default.
    blocks it. The response is the decision; a parked one resolves later and
    is read back from `/v1/agent/decisions/{id}`, a request the agent signs
    with the same key (the `agentAuth` headers).
-4. When the trading account's key is split, the engine asks the agent's signer to
+4. When the connected account's key is split, the engine asks the agent's signer to
    co-sign the venue request over the signer channel (`/v1/agent/signer/…`);
    the signer checks that it is the order it proposed before it signs.
 
@@ -81,7 +81,7 @@ in `spec/vectors/`.
 
 ## The signer
 
-When a trading account's venue key is split, the engine holds one share and the
+When a connected account's venue key is split, the engine holds one share and the
 agent's signer the other, and a venue request is signed only when both sign
 it. The signer is the `signer` package as a library and `mishmar signer run`
 as a process. It long-polls `POST /v1/agent/signer/poll` with the agent's
@@ -89,13 +89,13 @@ key and, for each request, refuses unless, in this order:
 
 - the scheme is `frost-ed25519` (Binance) or `ecdsa-2p` (Hyperliquid); RSA
   and the proxy are not built yet;
-- the venue key is in its config, on the request's trading account and venue;
+- the venue key is in its config, on the request's connected account and venue;
 - the request has not expired and was not answered already in this session
   (a request handed out again after it was answered is a replay, not a
   second signature);
 - the purpose is `order`, `cancel` or `verify`;
 - an `order` carries the agent's own proposal: signed by this signer's key,
-  verifying with it, for this trading account, not yet expired;
+  verifying with it, for this connected account, not yet expired;
 - the message, decoded, is that order and nothing more. On Binance the
   message is the parameter string the venue verifies: it may carry only the
   parameters the engine sends; `newClientOrderId` is the request's;
@@ -152,7 +152,7 @@ with mode 0600:
   "agentId": "agt_…",
   "venueKeys": {
     "vk_…": {
-      "tradingAccountId": "ta_…",
+      "connectedAccountId": "ta_…",
       "venue": "binance",
       "scheme": "frost-ed25519",
       "share": {"scheme": "frost-ed25519", "id": 1, "keyShare": "…", "group": "…"}
@@ -192,13 +192,13 @@ export MISHMAR_API_KEY=msk_testnet_…
 mishmar signer run
 
 # Everything for a new agent in one go, with an operator token: create the
-# agent, issue its key, make a venue key per trading account by two-party
+# agent, issue its key, make a venue key per connected account by two-party
 # key generation with the engine's signer (FROST for Binance, ECDSA for
 # Hyperliquid; no machine ever holds the whole key), write the config. It
 # prints what to register or approve at the venue. The agent joins the
 # account's default portfolio unless --portfolio pf_… names another.
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
-  --name momentum-1 --trading-account ta_…
+  --name momentum-1 --connected-account ta_…
 
 # Or step by step: write the config first (from MISHMAR_API_KEY, or the key
 # piped in; a key from before 0.19.0 also takes --engine, --key-id and
@@ -206,15 +206,15 @@ mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_T
 # running signer. Binance prints the public key to register at the exchange,
 # Hyperliquid the API wallet address to approve.
 echo "$MSK_SECRET" | mishmar signer init --secret-stdin
-mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue binance
-mishmar signer keygen --venue-key vk_… --trading-account ta_… --venue hyperliquid --network testnet
+mishmar signer keygen --venue-key vk_… --connected-account ta_… --venue binance
+mishmar signer keygen --venue-key vk_… --connected-account ta_… --venue hyperliquid --network testnet
 
 # The older way for Binance, which makes the whole key exist on this machine
 # for the length of the call: deal a FROST key, paste the engine share when
 # adding the venue key in the console, store the agent share under the id it
 # returns.
 mishmar keygen --scheme ed25519 --agent-share-out agent.share > engine.share
-mishmar signer add-key --venue-key vk_… --trading-account ta_… --venue binance --share agent.share
+mishmar signer add-key --venue-key vk_… --connected-account ta_… --venue binance --share agent.share
 
 # Run the signer; then register the key at the venue and verify it in the
 # console (the verification is a read the signer co-signs). One signer runs
@@ -225,7 +225,7 @@ mishmar signer add-key --venue-key vk_… --trading-account ta_… --venue binan
 mishmar signer run
 
 # Drive one order end to end with the signer running.
-mishmar propose --config ~/.mishmar/agent.json --trading-account ta_… --symbol BTCUSDT --size 0.01 --price 60000
+mishmar propose --config ~/.mishmar/agent.json --connected-account ta_… --symbol BTCUSDT --size 0.01 --price 60000
 ```
 
 ### Restarts and rate limits
@@ -234,8 +234,8 @@ The engine answers `503 unavailable` while it restarts (it drains for up to
 28 s, so an order already in flight finishes) and `429 rate_limited` with a
 `Retry-After` when a caller sends too much. Both mean the request did
 nothing, and every client here sends it again on its own: the Go client
-(`signer.Client`, which the signer's poll loop, `mishmar propose` and
-`mishmar mcp` use), the Python `Client` and the TypeScript `Client`. They
+(`signer.Client`, which the signer's poll loop, `mishmar propose`,
+`mishmar read` and `mishmar mcp` use), the Python `Client` and the TypeScript `Client`. They
 wait the seconds in `Retry-After` when there is one, otherwise 0.25 s
 doubling to 8 s with jitter, for up to 45 s after the first attempt, then
 raise the last answer. A signed `/agent` request is signed anew for each
@@ -271,7 +271,7 @@ with Signer() as s:                                   # ~/.mishmar/agent.json
 import { Signer } from "mishmar";
 
 const s = await new Signer().start();
-const d = await s.order({ tradingAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
+const d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
 await s.stop();
 ```
 
@@ -294,9 +294,10 @@ while the bot restarts.
 
 `mishmar mcp` is the same signer behind an MCP server on stdio: a language
 model gets tools to propose orders and cancels, follow a decision parked
-for a person, and read positions, PnL, approvals, the trading account and
-its venue rules. It never sees a key, and every order it proposes passes
-the engine's rules before anything reaches a venue. Point an MCP client at
+for a person, read positions, PnL, approvals and venue rules, and read the
+connected accounts the agent was given (below). It never sees a key, and
+every order it proposes passes the engine's rules before anything reaches a
+venue. Point an MCP client at
 the command, with `--config` when the config is not at the default path:
 
 ```json
@@ -314,6 +315,62 @@ mishmar mcp` runs the binary found through `MISHMAR_BIN`, the PATH or
 `~/.mishmar/bin`, and when there is none fetches the pinned release into
 `~/.mishmar/bin` first, checked against the release's checksums. The MCP
 registry lists the server as `io.github.mishmar-io/mishmar` (`server.json`).
+
+### Reading connected accounts
+
+An agent is given connected accounts and reads each one whole: its
+balances, the venue's positions, its transactions and its value over time,
+other agents' and the owner's activity included. A trade's `origin` says who
+placed it, with `own` true on the agent's own. Every read is signed with the
+agent's key and written to the account's access log. A read agent
+(`permission: read`) does only this: it has a Mishmar API key, no signer and
+no trading key, and the engine refuses its proposals. On hosted Mishmar
+these seven reads (`GET /agent/me`, `/agent/connected-accounts`, one
+account, and its `/balances`, `/positions`, `/transactions`, `/equity`) are
+answered while the account's engine sleeps; the SDK `Client` and `mishmar
+read` call nothing else for them.
+
+The API key alone is enough: it names the engine and the key id
+(`MISHMAR_ENGINE` names a self-hosted engine).
+
+```python
+from mishmar import Client
+
+client = Client.from_api_key()                       # $MISHMAR_API_KEY
+for account in client.connected_accounts():
+    print(account["name"], client.account_balances(account["id"]).get("equityUsd"))
+page = client.account_transactions("ta_…", since="2026-11-01T00:00:00Z", kind="trade")
+mine = [t for t in page["items"] if t.get("origin", {}).get("own")]
+```
+
+```ts
+import { Client } from "mishmar";
+
+const client = Client.fromApiKey();                  // $MISHMAR_API_KEY
+const page = await client.accountTransactions("ta_…", { from: "2026-11-01T00:00:00Z", kind: "trade" });
+```
+
+The reads are `me`, `connected_accounts`, `connected_account`,
+`account_balances` and `account_positions` (now or `at` a past moment),
+`account_transactions` (a time range, a kind, `limit` and `cursor` pages)
+and `account_equity` (a range and a `resolution`), camelCase in TypeScript,
+on `Client` and `Signer` alike. From the shell, with the same key or the
+signer's config, `mishmar read agent`, `read accounts`, `read account
+<id>`, `read balances <id>`, `read positions <id>`, `read transactions <id>`
+and `read equity <id>`; `--json` prints the engine's answer as it came.
+`mishmar mcp` serves them as read-only tools: `get_identity`,
+`list_connected_accounts`, `get_connected_account`, `get_account_balances`,
+`get_account_positions`, `list_account_transactions` and
+`get_account_equity`.
+
+A signer started with a read agent's key, by `mishmar signer run`, `mishmar
+mcp` or an SDK's `Signer`, learns that it reads from `GET /agent/me`
+(`AgentIdentity.permission`) and starts no signer channel and no key sync;
+its client then refuses, unsent, anything but the seven reads. Under `mishmar
+mcp` every other tool answers that it is not open to a read agent and names
+the reads to use. The signer asks again every minute, so an agent made a
+trade agent starts polling, and one made a read agent stops, without a
+restart. An engine that does not send the field is taken as trade.
 
 ## The engine's signer
 

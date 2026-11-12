@@ -5,6 +5,12 @@ agent's half of every trading key, the two-party FROST and ECDSA code, the
 SDKs and the API contract. A flaw here can cost someone money, so please
 report it privately.
 
+Mishmar's full security policy is at <https://mishmar.io/security>: what
+you may test, what we promise, and our safe harbor for good-faith
+research. This file adds what is particular to this repository. For the
+hosted service (the consoles, their API and Mishmar's signer service),
+write to security@mishmar.io.
+
 ## Reporting a vulnerability
 
 Use GitHub's private reporting: the **Security** tab of
@@ -13,9 +19,9 @@ Use GitHub's private reporting: the **Security** tab of
 For anything that is not a vulnerability, write to support@mishmar.io.
 
 Please include what you found, the commit or release it affects, and the
-steps or code that show it. You will hear back within a few days. We will
-tell you what we found, fix it, and credit you in the release notes unless
-you ask us not to.
+steps or code that show it. We acknowledge it within a day, tell you what
+we found, fix it, and credit you in the release notes unless you ask us not
+to.
 
 Please do not open a public issue, and test only against your own accounts
 and keys, on testnet where you can.

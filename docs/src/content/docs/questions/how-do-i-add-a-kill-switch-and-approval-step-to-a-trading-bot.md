@@ -14,8 +14,8 @@ Two levels, set from the console, each lifted with **Resume trading**:
 
 | Level | What still passes | Where you can set it | Use it when |
 | --- | --- | --- | --- |
-| **Pause all trading** | cancels, and reduce-only orders that close a position | the account, an agent, a trading account | you want the bot to wind down: it can close what it holds, and open nothing new |
-| **Stop all trading** | cancels only | the account, a portfolio, an agent, a trading account | something is wrong now: nothing new goes out, closing orders included |
+| **Pause all trading** | cancels, and reduce-only orders that close a position | the account, an agent, a connected account | you want the bot to wind down: it can close what it holds, and open nothing new |
+| **Stop all trading** | cancels only | the account, a portfolio, an agent, a connected account | something is wrong now: nothing new goes out, closing orders included |
 
 A stop outranks a pause. Neither closes anything for you: Mishmar holds only its half of each trading key and never trades on its own, so open positions and resting orders stay at the exchange. Under a stop, the bot can still pull its resting orders, and you close positions from your own exchange account (your master wallet on Hyperliquid, your login on Binance), which Mishmar never touches. If you want the bot to do the closing, pause instead.
 
@@ -89,4 +89,4 @@ In regulated markets the kill switch belongs to the firm that sends the orders, 
 3. Give orders that may be held a deadline long enough for you to answer, and handle all three verdicts in the bot.
 4. Try Pause and Stop once on the hosted testnet before you need them, and watch what the bot does.
 
-The hosted testnet is free for one agent and one trading account, on Hyperliquid testnet or Binance demo trading.
+The hosted testnet is free for one agent and one connected account, on Hyperliquid testnet or Binance demo trading.

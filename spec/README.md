@@ -40,6 +40,81 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-11 (0.20.0)
+
+Accounts come first, and agents are given them to read or to trade on
+(Ishai, 11 Nov 2026). Breaking, in one release with the engine, the SDKs, the
+CLI and the console.
+
+- **TradingAccount is ConnectedAccount everywhere**: paths
+  (`/connected-accounts`), schemas, operation ids, the scope kind
+  `connected_account`, `Entitlements.maxConnectedAccounts`, and the field
+  `connectedAccountId`, which is part of the bytes an agent signs on every
+  proposal. Canonical JSON sorts its keys, so the account now comes first in
+  the signed bytes where it came last; `spec/vectors/proposal-signing.json`
+  is regenerated. A client built for 0.19.0 is refused (422). The older
+  sections below keep the old name: they are a record.
+- **Old decisions stay verifiable.** `Decision.signingVersion` says which
+  shape the signatures cover: 1 (absent) for a decision from before this
+  contract, signed with `tradingAccountId`; 2 for this one. The engine serves
+  both under today's names, and the ledger verifier rebuilds version 1 bytes
+  with the old name.
+- **The signer's config file is read under either name.** A file written by
+  an earlier CLI names the account `tradingAccountId` per trading key; it
+  loads, and the next save writes `connectedAccountId`.
+- **An agent has a permission.** `Agent.permission` is `read` or `trade`
+  and createAgent requires it, with no default. A read agent has a Mishmar API key, no signer and no
+  trading key, and its proposals are refused. Both count against
+  `Entitlements.maxAgents`.
+- **An agent is given connected accounts.** `Agent.connectedAccountIds` is
+  now the list it was given, no longer derived from its keys
+  (giveAgentConnectedAccount, takeAgentConnectedAccount; a new trading key
+  gives its account). An agent reads each account it was given whole, other
+  agents' and the owner's activity included; `TransactionOrigin` says who
+  placed each trade, with `own` on the agent-facing reads.
+- **A connected account needs no agent** and keeps its data over time:
+  balances, positions, equity and transactions, for people
+  (`/connected-accounts/{id}/balances|positions|transactions|equity`) and
+  for agents (`/agent/connected-accounts/…`, each read written to
+  `/access-log`). A moment the engine did not observe is rebuilt from the
+  transactions and the venue's historical prices (`SnapshotSource`), so a
+  free account whose engine was stopped has no gap. `ConnectedAccount.sync`
+  says how current each kind is; `traded` says whether any agent holds a
+  trading key there, and while none does, `mode` restricts nothing and no
+  discrepancy is opened.
+- **Plans.** `Entitlements.accountData` carries what a plan includes of this
+  data (real time or only while awake, the finest snapshot spacing, retention,
+  included storage); the values come from the plan file. `/account/data-usage`
+  is what the stored data takes.
+
+Later the same day (Ishai), still 0.20.0, nothing released:
+
+- **The data is polled, on every connected account,** agent or not. Streams
+  are for the rules and run only where an agent holds a trading key.
+- **A collector stays up while the engine sleeps.** On the hosted service a
+  free account's engine is still stopped when quiet, but a thin collector (the
+  engine binary in collect-only mode) keeps reading its connected accounts
+  until the account is released at 90 days, so the product is never working
+  from stale data.
+- **History is served on every plan for now,** per minute. So
+  `AccountDataEntitlements.realTime` became `history`, and
+  `resolutionSeconds` is how often an account is read. Free keeps 90 days.
+- **Transactions go 90 days back** the first time an account is read.
+- Rebuilding unobserved moments is dropped; `SnapshotSource.rebuilt` stays
+  in the contract for history from before an account was connected, unbuilt.
+
+On 12 November, still 0.20.0, nothing released:
+
+- **`AgentIdentity.permission`.** `GET /agent/me` says whether the key's
+  agent reads or trades, so a signer or MCP server started with a read
+  agent's key learns it from a read the collector answers, and starts no
+  signer channel and no key sync: a read agent never wakes or keeps awake a
+  hosted engine. A client treats an engine that does not send it as trade.
+
+Not in this contract yet: narrower reads than a whole account, and positions
+split by who holds them on a shared account (`listPositions` still has the
+per-agent book).
+
 ## Decided on 2026-10-19
 
 - **Money and quantities are decimal strings** (schema `Decimal`). The bytes an

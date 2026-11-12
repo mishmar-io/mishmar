@@ -1,25 +1,69 @@
-"""The Mishmar client: sign and submit proposals, read decisions, answer the signer channel."""
+"""The Mishmar client: sign and submit proposals, read decisions and connected-account data, answer the signer channel."""
 
-from .agentkey import AgentKey, request_signing_bytes, verify, verify_request
+from .agentkey import (
+    AgentKey,
+    ParsedSecret,
+    parse_secret,
+    request_signing_bytes,
+    verify,
+    verify_request,
+)
 from .canon import canonical_json
-from .client import DEFAULT_RETRIES, Client, EngineError, Retries
+from .client import (
+    DEFAULT_RETRIES,
+    HOSTED_API,
+    Client,
+    EngineError,
+    Retries,
+    engine_url_for,
+)
+from .data import (
+    AccountPosition,
+    AccountPositionSnapshot,
+    AccountTransaction,
+    AccountTransactionPage,
+    AgentIdentity,
+    Balance,
+    BalanceSnapshot,
+    ConnectedAccount,
+    EquityPoint,
+    EquitySeries,
+    SyncState,
+    TransactionOrigin,
+)
 from .proposal import Proposal, VenueMessage, is_decimal, new_nonce, rfc3339
 from .signer import Signer, download_binary, find_binary
 
 __all__ = [
     "DEFAULT_RETRIES",
+    "HOSTED_API",
+    "AccountPosition",
+    "AccountPositionSnapshot",
+    "AccountTransaction",
+    "AccountTransactionPage",
+    "AgentIdentity",
     "AgentKey",
+    "Balance",
+    "BalanceSnapshot",
     "Client",
+    "ConnectedAccount",
     "EngineError",
+    "EquityPoint",
+    "EquitySeries",
+    "ParsedSecret",
     "Proposal",
     "Retries",
     "Signer",
+    "SyncState",
+    "TransactionOrigin",
     "VenueMessage",
     "canonical_json",
     "download_binary",
+    "engine_url_for",
     "find_binary",
     "is_decimal",
     "new_nonce",
+    "parse_secret",
     "request_signing_bytes",
     "rfc3339",
     "verify",

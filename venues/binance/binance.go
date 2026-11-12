@@ -35,7 +35,7 @@ const (
 )
 
 // Rules are one symbol's trading rules as decimal strings, as the engine
-// serves them (GET /agent/trading-accounts/{id}/venue-rules). An empty field
+// serves them (GET /agent/connected-accounts/{id}/venue-rules). An empty field
 // is a rule the venue does not state.
 type Rules struct {
 	Tick, Step, MinQty, MinNotional string

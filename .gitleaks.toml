@@ -34,3 +34,10 @@ condition = "AND"
 paths = ['''^docs/scripts/shots-[a-z-]+\.mjs$''']
 regexTarget = "line"
 regexes = ['''const READ_KEY = ''']
+
+[[allowlists]]
+description = "The made-up Hyperliquid addresses the docs' screenshot scripts show (an address, 0x and 40 hex digits, is public; a private key is 64 and does not match)"
+condition = "AND"
+paths = ['''^docs/scripts/shots-[a-z-]+\.mjs$''']
+regexTarget = "line"
+regexes = ['''const [A-Z_]+ = .0x[0-9a-f]{40}[^0-9a-f]''']
