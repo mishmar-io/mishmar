@@ -145,7 +145,7 @@ jobs:
           (cd dist && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
 
       - name: Keep the binary
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: mishmar-${{ matrix.os }}-${{ matrix.arch }}
           path: |
