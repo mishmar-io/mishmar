@@ -30,6 +30,15 @@ repos:
       - id: ruff-format
         files: ^python/
 
+  # The workflows: zizmor finds nothing unsafe in them, and every action they use is in
+  # .github/workflows/actions.lock (`gh extension install github/gh-actions-lock` once;
+  # after changing a `uses:` line run `gh actions-lock` and stage the lockfile).
+  # .github/workflows/workflow-security.yml checks both again in CI.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.32.0
+    hooks:
+      - id: zizmor
+
   - repo: local
     hooks:
       - id: gofmt
@@ -82,3 +91,10 @@ repos:
         language: system
         pass_filenames: false
         files: ^(typescript/|spec/vectors/)
+
+      - id: actions-lock
+        name: every action is in .github/workflows/actions.lock (gh actions-lock --verify-local)
+        entry: gh actions-lock --verify-local
+        language: system
+        pass_filenames: false
+        files: ^\.github/workflows/

@@ -9,8 +9,11 @@
 # the binary's architecture instead.
 #
 # The fork is checked out next to this repo at the ref in cbmpc.ref (go.mod
-# replaces github.com/mishmar-io/cb-mpc-go with ../cb-mpc-go). Its C++ build
-# and the static OpenSSL it needs are cached by that ref.
+# replaces github.com/mishmar-io/cb-mpc-go with ../cb-mpc-go). Its C++ build,
+# the static OpenSSL it needs and Go's build cache are made fresh on every run,
+# never restored from the Actions cache: these binaries hold signing keys, and
+# a cache entry another workflow wrote could put its own object files in them.
+# That costs about ten minutes a release (CI keeps its cache).
 #
 # Run by hand (workflow_dispatch) it builds every archive and attaches nothing.
 name: Release
@@ -52,8 +55,9 @@ jobs:
       GOARCH: ${{ matrix.arch }}
     steps:
       - name: Check out mishmar
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
         with:
+          persist-credentials: false
           path: mishmar
 
       - name: Read the cb-mpc-go ref
@@ -61,18 +65,19 @@ jobs:
         run: echo "ref=$(tr -d '[:space:]' < mishmar/cbmpc.ref)" >> "$GITHUB_OUTPUT"
 
       - name: Check out the cb-mpc-go fork (with the cb-mpc submodule)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
         with:
+          persist-credentials: false
           repository: mishmar-io/cb-mpc-go
           ref: ${{ steps.cbmpc.outputs.ref }}
           path: cb-mpc-go
           submodules: recursive
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.6.0
         with:
           go-version-file: mishmar/go.mod
-          cache-dependency-path: mishmar/go.sum
+          cache: false
 
       - name: Install build dependencies (Linux)
         if: matrix.os == 'linux'
@@ -84,38 +89,28 @@ jobs:
         if: matrix.os == 'darwin'
         run: brew install cmake
 
-      - name: Restore the C++ builds
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/opt/openssl@3.6.1
-            cb-mpc-go/cb-mpc/build
-            cb-mpc-go/cb-mpc/lib
-          key: cbmpc-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.cbmpc.outputs.ref }}-${{ env.MACOSX_DEPLOYMENT_TARGET }}
-
       - name: Build the static OpenSSL
-        if: steps.cache.outputs.cache-hit != 'true' && !matrix.cross
+        if: ${{ !matrix.cross }}
         run: sudo --preserve-env=MACOSX_DEPLOYMENT_TARGET bash cb-mpc-go/scripts/openssl/${{ matrix.openssl }}
 
       # Apple's clang targets arm64 from an Intel Mac; the script's
       # darwin64-arm64-cc target passes -arch arm64.
       - name: Build the static OpenSSL (cross)
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.cross
+        if: matrix.cross
         env:
           CC: /usr/bin/clang
           CXX: /usr/bin/clang++
         run: sudo --preserve-env=MACOSX_DEPLOYMENT_TARGET,CC,CXX bash cb-mpc-go/scripts/openssl/${{ matrix.openssl }}
 
       - name: Build cb-mpc
-        if: steps.cache.outputs.cache-hit != 'true' && !matrix.cross
+        if: ${{ !matrix.cross }}
         run: bash cb-mpc-go/scripts/build_cpp.sh Release
 
       # cb-mpc's CMake picks its arm64 flags from CMAKE_OSX_ARCHITECTURES. Its unit tests are
       # left out: the build runs the test binary to list the tests, which an Intel Mac cannot.
       # Otherwise this is build_cpp.sh: the library, then its public install for cgo.
       - name: Build cb-mpc (cross)
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.cross
+        if: matrix.cross
         working-directory: cb-mpc-go/cb-mpc
         env:
           CMAKE_OSX_ARCHITECTURES: arm64
@@ -150,7 +145,7 @@ jobs:
           (cd dist && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
 
       - name: Keep the binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: mishmar-${{ matrix.os }}-${{ matrix.arch }}
           path: |
@@ -167,10 +162,12 @@ jobs:
       contents: write
     steps:
       - name: Check out mishmar
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Collect the binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.3.0
         with:
           path: dist
           merge-multiple: true

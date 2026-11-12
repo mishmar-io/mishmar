@@ -34,11 +34,12 @@ jobs:
       PROJECT_ID: ${{ vars.PROD_PROJECT_ID }}
       PROJECT_NUMBER: ${{ vars.PROD_PROJECT_NUMBER }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -57,7 +58,7 @@ jobs:
           printf '{"ref":"%s"}\n' "$(git rev-parse HEAD)" > dist/version.json
 
       - name: Sign in to Google Cloud
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@v3.0.0
         with:
           workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/web-deploy
           service_account: web-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com

@@ -1,0 +1,16 @@
+# Keeps the actions the workflows use current. Each pull request also updates
+# .github/workflows/actions.lock. A release waits a week (the cooldown) before it is
+# proposed, so a hijacked one is usually caught upstream first. Minor and patch updates
+# come together in one pull request a week; a new major version comes on its own.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]

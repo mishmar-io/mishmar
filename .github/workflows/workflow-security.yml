@@ -1,0 +1,49 @@
+# Checks the workflows themselves, on every change to them and once a week:
+#
+# - Every action they use, and every action those use, is in
+#   .github/workflows/actions.lock, at a commit that still matches its tag upstream.
+#   GitHub runs the locked commit even when a tag is moved, so a hijacked action does
+#   not reach a run. After changing a `uses:` line, run `gh actions-lock` and commit the
+#   lockfile with the change; Dependabot does that itself in its pull requests.
+# - zizmor (https://zizmor.sh) finds nothing unsafe in them.
+#
+# The weekly run catches what changes upstream without a commit here: a locked tag that
+# was moved or deleted, or a new advisory against an action in use.
+name: Workflow security
+
+on:
+  pull_request:
+    paths: [".github/**"]
+  push:
+    branches: [main]
+    paths: [".github/**"]
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lockfile:
+    name: Every action is locked
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
+      - run: gh actions-lock --verify
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: pipx run zizmor==1.32.0 --format=github .

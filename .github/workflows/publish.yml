@@ -46,8 +46,9 @@ jobs:
     name: Every package says the version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ inputs.ref }}
       - name: Compare
         env:
@@ -68,10 +69,11 @@ jobs:
       contents: read
       id-token: write # the proof npm checks
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ inputs.ref }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
@@ -99,10 +101,11 @@ jobs:
       contents: read
       id-token: write # the proof PyPI checks
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ inputs.ref }}
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Test
         working-directory: python
         run: uv run --extra test python -m pytest -q
@@ -124,8 +127,9 @@ jobs:
       contents: read
       id-token: write # the proof the registry checks
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ inputs.ref }}
       - name: Already out?
         id: out
