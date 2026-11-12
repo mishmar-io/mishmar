@@ -1,0 +1,67 @@
+# Deploys docs.mishmar.io from `ref`. infra-live's Releases workflow starts it (`mm
+# publish prod`) after a change to releases/prod.yaml merges, once the CLI release named
+# there is out, so the install page's version (docs/src/lib/cli-version.mjs asks GitHub for
+# the latest release) is the one customers get. It can be started by hand the same way.
+#
+# It writes dist/version.json with the commit it built, which `mm drift prod` compares
+# with releases/prod.yaml. It deploys as web-deployer@<prod project>, through the prod
+# project's GitHub pool (provider "web"), onto the Firebase site mishmar-docs in
+# mishmar-511602; infra-live's scripts/web-deployer.sh makes them, once.
+name: Docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The commit, tag or branch to build
+        required: true
+        type: string
+        default: main
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy the docs
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ vars.PROD_PROJECT_ID }}
+      PROJECT_NUMBER: ${{ vars.PROD_PROJECT_NUMBER }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install
+        working-directory: docs
+        run: npm ci
+
+      - name: Build
+        working-directory: docs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          npm run build
+          printf '{"ref":"%s"}\n' "$(git rev-parse HEAD)" > dist/version.json
+
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/web-deploy
+          service_account: web-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Deploy
+        working-directory: docs
+        run: npx --yes firebase-tools@15 deploy --only hosting:docs --non-interactive

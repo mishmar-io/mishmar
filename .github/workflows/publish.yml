@@ -1,19 +1,30 @@
-# Publish from this repo with no tokens: the Python SDK (`mishmar` on PyPI)
-# and the MCP registry entry (server.json). PyPI trusts this workflow file in
-# this repository (trusted publishing, set under the project's Publishing
-# settings on pypi.org), the MCP registry trusts the mishmar-io organization's
-# workflows, and GitHub proves which workflow is asking.
+# Publish the SDKs from this repo with no tokens: `mishmar` on npm and PyPI, and the
+# MCP registry entry (server.json). npm and PyPI trust this workflow file in this
+# repository (trusted publishing, set in each project's settings); the MCP registry
+# trusts the mishmar-io organization's workflows. GitHub proves which workflow asks.
 #
-# Run by hand for now (Actions → Publish → Run workflow) on the commit to
-# publish. The versions are the ones in python/pyproject.toml and server.json;
-# both registries refuse a version they already have, so untick the one that
-# is already out. The registry checks server.json against npm and PyPI, so it
-# runs after PyPI, and the npm package must be published first.
+# infra-live's Releases workflow starts it (`mm publish prod`) after a change to
+# releases/prod.yaml merges, with the ref and version named there; it can be started by
+# hand the same way. It runs on main but builds `ref`, and refuses unless every package at
+# `ref` says `version`. A version already out is skipped, so it is safe to run again.
+# The registry checks server.json against npm and PyPI, so it goes last.
 name: Publish
 
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: The commit or tag to build
+        required: true
+        type: string
+      version:
+        description: The version every package at ref must say
+        required: true
+        type: string
+      npm:
+        description: Publish the TypeScript SDK to npm
+        type: boolean
+        default: true
       pypi:
         description: Publish the Python SDK to PyPI
         type: boolean
@@ -26,48 +37,110 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
 jobs:
+  check:
+    name: Every package says the version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Compare
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          py=$(sed -n 's/^version *= *"\(.*\)"/\1/p' python/pyproject.toml)
+          ts=$(jq -r .version typescript/package.json)
+          srv=$(jq -r .version server.json)
+          echo "pyproject $py, package.json $ts, server.json $srv; want $VERSION"
+          test "$py" = "$VERSION" && test "$ts" = "$VERSION" && test "$srv" = "$VERSION"
+
+  npm:
+    name: TypeScript SDK to npm
+    needs: check
+    if: inputs.npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # the proof npm checks
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - name: Already out?
+        id: out
+        env:
+          VERSION: ${{ inputs.version }}
+        run: echo "yes=$([ "$(npm view "mishmar@$VERSION" version 2>/dev/null)" = "$VERSION" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Install, test, publish
+        if: steps.out.outputs.yes != 'true'
+        working-directory: typescript
+        run: |
+          npm ci
+          npm test
+          npm publish --provenance --access public
+
   pypi:
     name: Python SDK to PyPI
+    needs: check
     if: inputs.pypi
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write # the proof PyPI checks
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v6
-
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: astral-sh/setup-uv@v10
       - name: Test
         working-directory: python
         run: uv run --extra test python -m pytest -q
-
       - name: Build
         working-directory: python
         run: uv build --out-dir dist
-
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist
+          skip-existing: true
 
   registry:
     name: server.json to the MCP registry
-    needs: pypi
-    if: always() && inputs.registry && (needs.pypi.result == 'success' || needs.pypi.result == 'skipped')
+    needs: [npm, pypi]
+    if: always() && inputs.registry && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write # the proof the registry checks
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Already out?
+        id: out
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          found=$(curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mishmar-io/mishmar" \
+            | jq -r --arg v "$VERSION" '[.servers[].server.version] | index($v) != null')
+          echo "yes=$found" >> "$GITHUB_OUTPUT"
       - name: Install mcp-publisher
+        if: steps.out.outputs.yes != 'true'
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
-
       - name: Publish
+        if: steps.out.outputs.yes != 'true'
         run: |
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
