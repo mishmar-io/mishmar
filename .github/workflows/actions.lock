@@ -8,7 +8,7 @@ workflows:
         - 'actions/checkout@v4.4.0'
         - 'actions/setup-go@v5.6.0'
         - 'actions/setup-node@v4.4.0'
-        - 'astral-sh/setup-uv@v5.4.2'
+        - 'astral-sh/setup-uv@v10.3.3'
     '.github/workflows/docs.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-node@v7.1.0'
@@ -80,11 +80,6 @@ dependencies:
     'astral-sh/setup-uv@v10.3.3':
         ref: 'v10.3.3'
         commit: 'sha1-68559e99cc807c1eb7e9238fd43a15bba460eec2'
-        owner_id: 115962839
-        repo_id: 846733598
-    'astral-sh/setup-uv@v5.4.2':
-        ref: 'v5.4.2'
-        commit: 'sha1-d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86'
         owner_id: 115962839
         repo_id: 846733598
     'docker/build-push-action@v7.4.0':
