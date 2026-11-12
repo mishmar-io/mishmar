@@ -1,6 +1,6 @@
 {
   "name": "mishmar",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "mcpName": "io.github.mishmar-io/mishmar",
   "description": "Mishmar is a risk management layer for trading bots and AI agents: every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone. The TypeScript SDK: run the agent's signer, propose orders, read decisions.",
   "license": "Apache-2.0",

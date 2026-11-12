@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mishmar"
-version = "0.3.1"
+version = "0.4.0"
 description = "Mishmar is a risk management layer for trading bots and AI agents: every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone. The Python SDK: run the agent's signer, propose orders, read decisions."
 readme = "README.md"
 license = "Apache-2.0"
