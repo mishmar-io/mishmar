@@ -20,7 +20,7 @@ Mishmar is a risk management layer for trading bots and AI agents: every order i
 | Pause and Stop | from the console: Pause lets only closing orders through, Stop only cancels |
 | A record | every decision, allowed, held or blocked, signed and chained |
 
-The limits are set in the console, on the account, a portfolio, the agent or the connected account. No tool can change them, approve an order or lift a stop, so a model that is confused or talked into something cannot either.
+The limits are set in the console, on the whole account, a venue connection, the connected account or the agent. No tool can change them, approve an order or lift a stop, so a model that is confused or talked into something cannot either.
 
 ## Set it up
 

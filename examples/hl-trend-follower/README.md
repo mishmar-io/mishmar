@@ -9,18 +9,26 @@ key.
 
 ## The rules
 
-Add these in the console before the run, on the agent and on its portfolio.
-The bot checks the decisions against these names, so keep them as they are.
+Add these in the console before the run: four on the agent, its own limits,
+and three on the connected account it trades on, which hold for anything
+that trades there. The bot checks the decisions against these names, so keep
+them as they are. Give the agent $500 of allocated capital first: its
+leverage cap is measured against that, and Mishmar refuses to turn the rule
+on while the agent has none.
 
 | Scope | Name | Condition | Outcome |
 |---|---|---|---|
 | agent | Max order size | order > $150 | block |
 | agent | Review large orders | order > $40 | require approval |
 | agent | Agent gross exposure | gross > $150 | block |
-| portfolio | ETH exposure review | ETH net > $30 | require approval |
-| portfolio | Portfolio gross exposure | gross > $100 | block |
-| portfolio | Daily loss stop | daily loss > $25 | block |
-| portfolio | Leverage cap | leverage > 1 | block |
+| agent | Leverage cap | leverage > 1 | block |
+| connected account | ETH exposure review | ETH net > $30 | require approval |
+| connected account | Account gross exposure | gross > $100 | block |
+| connected account | Daily loss stop | daily loss > $25 | block |
+
+The account's rules see every position on the account, whoever opened it,
+and the bot predicts their verdicts from its own positions: run it on a
+testnet account that nothing else trades on during the run.
 
 ## The steps
 
@@ -30,7 +38,7 @@ The bot checks the decisions against these names, so keep them as they are.
 4. A $35 market buy of ETH parks for a person (ETH exposure review).
 5. A $200 market buy of BTC is blocked (max order size, and the exposure rules it would also cross).
 6. A $60 market buy of BTC parks for a person (large-order review) and fills once approved.
-7. A $30 market buy of BTC is blocked by the portfolio's gross cap, or allowed if the gross is still under it.
+7. A $30 market buy of BTC is blocked by the account's gross cap, or allowed if the gross is still under it.
 8. A reduce-only market sell of the whole BTC position fills and the account is flat.
 
 ## Run it
@@ -69,13 +77,13 @@ what the signer and the venue said, and PASS or FAIL:
    intent: order buy 0.00019 BTC market
    dec_…: ALLOW
    notional $20.12 at -; cloid msh-…; engine 3.9 ms; round trip 412 ms
-     [agent    ] Max order size             order_size           20.12 vs    150 usd   -> ok
-     [agent    ] Review large orders        order_size           20.12 vs     40 usd   -> ok
-     [agent    ] Agent gross exposure       gross_exposure       20.12 vs    150 usd   -> ok
-     [portfolio] ETH exposure review        net_exposure             0 vs     30 usd   -> ok
-     [portfolio] Portfolio gross exposure   gross_exposure       20.12 vs    100 usd   -> ok
-     [portfolio] Daily loss stop            daily_loss               0 vs     25 usd   -> ok
-     [portfolio] Leverage cap               leverage              0.02 vs      1 ratio -> ok
+     [agent            ] Max order size             order_size           20.12 vs    150 usd   -> ok
+     [agent            ] Review large orders        order_size           20.12 vs     40 usd   -> ok
+     [agent            ] Agent gross exposure       gross_exposure       20.12 vs    150 usd   -> ok
+     [agent            ] Leverage cap               leverage              0.04 vs      1 ratio -> ok
+     [connected_account] ETH exposure review        net_exposure             0 vs     30 usd   -> ok
+     [connected_account] Account gross exposure     gross_exposure       20.12 vs    100 usd   -> ok
+     [connected_account] Daily loss stop            daily_loss               0 vs     25 usd   -> ok
    signer: signed
    venue: filled order 1234…
    PASS
@@ -90,9 +98,9 @@ agent's decision log).
    PASS  1. small passive limit buy rests
    PASS  2. cancel the resting order
    PASS  3. $20 market buy BTC
-   PASS  4. $35 market buy ETH (portfolio ETH review)  (rejected)
+   PASS  4. $35 market buy ETH (account ETH review)  (rejected)
    PASS  5. $200 market buy BTC (agent max order)
    PASS  6. $60 market buy BTC (agent large-order review)  (approved)
-   PASS  7. $30 market buy BTC (portfolio gross cap)
+   PASS  7. $30 market buy BTC (account gross cap)
    PASS  8. reduce-only exit of the whole BTC position
 ```

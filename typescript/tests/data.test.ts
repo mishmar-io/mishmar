@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { after, before, beforeEach, test } from "node:test";
 import { AgentKey, Client, EngineError, engineUrlFor, newSecret, parseSecret, secret, verifyRequest } from "../src/index.ts";
-import type { TransactionQuery } from "../src/index.ts";
+import type { AgentIdentity, TransactionQuery } from "../src/index.ts";
 
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => i);
 const KEY = AgentKey.fromSeed(SEED);
@@ -67,7 +67,7 @@ const SPOT = {
 };
 // The seven reads a hosted account's collector answers while its engine sleeps.
 const ANSWERS: Record<string, unknown> = {
-  "/agent/me": { agentId: "agt_1", agentName: "Reader", accountId: "acc_k7f2q9x1m3n4", keyId: KEY_ID, portfolioId: "pf_1", permission: "read" },
+  "/agent/me": { agentId: "agt_1", agentName: "Reader", accountId: "acc_k7f2q9x1m3n4", keyId: KEY_ID, permission: "read" },
   "/agent/connected-accounts": [ACCOUNT, SPOT],
   "/agent/connected-accounts/ta_1": ACCOUNT,
   "/agent/connected-accounts/ta_1/balances": {
@@ -130,6 +130,24 @@ after(() => server.close());
 beforeEach(() => {
   seen = [];
   others = [];
+});
+
+test("the identity carries the agent's capital", async () => {
+  // Contract 0.21.0: capital is the agent's; absent when none is set.
+  process.env.MISHMAR_API_KEY = API_KEY;
+  process.env.MISHMAR_ENGINE = base + "/";
+  const reader = ANSWERS["/agent/me"];
+  try {
+    assert.equal((await Client.fromApiKey().me()).capitalUsd, undefined);
+    ANSWERS["/agent/me"] = { ...(reader as object), agentName: "Trend", permission: "trade", capitalUsd: "5000" };
+    const me: AgentIdentity = await Client.fromApiKey().me();
+    assert.deepEqual([me.permission, me.capitalUsd], ["trade", "5000"]);
+    assert.equal("portfolioId" in me, false);
+  } finally {
+    ANSWERS["/agent/me"] = reader;
+    delete process.env.MISHMAR_API_KEY;
+    delete process.env.MISHMAR_ENGINE;
+  }
 });
 
 test("a read agent needs only its API key", async () => {

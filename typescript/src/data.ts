@@ -35,9 +35,10 @@ export interface AgentIdentity {
   agentName: string;
   accountId: string;
   keyId: string;
-  portfolioId: string;
   /** What the agent may do; absent from an engine before contract 0.20.0, which means trade. */
   permission?: "read" | "trade";
+  /** The capital allocated to the agent, a decimal string in USD: what its own leverage and drawdown rules are measured against. Absent when none is set. */
+  capitalUsd?: string;
 }
 
 /** How current one kind of a venue connection's data is, across its accounts: an account's `connection.sync`. */

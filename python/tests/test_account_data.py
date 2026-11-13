@@ -122,6 +122,8 @@ class Collector(BaseHTTPRequestHandler):
 
     seen: list = []
     others: list = []
+    #: Merged into the /agent/me answer: another agent than the reader.
+    identity: dict = {}
 
     def log_message(self, *args):
         pass
@@ -162,8 +164,8 @@ class Collector(BaseHTTPRequestHandler):
                 "agentName": "Reader",
                 "accountId": "acc_k7f2q9x1m3n4",
                 "keyId": KEY_ID,
-                "portfolioId": "pf_1",
                 "permission": "read",
+                **Collector.identity,
             },
             "/agent/connected-accounts": [ACCOUNT, SPOT],
             "/agent/connected-accounts/ta_1": ACCOUNT,
@@ -242,7 +244,7 @@ class Collector(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def collector(monkeypatch):
-    Collector.seen, Collector.others = [], []
+    Collector.seen, Collector.others, Collector.identity = [], [], {}
     server = HTTPServer(("127.0.0.1", 0), Collector)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     monkeypatch.setenv("MISHMAR_API_KEY", API_KEY)
@@ -251,6 +253,19 @@ def collector(monkeypatch):
     )
     yield
     server.shutdown()
+
+
+def test_the_identity_carries_the_agents_capital(collector):
+    # Contract 0.21.0: capital is the agent's; absent when none is set.
+    assert "capitalUsd" not in Client.from_api_key().me()
+    Collector.identity = {
+        "agentName": "Trend",
+        "permission": "trade",
+        "capitalUsd": "5000",
+    }
+    me = Client.from_api_key().me()
+    assert (me["permission"], me.get("capitalUsd")) == ("trade", "5000")
+    assert "portfolioId" not in me
 
 
 def test_a_read_agent_needs_only_its_api_key(collector):

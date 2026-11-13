@@ -27,7 +27,7 @@ Each trade says who placed it: an agent through Mishmar, named, with the decisio
 
 ![The Transactions tab, newest first: each trade's time, what was bought or sold at what price, its value and fee, and who placed it, an agent with a link to its decision or Outside Mishmar](/screens/concepts/what-mishmar-keeps-of-your-accounts/transactions.png)
 
-The positions here are the venue's, for the whole account. Each agent's own book, built from its own fills, is on its page under **Agents** and summed by portfolio under **Portfolios**; that is what rules on an agent or a portfolio measure. The record of Mishmar's decisions on orders is separate again, under **Decisions**.
+The positions here are the venue's, for the whole account. Each agent's own book, built from its own fills, is on its page under **Agents**; that is what rules on an agent measure. Rules on the connected account, its connection or the whole Mishmar account see every position on the account, the ones no agent placed included ([Where rules apply](/start/where-rules-apply/)). The record of Mishmar's decisions on orders is separate again, under **Decisions**.
 
 ![The Positions tab, At the venue: the venue's net position in each market with its side, size, entry, mark, notional, unrealised PnL and leverage](/screens/concepts/what-mishmar-keeps-of-your-accounts/positions.png)
 

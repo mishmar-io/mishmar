@@ -276,9 +276,9 @@ class Client:
     # given all ``connection["accountCount"]`` of them.
 
     def me(self) -> AgentIdentity:
-        """Who the key belongs to: the agent, its account and portfolio, and
-        the key id. The engine answers only a key it knows, so this is the
-        read that proves one."""
+        """Who the key belongs to: the agent, its Mishmar account, whether it
+        reads or trades, and the key id. The engine answers only a key it
+        knows, so this is the read that proves one."""
         return self._agent_call("GET", "/agent/me")
 
     def connected_accounts(self) -> list[ConnectedAccount]:

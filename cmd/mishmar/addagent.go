@@ -5,18 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/frost"
+	"github.com/mishmar-io/mishmar/proposal"
 	"github.com/mishmar-io/mishmar/signer"
 )
 
 type addAgentOptions struct {
-	engine, token, name, portfolio, config string
-	connectedAccounts                      []string
+	engine, token, name, capital, config string
+	connectedAccounts                    []string
 }
 
 func newAddAgentCmd() *cobra.Command {
@@ -30,10 +32,11 @@ token (--token or MISHMAR_OPERATOR_TOKEN):
 
   1. the connected accounts are read, so a connected account whose venue has no supported key type
      stops the command before anything is created;
-  2. the agent is created in the portfolio (--portfolio, or else the account's
-     default) and a key is issued; its secret,
-     shown once, goes straight into the signer's config, which is written
-     (mode 0600) before anything else happens;
+  2. the agent is created, with the capital allocated to it when --capital
+     gives some (what its own leverage and drawdown rules are measured
+     against), and a key is issued; its secret, shown once, goes straight into
+     the signer's config, which is written (mode 0600) before anything else
+     happens;
   3. for every connected account a two-party venue key is made: on Hyperliquid by key
      generation between this signer and the engine's (POST /agents/{id}/venue-keys
      without a share, then two rounds of POST /agent/signer/keygen), so no machine
@@ -62,7 +65,7 @@ Environment:
 	f.StringVar(&o.engine, "engine", "http://localhost:8080/v1", "engine API base URL")
 	f.StringVar(&o.token, "token", "", "operator token (or MISHMAR_OPERATOR_TOKEN)")
 	f.StringVar(&o.name, "name", "", "the agent's name")
-	f.StringVar(&o.portfolio, "portfolio", "", "the portfolio the agent belongs to (pf_…); the account's default when left out")
+	f.StringVar(&o.capital, "capital", "", "the capital allocated to the agent in USD, a decimal above 0 (5000): what its own leverage and drawdown rules are measured against; none when left out")
 	f.StringArrayVar(&o.connectedAccounts, "connected-account", nil, "a connected account the agent trades through (ta_…); repeat for several")
 	configFlag(cmd, &o.config)
 	for _, name := range []string{"name", "connected-account"} {
@@ -78,6 +81,9 @@ type plannedKey struct {
 }
 
 func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
+	if o.capital != "" && !positiveDecimal(o.capital) {
+		return fmt.Errorf("--capital %q: give the capital in USD as a decimal above 0, such as 5000 or 2500.50", o.capital)
+	}
 	path, err := configPath(o.config)
 	if err != nil {
 		return err
@@ -116,14 +122,18 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 	// 2. The agent and its key; the config is written at once.
 	// This command sets up an agent that trades: it makes its trading keys below.
 	create := api.AgentCreate{Name: o.name, Permission: api.AgentPermissionTrade}
-	if o.portfolio != "" {
-		create.PortfolioId = &o.portfolio
+	if o.capital != "" {
+		create.CapitalUsd = &o.capital
 	}
 	agent, err := op.createAgent(ctx, create)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "agent %s (%s) created in %s\n", agent.Id, agent.Name, agent.PortfolioId)
+	if agent.CapitalUsd != nil {
+		fmt.Fprintf(out, "agent %s (%s) created, with capital %s USD\n", agent.Id, agent.Name, *agent.CapitalUsd)
+	} else {
+		fmt.Fprintf(out, "agent %s (%s) created\n", agent.Id, agent.Name)
+	}
 	issued, err := op.issueKey(ctx, agent.Id)
 	if err != nil {
 		return fmt.Errorf("agent %s was created but no key was issued: %w", agent.Id, err)
@@ -173,6 +183,12 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "\nStart the signer with: mishmar signer run --config %s\n", path)
 	return nil
+}
+
+// positiveDecimal reports whether s is a decimal string above zero.
+func positiveDecimal(s string) bool {
+	r, ok := new(big.Rat).SetString(s)
+	return ok && proposal.IsDecimal(s) && r.Sign() > 0
 }
 
 // networkOf is the Hyperliquid network a connected account trades on.

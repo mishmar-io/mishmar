@@ -31,7 +31,8 @@ func TestAccountReadTools(t *testing.T) {
 		t.Helper()
 		return text(t, s.call("tools/call", map[string]any{"name": name, "arguments": args}))
 	}
-	if txt, isErr := call("get_identity", nil); isErr || !strings.Contains(txt, `"agentName":"Reader"`) {
+	// The identity carries the agent's capital (contract 0.21.0), as the engine answers it.
+	if txt, isErr := call("get_identity", nil); isErr || !strings.Contains(txt, `"agentName":"Reader"`) || !strings.Contains(txt, `"capitalUsd":"5000"`) {
 		t.Fatalf("get_identity: %v %q", isErr, txt)
 	}
 	// Each account says which connection holds it, so one list tells them apart.

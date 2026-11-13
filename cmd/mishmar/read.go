@@ -76,7 +76,7 @@ answer as it came.`,
 func newReadAgentCmd(o *readOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "agent",
-		Short: "Who the key belongs to: the agent, its account and portfolio",
+		Short: "Who the key belongs to: the agent, its Mishmar account, the key, whether it reads or trades, and its capital",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := readClient(*o)
@@ -88,10 +88,26 @@ func newReadAgentCmd(o *readOptions) *cobra.Command {
 				return err
 			}
 			return o.print(cmd.OutOrStdout(), me, func(w io.Writer) {
-				fmt.Fprintf(w, "agent %s (%s)\n  account %s, portfolio %s, key %s\n", me.AgentId, me.AgentName, me.AccountId, me.PortfolioId, me.KeyId)
+				fmt.Fprint(w, identityText(me))
 			})
 		},
 	}
+}
+
+// identityText is "mishmar read agent"'s answer: the agent, its Mishmar
+// account and key, what it may do (an engine from before contract 0.20.0
+// names no permission, and its agents trade) and, when it has some, the
+// capital its own leverage and drawdown rules are measured against.
+func identityText(me api.AgentIdentity) string {
+	may := "reads and trades"
+	if me.Permission == api.AgentPermissionRead {
+		may = "reads only"
+	}
+	s := fmt.Sprintf("agent %s (%s)\n  account %s, key %s, %s\n", me.AgentId, me.AgentName, me.AccountId, me.KeyId, may)
+	if me.CapitalUsd != nil {
+		s += fmt.Sprintf("  capital %s USD\n", *me.CapitalUsd)
+	}
+	return s
 }
 
 func newReadAccountsCmd(o *readOptions) *cobra.Command {

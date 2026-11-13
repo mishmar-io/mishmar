@@ -64,9 +64,12 @@ class AgentIdentity(TypedDict):
     agentName: str
     accountId: str
     keyId: str
-    portfolioId: str
     #: What the agent may do; absent from an engine before contract 0.20.0, which means trade.
     permission: NotRequired[Literal["read", "trade"]]
+    #: The capital allocated to the agent, a decimal string in USD: what its
+    #: own leverage and drawdown rules are measured against. Absent when none
+    #: is set.
+    capitalUsd: NotRequired[str]
 
 
 class SyncState(TypedDict):

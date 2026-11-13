@@ -5,7 +5,7 @@ info:
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
-    against wallet-wide and per-agent risk rules before the key co-signs or the
+    against account-wide and per-agent risk rules before the key co-signs or the
     exchange proxy forwards it.
 
     Three callers share it: people through the web app with a bearer token;
@@ -28,7 +28,6 @@ security:
   - bearerAuth: []
 tags:
   - name: account
-  - name: portfolios
   - name: agents
   - name: connected-accounts
   - name: rules
@@ -149,129 +148,14 @@ paths:
               schema: { $ref: '#/components/schemas/Operator' }
         default: { $ref: '#/components/responses/Error' }
 
-  /portfolios:
-    get:
-      tags: [portfolios]
-      operationId: listPortfolios
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-    post:
-      tags: [portfolios]
-      operationId: createPortfolio
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/PortfolioCreate' }
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-  /portfolios/{portfolioId}:
-    parameters:
-      - $ref: '#/components/parameters/portfolioId'
-    get:
-      tags: [portfolios]
-      operationId: getPortfolio
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-    patch:
-      tags: [portfolios]
-      operationId: updatePortfolio
-      description: |
-        `removeCapital` is refused with a conflict (409) while an enabled
-        leverage or drawdown rule is measured against the capital: one scoped
-        to the portfolio or to one of its agents. Disable or delete those rules
-        first; the conflict's details name them (`ruleIds`).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/PortfolioUpdate' }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-    delete:
-      tags: [portfolios]
-      operationId: deletePortfolio
-      summary: Delete an empty portfolio. Refused (409) while it still holds agents, and for the account's default portfolio.
-      responses:
-        '204': { description: Deleted }
-        default: { $ref: '#/components/responses/Error' }
-  /portfolios/{portfolioId}/kill:
-    parameters:
-      - $ref: '#/components/parameters/portfolioId'
-    post:
-      tags: [portfolios]
-      operationId: killPortfolio
-      summary: Kill switch for every agent in the portfolio
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-  /portfolios/{portfolioId}/resume:
-    parameters:
-      - $ref: '#/components/parameters/portfolioId'
-    post:
-      tags: [portfolios]
-      operationId: resumePortfolio
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-  /portfolios/{portfolioId}/default:
-    parameters:
-      - $ref: '#/components/parameters/portfolioId'
-    post:
-      tags: [portfolios]
-      operationId: setDefaultPortfolio
-      summary: Make this the account's default portfolio, the one an agent created without a portfolio joins
-      description: |
-        Every account has exactly one default portfolio. A new account starts
-        with one named Main, without allocated capital. The default cannot be
-        deleted: make another portfolio the default first. The default is
-        otherwise an ordinary portfolio: it can be renamed, given capital,
-        stopped and resumed.
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Portfolio' }
-        default: { $ref: '#/components/responses/Error' }
-
   /agents:
     get:
       tags: [agents]
       operationId: listAgents
       parameters:
-        - name: portfolioId
+        - name: connectedAccountId
           in: query
+          description: Only agents given this connected account.
           schema: { type: string }
         - name: status
           in: query
@@ -288,7 +172,7 @@ paths:
     post:
       tags: [agents]
       operationId: createAgent
-      summary: Add an agent. It starts active with no key, in the portfolio named or else the account's default.
+      summary: Add an agent. It starts active with no key.
       description: |
         `permission` says what the agent is for: `read` (it reads the connected
         accounts it is given and can never trade) or `trade` (it may also hold
@@ -325,10 +209,10 @@ paths:
       tags: [agents]
       operationId: updateAgent
       description: |
-        Moving the agent to another portfolio (`portfolioId`) is refused with a
-        conflict (409) when that portfolio has no allocated capital and the agent
-        has an enabled leverage or drawdown rule of its own, which would then have
-        nothing to measure against; the details name the rules (`ruleIds`).
+        Taking the agent's allocated capital away (`removeCapital`) is refused
+        with a conflict (409) while the agent has an enabled leverage or drawdown
+        rule of its own, which would then have nothing to measure against; the
+        details name the rules (`ruleIds`).
       requestBody:
         required: true
         content:
@@ -1196,12 +1080,19 @@ paths:
       tags: [rules]
       operationId: createRule
       description: |
-        An enabled leverage or drawdown rule scoped to a portfolio, or to an agent,
-        is measured against that portfolio's allocated capital (the agent's
-        portfolio for an agent rule; see RuleMetric). Without capital it would
-        refuse every order, so it is refused here instead: `validation` (422),
-        naming the portfolio to give capital to. A disabled rule is accepted and
-        checked when it is enabled.
+        An enabled leverage or drawdown rule scoped to an agent is measured
+        against that agent's allocated capital (`Agent.capitalUsd`; see
+        RuleMetric). Without capital it would refuse every order, so it is
+        refused here instead: `validation` (422), naming the agent to give
+        capital to (`details.agentId`). A disabled rule is accepted and checked
+        when it is enabled. At every other scope the two are measured against
+        what the accounts hold, and need nothing set.
+
+        A scope must name something that exists: a `venue_connection`,
+        `connected_account` or `agent` id that names nothing is 422
+        `validation`, and so is a rule scoped to a read agent, which places
+        no orders. A rule already on an agent that is then switched to read
+        stays and judges nothing.
       requestBody:
         required: true
         content:
@@ -1232,8 +1123,11 @@ paths:
       operationId: updateRule
       description: |
         The same check as createRule, on the rule as it would be after the
-        update: enabling a leverage or drawdown rule, or moving one to a
-        portfolio or agent scope, needs that portfolio's allocated capital.
+        update: enabling a leverage or drawdown rule on an agent, or moving
+        one to an agent's scope, needs that agent's allocated capital. That a
+        scope names something that exists, and not a read agent, is checked
+        only when the update sends a `scope`, so a rule whose agent became a
+        read agent or was deleted can still be disabled or renamed.
       requestBody:
         required: true
         content:
@@ -1260,9 +1154,6 @@ paths:
       summary: Every proposal with its verdict and inputs, newest first
       parameters:
         - name: agentId
-          in: query
-          schema: { type: string }
-        - name: portfolioId
           in: query
           schema: { type: string }
         - name: connectedAccountId
@@ -1354,8 +1245,8 @@ paths:
       operationId: approveApproval
       summary: Co-sign. The engine forwards the proposal to its connected account.
       description: |
-        The engine checks the statuses first (a stop, a pause, a stopped agent,
-        portfolio or connected account, a lost grant, a restriction: 409
+        The engine checks the statuses first (a stop, a pause, a stopped agent
+        or connected account, a lost grant, a restriction: 409
         `conflict`, the approval stays pending), then runs the rules once more
         against the account as it is now. A verdict of `block` now refuses the
         approve (409 `conflict`, `details.now` says which rule); `require_approval`
@@ -2043,7 +1934,7 @@ paths:
     get:
       tags: [pnl]
       operationId: getPnlSummary
-      summary: One row per account, portfolio and agent with today and month-to-date PnL
+      summary: One row for the account and one per trade agent, with today and month-to-date PnL
       responses:
         '200':
           description: OK
@@ -2153,11 +2044,6 @@ components:
         SDKs sign this way themselves. `POST /proposals` keeps its signature
         inside the body.
   parameters:
-    portfolioId:
-      name: portfolioId
-      in: path
-      required: true
-      schema: { type: string }
     agentId:
       name: agentId
       in: path
@@ -2252,7 +2138,19 @@ components:
 
     ScopeKind:
       type: string
-      enum: [account, portfolio, agent, connected_account]
+      enum: [account, venue_connection, connected_account, agent]
+      description: |
+        What a rule covers, or a PnL series is of. The order here is of
+        width, not of evaluation: every rule that covers an order is run, and
+        the decision lists each with its scope. account: the
+        whole Mishmar account, every agent on every connected account.
+        venue_connection: one login at a venue and everything under it, its
+        accounts and those of its sub-accounts' connections
+        (`VenueConnection.parentId`); `id` is the connection's.
+        connected_account: one account. agent: one agent's own book, on every
+        account it trades. Before contract 0.21.0 there was also portfolio, a
+        named group of agents; a limit over a group is now a rule on the
+        connection or the account its agents trade on.
     Scope:
       type: object
       required: [kind, id]
@@ -2262,7 +2160,7 @@ components:
 
     Account:
       type: object
-      required: [id, name, killSwitch, paused, configRevision, defaultPortfolioId, entitlements, createdAt]
+      required: [id, name, killSwitch, paused, configRevision, entitlements, createdAt]
       properties:
         id: { type: string }
         name: { type: string }
@@ -2281,12 +2179,6 @@ components:
         configRevision:
           type: integer
           description: Bumped on every configuration change. Decisions record the revision they were evaluated under.
-        defaultPortfolioId:
-          type: string
-          description: |
-            The account's default portfolio: the one an agent created without a
-            portfolio joins, and the one portfolio that cannot be deleted
-            (setDefaultPortfolio moves it).
         entitlements: { $ref: '#/components/schemas/Entitlements' }
         createdAt: { type: string, format: date-time }
 
@@ -2388,56 +2280,6 @@ components:
           description: The person behind the bearer token. Recorded on approvals as decidedBy.
         mode: { $ref: '#/components/schemas/EngineMode' }
 
-    PortfolioStatus:
-      type: string
-      enum: [active, killed]
-    Portfolio:
-      type: object
-      required: [id, name, isDefault, status, agentCount, grossExposureUsd, netExposureUsd, dayPnlUsd, createdAt, updatedAt]
-      properties:
-        id: { type: string }
-        name: { type: string }
-        description: { type: string }
-        capitalUsd:
-          $ref: '#/components/schemas/Decimal'
-          description: |
-            The capital allocated to the portfolio: what leverage (gross exposure ÷
-            capital) and drawdown are measured against, for the portfolio and for
-            each of its agents. It is not a cap on exposure; a gross_exposure rule
-            is. Absent when none is set, and then no leverage or drawdown rule may
-            be scoped to the portfolio or its agents (createRule).
-        isDefault:
-          type: boolean
-          description: True for the account's default portfolio (Account.defaultPortfolioId), which cannot be deleted.
-        status: { $ref: '#/components/schemas/PortfolioStatus' }
-        agentCount: { type: integer }
-        grossExposureUsd: { $ref: '#/components/schemas/Decimal' }
-        netExposureUsd: { $ref: '#/components/schemas/Decimal' }
-        dayPnlUsd: { $ref: '#/components/schemas/Decimal' }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    PortfolioCreate:
-      type: object
-      required: [name]
-      properties:
-        name: { type: string, minLength: 1 }
-        description: { type: string }
-        capitalUsd:
-          $ref: '#/components/schemas/Decimal'
-          description: The capital allocated to the portfolio (Portfolio.capitalUsd). Absent for none.
-    PortfolioUpdate:
-      type: object
-      properties:
-        name: { type: string, minLength: 1 }
-        description: { type: string }
-        capitalUsd: { $ref: '#/components/schemas/Decimal' }
-        removeCapital:
-          type: boolean
-          description: |
-            True takes the allocated capital away; capitalUsd must then be absent.
-            Refused while a leverage or drawdown rule is measured against it
-            (updatePortfolio).
-
     AgentStatus:
       type: string
       enum: [active, paused, killed]
@@ -2483,13 +2325,18 @@ components:
     AgentIdentity:
       type: object
       description: Who an agent key belongs to, as `GET /agent/me` answers the key.
-      required: [agentId, agentName, accountId, keyId, portfolioId, permission]
+      required: [agentId, agentName, accountId, keyId, permission]
       properties:
         agentId: { type: string }
         agentName: { type: string }
         accountId: { type: string }
         keyId: { type: string }
-        portfolioId: { type: string }
+        capitalUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: |
+            The capital allocated to the agent (Agent.capitalUsd): what its
+            own leverage and drawdown rules are measured against. Absent
+            when none is set.
         permission:
           $ref: '#/components/schemas/AgentPermission'
           description: |
@@ -2514,13 +2361,23 @@ components:
         lastSeenAt: { type: string, format: date-time }
     Agent:
       type: object
-      required: [id, name, permission, portfolioId, status, keys, venueKeys, connectedAccountIds, createdAt, updatedAt]
+      required: [id, name, permission, status, keys, venueKeys, connectedAccountIds, createdAt, updatedAt]
       properties:
         id: { type: string }
         name: { type: string }
         description: { type: string }
         permission: { $ref: '#/components/schemas/AgentPermission' }
-        portfolioId: { type: string }
+        capitalUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: |
+            The capital allocated to the agent: what its own leverage (its
+            gross exposure ÷ this) and drawdown are measured against. It is
+            a number the person sets, not money moved anywhere, and not a cap
+            on exposure; a gross_exposure rule is. Above 0: 0 or less is 422
+            `validation`, at create and at update, and so is capital on a
+            read agent, which places no orders. Absent when none is set,
+            and then no leverage or drawdown rule may be scoped to the agent
+            (createRule). Before contract 0.21.0 capital was a portfolio's.
         status: { $ref: '#/components/schemas/AgentStatus' }
         keys:
           type: array
@@ -2566,15 +2423,21 @@ components:
           type: array
           description: Connected accounts to give the agent from the start. Default none.
           items: { type: string }
-        portfolioId:
-          type: string
-          description: Absent for the account's default portfolio (Account.defaultPortfolioId).
+        capitalUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The capital allocated to the agent (Agent.capitalUsd). Absent for none.
     AgentUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1 }
         description: { type: string }
-        portfolioId: { type: string }
+        capitalUsd: { $ref: '#/components/schemas/Decimal' }
+        removeCapital:
+          type: boolean
+          description: |
+            True takes the allocated capital away; capitalUsd must then be absent.
+            Refused while a leverage or drawdown rule of the agent's is
+            measured against it (updateAgent).
         permission:
           $ref: '#/components/schemas/AgentPermission'
           description: |
@@ -3531,10 +3394,20 @@ components:
         order_size, and the projected book every exposure metric reads, value an order at the
         higher of its price and the market: a sell priced under the market fills at the market.
         Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-        leverage is gross exposure ÷ equity at account and connected account scope, and
-        gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
-        portfolio and agent scope, where drawdown is measured against that capital too;
-        a portfolio without capital cannot have such rules (createRule).
+        leverage is gross exposure ÷ equity at account, venue connection and connected
+        account scope, and gross exposure ÷ the agent's allocated capital
+        (Agent.capitalUsd) at agent scope, where drawdown is measured against that
+        capital too; an agent without capital cannot have such rules (createRule).
+        The equity is the summed value of the accounts the scope covers that agents
+        trade on, as their venues report it while trading: an account Mishmar only
+        reads (Spot, for now) is not in it, at any scope, so on a Binance login it is
+        the USDⓈ-M Futures account's value, not the login's total. When none of the
+        covered accounts reports a value, a venue connection's and a connected
+        account's rules fall back to the whole account's. drawdown at these scopes is
+        the fall of that value from its own high-water mark, with money moved in or
+        out taken off, so a transfer is never read as a loss: between two accounts in
+        the sum it changes nothing, and to or from any other account it is capital
+        leaving or arriving, which moves the mark with it.
         net_exposure and concentration accept an `asset` to narrow to one name.
         daily_loss is today's loss counting open positions at their marks
         (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -3671,6 +3544,10 @@ components:
     StateSnapshot:
       type: object
       required: [asOf, grossExposureUsd, netExposureUsd, leverage, drawdownPct, dailyPnlUsd]
+      description: |
+        The whole Mishmar account's state when the rules ran, before the
+        proposal: every agent on every connected account. What a rule at a
+        narrower scope measured is on its evaluation.
       properties:
         asOf: { type: string, format: date-time }
         grossExposureUsd: { $ref: '#/components/schemas/Decimal' }
@@ -3693,24 +3570,33 @@ components:
             reports under it are attributed to this decision, also after the engine restarts.
     Decision:
       type: object
-      required: [id, createdAt, agentId, agentName, portfolioId, connectedAccountId, verdict, proposal, evaluations, state, configRevision, latencyMs, agentSignature]
+      required: [id, createdAt, agentId, agentName, connectedAccountId, verdict, proposal, evaluations, state, configRevision, latencyMs, agentSignature]
       properties:
         id: { type: string }
         createdAt: { type: string, format: date-time }
         agentId: { type: string }
         agentName: { type: string }
-        portfolioId: { type: string }
+        portfolioId:
+          type: string
+          description: |
+            Only on a decision with `signingVersion` 1 or 2: the portfolio the
+            agent was in, which the engine's signature on those records
+            covers, kept so a verifier can rebuild their bytes. Nothing else
+            reads it; there are no portfolios since contract 0.21.0.
         connectedAccountId: { type: string }
         signingVersion:
           type: integer
-          enum: [1, 2]
+          enum: [1, 2, 3]
           description: |
             Which shape the agent's and the engine's signatures on this
-            decision cover. 2: this contract's, the account's id under
-            `connectedAccountId`. 1: a decision from before contract 0.20.0,
-            whose signed bytes carry the same id under `tradingAccountId`; the
-            record is served under today's names, and a verifier rebuilds the
-            bytes with the old name. Absent means 1.
+            decision cover. 3: this contract's: the record the engine signs
+            has no `portfolioId`; what the agent signs is as in 2. 2:
+            contract 0.20.0's, the account's id under `connectedAccountId`,
+            the engine's record carrying `portfolioId`. 1: a decision from
+            before contract 0.20.0, whose signed bytes carry the account's id
+            under `tradingAccountId`; the record is served under today's
+            names, and a verifier rebuilds the bytes with the old name.
+            Absent means 1.
         verdict: { $ref: '#/components/schemas/Verdict' }
         reason:
           type: string
@@ -3731,10 +3617,14 @@ components:
         engineSignature:
           type: string
           description: |
-            The engine key's Ed25519 signature over the decision record as written
-            (every field above plus `submission`, without `venueAck`, `approval`,
-            `signing` and this field), base64. Present on every decision. See
-            docs/ledger.md.
+            The engine key's Ed25519 signature, base64, over the canonical JSON
+            (keys sorted) of the decision record as written: id, createdAt,
+            agentId, agentName, connectedAccountId, verdict, proposal, exit
+            (when set), evaluations, state, configRevision, agentSignature and
+            submission (when set); versions 1 and 2 also carry portfolioId
+            (see signingVersion). Nothing else on a decision is covered.
+            Present on every decision. `spec/vectors/decision-signing.json`
+            pins the bytes for each version.
         venueAck: { $ref: '#/components/schemas/VenueAck' }
         approvalId: { type: string }
         submission:
@@ -4490,7 +4380,7 @@ components:
           description: Funding received, negative when paid.
         netUsd:
           $ref: '#/components/schemas/Decimal'
-          description: The PnL, realized + unrealized + fees + funding. daily_loss and the portfolio and agent drawdowns read it.
+          description: The PnL, realized + unrealized + fees + funding. daily_loss and an agent's drawdown read it.
         realizedNetUsd:
           $ref: '#/components/schemas/Decimal'
           description: The realized PnL, realized + fees + funding, without the open positions' moves. daily_realized_loss reads it.
@@ -4519,9 +4409,6 @@ components:
       properties:
         scope: { $ref: '#/components/schemas/Scope' }
         name: { type: string }
-        parentId:
-          type: string
-          description: The portfolio an agent belongs to. Lets the table nest rows.
         dayNetUsd: { $ref: '#/components/schemas/Decimal' }
         mtdNetUsd: { $ref: '#/components/schemas/Decimal' }
         realizedUsd:
@@ -4552,7 +4439,6 @@ components:
         unrealizedUsd: { $ref: '#/components/schemas/Decimal' }
         leverage: { $ref: '#/components/schemas/Decimal' }
         agentId: { type: string }
-        portfolioId: { type: string }
         connectedAccountId: { type: string }
         book:
           type: string
@@ -4560,8 +4446,8 @@ components:
           description: |
             unassigned: a holding no agent owns, such as a manual trade on a shared
             connected account, an asset deposited in kind, or what a retired agent held;
-            agentId and portfolioId are then absent. Account and connected account rules see
-            the unassigned book; agent and portfolio rules do not. Absent means agent.
+            agentId is then absent. Account, venue connection and connected account rules
+            see the unassigned book; agent rules do not. Absent means agent.
     PositionReassign:
       type: object
       required: [symbol, size]

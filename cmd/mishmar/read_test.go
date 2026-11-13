@@ -89,7 +89,7 @@ func newReadEngine(t *testing.T, keyID, publicKey string) (*readEngine, *httptes
 		switch {
 		case r.Method != http.MethodGet:
 		case path == "/agent/me":
-			out = api.AgentIdentity{AgentId: "agt_reader", AgentName: "Reader", AccountId: "acc_main", KeyId: keyID, PortfolioId: "pf_main", Permission: api.AgentPermissionRead}
+			out = api.AgentIdentity{AgentId: "agt_reader", AgentName: "Reader", AccountId: "acc_main", KeyId: keyID, Permission: api.AgentPermissionRead}
 		case path == "/agent/connected-accounts":
 			out = []api.ConnectedAccount{perps, bybit, spot, basis, bnSpot, bnFutures}
 		case path == "/agent/connected-accounts/ta_1":
@@ -145,7 +145,7 @@ func TestReadFromTheAPIKey(t *testing.T) {
 		args []string
 		want []string
 	}{
-		{[]string{"agent"}, []string{"agent agt_reader (Reader)", "account acc_main, portfolio pf_main, key " + keyID}},
+		{[]string{"agent"}, []string{"agent agt_reader (Reader)", "account acc_main, key " + keyID + ", reads only"}},
 		// By connection, in the order each first comes: a login's total; a
 		// single account's line without its name; how many of a login's
 		// accounts the agent sees when it was given fewer than all, and the
@@ -268,5 +268,27 @@ func TestReadSaysWhatIsMissing(t *testing.T) {
 	t.Setenv(signer.EnvAPIKey, agentkey.Secret("msk_abc123", make([]byte, 32)))
 	if _, err := execute(context.Background(), t, strings.NewReader(""), 5*time.Second, "read", "accounts"); err == nil || !strings.Contains(err.Error(), "before 0.19.0") {
 		t.Fatalf("an old key: %v", err)
+	}
+}
+
+// "read agent" says what the agent may do and, when it has some, its
+// capital (contract 0.21.0: capital is the agent's).
+func TestIdentityText(t *testing.T) {
+	capital := "5000"
+	for _, c := range []struct {
+		me   api.AgentIdentity
+		want string
+	}{
+		{api.AgentIdentity{AgentId: "agt_r", AgentName: "Reader", AccountId: "acc_main", KeyId: "key_1", Permission: api.AgentPermissionRead},
+			"agent agt_r (Reader)\n  account acc_main, key key_1, reads only\n"},
+		{api.AgentIdentity{AgentId: "agt_t", AgentName: "Trend", AccountId: "acc_main", KeyId: "key_2", Permission: api.AgentPermissionTrade, CapitalUsd: &capital},
+			"agent agt_t (Trend)\n  account acc_main, key key_2, reads and trades\n  capital 5000 USD\n"},
+		// An engine from before contract 0.20.0 names no permission: its agents trade.
+		{api.AgentIdentity{AgentId: "agt_o", AgentName: "Old", AccountId: "acc_main", KeyId: "key_3"},
+			"agent agt_o (Old)\n  account acc_main, key key_3, reads and trades\n"},
+	} {
+		if got := identityText(c.me); got != c.want {
+			t.Fatalf("got %q\nwant %q", got, c.want)
+		}
 	}
 }
