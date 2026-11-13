@@ -20,6 +20,7 @@ import (
 	"github.com/mishmar-io/mishmar/signer/daemon"
 	"github.com/mishmar-io/mishmar/signer/signin"
 	"github.com/mishmar-io/mishmar/signer/signin/signintest"
+	"golang.org/x/sys/unix"
 )
 
 // TestMain lets this test binary be the mishmar binary for the test that
@@ -459,8 +460,8 @@ func TestTheBackgroundSignerRunsDetached(t *testing.T) {
 	if pid == os.Getpid() || pid <= 0 {
 		t.Fatalf("pid %d", pid)
 	}
-	mySID, _ := syscall.Getsid(0)
-	if sid, err := syscall.Getsid(pid); err != nil || sid == mySID || sid != pid {
+	mySID, _ := unix.Getsid(0)
+	if sid, err := unix.Getsid(pid); err != nil || sid == mySID || sid != pid {
 		t.Fatalf("the daemon's session %d (%v), this one's %d: not detached", sid, err, mySID)
 	}
 	if info, err := os.Stat(home.Log()); err != nil || info.Mode().Perm() != 0o600 {
