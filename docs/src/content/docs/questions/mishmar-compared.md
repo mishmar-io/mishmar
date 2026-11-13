@@ -57,4 +57,4 @@ In US equities the check Mishmar makes is required by rule. SEC Rule 15c3-5, the
 
 For MCP servers that trade on Hyperliquid and Binance (Binance's own, Senpi, Coinrule and the community servers), see [Is there an MCP server for trading on Hyperliquid or Binance with limits?](/questions/is-there-an-mcp-server-for-trading-on-hyperliquid-or-binance-with-limits/)
 
-Mishmar's client side is open source under Apache-2.0 ([github.com/mishmar-io/mishmar](https://github.com/mishmar-io/mishmar)); the hosted testnet is free for one agent and one connected account. Found an error on this page? [Edit it on GitHub](https://github.com/mishmar-io/mishmar/edit/main/docs/src/content/docs/questions/mishmar-compared.md).
+Mishmar's client side is open source under Apache-2.0 ([github.com/mishmar-io/mishmar](https://github.com/mishmar-io/mishmar)); the hosted testnet is free for one agent and one venue connection. Found an error on this page? [Edit it on GitHub](https://github.com/mishmar-io/mishmar/edit/main/docs/src/content/docs/questions/mishmar-compared.md).

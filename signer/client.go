@@ -443,8 +443,8 @@ func (c *Client) Pnl(ctx context.Context, from, to string) (api.PnlSeries, error
 	return out, err
 }
 
-// ConnectedAccount is a connected account as this agent may see it: its setup
-// without any secret.
+// ConnectedAccount is a connected account as this agent may see it, with
+// its connection's setup without any secret.
 func (c *Client) ConnectedAccount(ctx context.Context, connectedAccountID string) (api.ConnectedAccount, error) {
 	var out api.ConnectedAccount
 	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, ""), nil, nil, &out, c.timeout())
@@ -457,18 +457,27 @@ func (c *Client) ConnectedAccount(ctx context.Context, connectedAccountID string
 // these are the agent calls a collector answers while the account's engine
 // sleeps (with Me and ConnectedAccount), so an agent that only reads never
 // wakes it; anything else an agent calls does.
+//
+// A connected account is one pool of money at a venue (a Binance login's
+// Spot and its USDⓈ-M Futures are two), and every balance, position,
+// transaction and value below is that one account's. Its connection
+// (ConnectedAccount.Connection) is the venue login that holds it, with
+// AccountCount, how many accounts the login has: the accounts' values add up
+// to the login's only when the agent was given all of them.
 
 // ConnectedAccounts are the connected accounts this agent was given, in the
-// order it got them.
+// order it got them, each with its value and its connection.
 func (c *Client) ConnectedAccounts(ctx context.Context) ([]api.ConnectedAccount, error) {
 	var out []api.ConnectedAccount
 	err := c.agentCall(ctx, http.MethodGet, "/agent/connected-accounts", nil, nil, &out, c.timeout())
 	return out, err
 }
 
-// AccountBalances are the connected account's balances at the venue, spot and
-// margin, each with its USD value, at the moment at; the zero time means now.
-// A moment before the account's history or the plan's retention is not found.
+// AccountBalances are the connected account's balances, each with its price
+// and value in USD, and the account's value, at the moment at; the zero time
+// means now. An asset with no price has no USD value and is named in
+// UnpricedAssets rather than counted. A moment before the account's history
+// or the plan's retention is not found.
 func (c *Client) AccountBalances(ctx context.Context, connectedAccountID string, at time.Time) (api.BalanceSnapshot, error) {
 	var out api.BalanceSnapshot
 	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, "/balances"), atQuery(at), nil, &out, c.timeout())
@@ -476,8 +485,8 @@ func (c *Client) AccountBalances(ctx context.Context, connectedAccountID string,
 }
 
 // AccountPositions are the venue's own net positions on the connected account,
-// whoever placed the orders behind them, at the moment at (zero: now). This
-// agent's own book is Positions.
+// whoever placed the orders behind them, each with its market kind, at the
+// moment at (zero: now). This agent's own book is Positions.
 func (c *Client) AccountPositions(ctx context.Context, connectedAccountID string, at time.Time) (api.AccountPositionSnapshot, error) {
 	var out api.AccountPositionSnapshot
 	err := c.agentCall(ctx, http.MethodGet, connectedAccountPath(connectedAccountID, "/positions"), atQuery(at), nil, &out, c.timeout())
@@ -499,7 +508,10 @@ type TransactionQuery struct {
 
 // AccountTransactions pages the connected account's trades, transfers,
 // funding and fees as the venue reports them, newest first. A trade's origin
-// says who placed it, with Own set on the ones this agent placed.
+// says who placed it, with Own set on the ones this agent placed. A move
+// between two accounts of one connection is a transfer_out on one and a
+// transfer_in on the other, each naming the other side in
+// CounterpartConnectedAccountId.
 func (c *Client) AccountTransactions(ctx context.Context, connectedAccountID string, q TransactionQuery) (api.AccountTransactionPage, error) {
 	v := rangeQuery(q.From, q.To)
 	if q.Kind != "" {

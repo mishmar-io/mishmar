@@ -11,7 +11,7 @@ These pages walk through each setup task step by step, with the screens and comm
 
 ## Setting up
 
-Accounts come first. A **connected account** is your account at a venue, connected to Mishmar with read access: a Hyperliquid account by its address, a Binance account with a read-only API key. Mishmar reads it every minute from then on and keeps its balances, positions, value and transactions, with or without an agent.
+Accounts come first. You connect a venue login to Mishmar with read access, a Hyperliquid address or a Binance login with a read-only API key, and each pool of money the venue keeps under it is a **connected account**: Perps and Spot on Hyperliquid, Spot and USDⓈ-M Futures on Binance. The login is the account's **connection**. Mishmar reads every account every minute from then on and keeps its balances, positions, value and transactions, with or without an agent.
 
 Then you add **agents** and give each the connected accounts it may use. You choose what each agent is for:
 
@@ -28,7 +28,7 @@ Then you add **agents** and give each the connected accounts it may use. You cho
 
 - [How a trading key is split](/concepts/how-a-trading-key-is-split/): why neither your agent nor Mishmar can trade alone, and what each side checks before it signs.
 - [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/): what it reads, how often, for how long, and who can read it.
-- [Portfolios](/start/portfolios/): groups of agents that share limits and allocated capital.
+- [Where rules apply](/start/where-rules-apply/): on the whole account, a connection, a connected account or one agent, and the capital an agent's leverage and drawdown rules are measured against.
 
 ## Stuck?
 

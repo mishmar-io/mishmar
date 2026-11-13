@@ -17,9 +17,9 @@ Mishmar is that party. It checks every order a bot or agent proposes before anyt
 | Order size | the notional of one order, in USD | block, or hold for approval |
 | Gross exposure | the sum of absolute position notional | block, or hold |
 | Net exposure | long minus short notional, for one asset or for all | block, or hold |
-| Leverage | position notional over capital | block, or hold |
+| Leverage | position notional over the accounts' value, or over an agent's capital | block, or hold |
 | Concentration | the share of gross exposure in one asset | block, or hold |
-| Drawdown | the fall from the peak, as a share of capital | block, or hold |
+| Drawdown | the fall from the peak, as a share of the accounts' value or an agent's capital | block, or hold |
 | Daily loss | realised plus unrealised loss today, in USD | block, or hold |
 | Daily realised loss | realised loss today, with fees and funding, in USD | block, or hold |
 
@@ -37,12 +37,12 @@ An order is valued before it is sent, and what the limits see is its effect: the
 
 A limit has a scope, and every rule in scope runs on every order:
 
-- **The account**: everything you run.
-- **A portfolio**: a group of agents that share limits and [allocated capital](/start/portfolios/). Drawdown and leverage on a portfolio are measured against its capital.
-- **An agent**: one bot or model, across every connected account it trades on.
-- **A connected account**: one account at one exchange, whatever trades on it.
+- **The whole account**: everything you run.
+- **A venue connection**: one login at an exchange and every account under it, its sub-accounts' included.
+- **A connected account**: one pool of money at one exchange (a Binance login's USDⓈ-M Futures account, say), whatever trades on it.
+- **An agent**: one bot or model, across every connected account it trades on. Leverage and drawdown on an agent are measured against the [capital](/start/where-rules-apply/#give-an-agent-capital) you allocate to it; everywhere else, against the value of the accounts the rule covers.
 
-So a portfolio can cap the total, each agent inside it its own share, and a single connected account the leverage the exchange account can bear.
+So a connected account can cap what all the bots on it hold together, each agent its own share, and the whole account the total across exchanges. [Where rules apply](/start/where-rules-apply/) has the details.
 
 ## What happens when a limit is crossed
 
@@ -55,7 +55,7 @@ So a portfolio can cap the total, each agent inside it its own share, and a sing
 Two levels, both outside the bot:
 
 - **Pause all trading**, on the account, an agent or a connected account: only reduce-only orders that close a position pass, so a bot can wind down. Everything else is refused.
-- **Stop all trading** is the kill switch, on the account, a portfolio, an agent or a connected account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
+- **Stop all trading** is the kill switch, on the account, an agent or a connected account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
 
 [How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) goes through both.
 
@@ -72,4 +72,4 @@ The same limits apply to a model's orders. The `mishmar mcp` server gives a mode
 
 ## Set it up
 
-Rules live in the console, on the account, a portfolio, an agent or a connected account. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Portfolios](/start/portfolios/) through shared limits and capital.
+Rules live in the console, on the whole account, a venue connection, a connected account or an agent. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Where rules apply](/start/where-rules-apply/) through shared limits and an agent's capital.

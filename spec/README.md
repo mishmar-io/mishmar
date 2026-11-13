@@ -40,6 +40,110 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-13 (0.21.0, in progress)
+
+A venue connection holds accounts (Ishai, 13 Nov 2026; the whole proposal is
+the wiki's `design/redesign-2026-11.md`). Breaking, in one release with the
+engine, the SDKs, the CLI, the MCP servers and the console. 0.21.0 also
+removes portfolios (below). A first draft on 12 Nov put "wallets" inside an
+account; Ishai rejected the word and the level, since a broker has no such
+thing.
+
+- **An account is one pool of money** (`ConnectedAccount`): its own
+  balances, positions, margin and value. The test is that moving money
+  between two of them takes a transfer. Binance: Spot and USDⓈ-M Futures.
+  Hyperliquid: Perps and Spot. A broker: each account number. It has a
+  `type` (`ConnectedAccountType`), the venue's `name` for it and a stable
+  `venueRef`. Every balance, position, transaction and equity reading
+  belongs to exactly one account, so there is no second id to filter by.
+- **A venue connection is the login that reaches them** (`VenueConnection`,
+  `/venue-connections`): the read key, `setup`, `verify`, `sync`, and which
+  login it is (`venueAccount`: `id`, `role` main or subaccount, a short
+  `label`). Connecting creates its accounts; accounts are never created or
+  deleted one by one. One venue login connects once (409
+  `already_connected`, `details.venueConnectionId`).
+- **Each account names its connection** (`connection`, a
+  `VenueConnectionRef` with the setup, nothing secret), so the flat list of
+  accounts is enough for a person or an agent to tell them apart, and for a
+  signer to reach the venue. The ref carries `sync` (an agent reads no
+  connection, and this is how it sees how fresh the data is) and
+  `accountCount`, so an agent given some of a login's accounts knows that
+  what it sees is not the whole login. It does not carry the connection's
+  value: that would show an agent the size of accounts it was not given.
+- **Hierarchy.** A sub-account is its own connection, with `parentId` naming
+  its main login's connection when that is connected. A main connection does
+  not include its sub-accounts. A rule that covers a connection, or a login
+  with its sub-accounts, comes with the rule scopes in the portfolios part.
+- **The plan counts connections**: `Entitlements.maxVenueConnections`
+  (was `maxConnectedAccounts`). A sub-account's connection counts.
+- **Value.** `ConnectedAccount.equityUsd` is the pool's; the connection's is
+  the sum, and `getVenueConnectionEquity` serves it over time with each
+  account's share. The engine prices every asset it can (it needs spot
+  prices, which it did not read before); one it cannot is named in
+  `unpricedAssets`. `Balance.priceUsd` says the price used. `Balance.wallet`,
+  the old label, is gone.
+- **A move between two accounts of one connection** is a `transfer_out` on
+  one and a `transfer_in` on the other, each with
+  `counterpartConnectedAccountId`. The connection's total does not move.
+- **A symbol is a market only with its kind.** `MarketKind` on positions and
+  transactions (Binance's BTCUSDT is a spot pair and a perpetual).
+- **What stays per account:** rules' scope, an agent's access, trading keys
+  (VenueKey), pause, stop, mode, maintenance, restrictions, discrepancies.
+  `tradable` false marks an account the engine reads but cannot trade yet
+  (Binance Spot, Hyperliquid Spot, a Hyperliquid sub-account's), and
+  `untradableReason` says why in one line.
+- **Ids at the upgrade.** An account connected before 0.21.0 keeps its id as
+  the pool its value measured (USDⓈ-M Futures on Binance, Perps on
+  Hyperliquid), so rules, grants, keys and history keyed by it mean what
+  they meant. Its connection and the login's other pools are new.
+- **Not changed:** the field name `equityUsd`, and the bytes an agent signs.
+- **Still open:** Binance spot trades are not read (the venue lists them one
+  symbol at a time); a Hyperliquid address in unified mode still shows Perps
+  and Spot as two accounts; finding a login's sub-accounts for the person.
+- **Engine behaviour to match** (no contract field): leverage and drawdown
+  on a connected account use that account's own value and high-water mark.
+
+### No portfolios (0.21.0, second part)
+
+Portfolios are gone (Ishai, 12 Nov 2026): a named group of agents with
+capital, a stop and shared limits was one level too many once accounts say
+where the money is.
+
+- **Removed:** `/portfolios` and its schemas, `Account.defaultPortfolioId`,
+  `portfolioId` on agents, positions, the agent's identity and the lists'
+  filters, the scope kind `portfolio`, and the portfolio rows of the PnL
+  summary.
+- **Capital is the agent's** (`Agent.capitalUsd`, `removeCapital`). A
+  leverage or drawdown rule on an agent is measured against it and is
+  refused without it (decided 12 Nov), as it was with a portfolio's.
+- **Scopes follow the money**: `account`, `venue_connection`,
+  `connected_account`, `agent`. A rule on a venue connection covers the
+  login and everything under it, its sub-accounts' connections included
+  (Ishai, 13 Nov: a limit may sit on the master or on one sub-account).
+  Leverage and drawdown there use the summed value of the accounts agents
+  trade on (an account Mishmar only reads, Spot for now, is not in it, as at
+  account scope). A transfer is never read as a loss: between two accounts in
+  the sum it changes nothing, and across its edge it is capital, which moves
+  the mark.
+- **Signing version 3.** The record the engine signs for a decision has no
+  `portfolioId`. `Decision.portfolioId` stays, optional, only on records of
+  versions 1 and 2, so their bytes can be rebuilt. What an agent signs does
+  not change.
+- **A limit shared by a few agents** is now a rule on the account or the
+  connection they trade on, or on the Mishmar account. "These three agents
+  together" has no scope of its own.
+- **Stopping a group** is stopping the account, a connected account or an
+  agent.
+- **At the upgrade** (engine behaviour; prod had almost no use of
+  portfolios, Ishai 13 Nov). With one portfolio: each agent takes its
+  capital, so the agents' own rules measure what they measured; its rules
+  become rules on the Mishmar account, a leverage rule as the gross exposure
+  cap it amounted to (threshold × capital), a drawdown rule measured on the
+  account's value from then on. With several: each of a portfolio's rules
+  becomes a rule on each of its agents, a USD threshold divided among them
+  and the capital too (an order-size cap is copied whole), so nothing gets
+  looser. A stopped portfolio leaves its agents stopped.
+
 ## Decided on 2026-11-11 (0.20.0)
 
 Accounts come first, and agents are given them to read or to trade on

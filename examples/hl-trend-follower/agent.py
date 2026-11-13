@@ -3,15 +3,19 @@
 It trades through the agent's signer only (the Python SDK's Signer runs
 `mishmar signer run --local` as a child; this process holds no key) and walks
 a fixed sequence of orders chosen against these rules, set up in the console
-on the agent and on its portfolio:
+on the agent (given $500 of allocated capital, which its leverage rule is
+measured against) and on the connected account it trades on:
 
-  agent      Max order size            order > $150         block
-  agent      Review large orders       order > $40          require_approval
-  agent      Agent gross exposure      gross > $150         block
-  portfolio  ETH exposure review       ETH net > $30        require_approval
-  portfolio  Portfolio gross exposure  gross > $100         block
-  portfolio  Daily loss stop           daily loss > $25     block
-  portfolio  Leverage cap              leverage > 1         block
+  agent              Max order size          order > $150         block
+  agent              Review large orders     order > $40          require_approval
+  agent              Agent gross exposure    gross > $150         block
+  agent              Leverage cap            leverage > 1         block
+  connected account  ETH exposure review     ETH net > $30        require_approval
+  connected account  Account gross exposure  gross > $100         block
+  connected account  Daily loss stop         daily loss > $25     block
+
+The account's rules see every position on the account, and the bot predicts
+them from its own, so run it on a testnet account nothing else trades on.
 
 Each step states the verdict it expects and the rules that must fail, and the
 run ends with a pass/fail table, the agent's positions and its PnL. A step
@@ -195,7 +199,7 @@ def show(d: dict[str, Any], took: float | None) -> None:
     for e in d.get("evaluations", []):
         mark = "waived" if e.get("waived") else ("ok" if e["passed"] else "FAILED")
         print(
-            f"     [{e['scope']['kind']:9}] {e['ruleName']:26} {e['metric']:15} "
+            f"     [{e['scope']['kind']:17}] {e['ruleName']:26} {e['metric']:15} "
             f"{e['observed']:>10} vs {e['threshold']:>6} {e['unit']:5} -> {mark}"
             + (f" ({e['outcome']})" if not e["passed"] and not e.get("waived") else "")
         )
@@ -294,8 +298,8 @@ def steps() -> list[Step]:
 
     def gross_step(a: Agent) -> tuple[str, list[str]]:
         after = a.gross() + 30
-        print(f"   (agent gross now ${a.gross():.2f}; ${after:.2f} after this order)")
-        return ("block", ["Portfolio gross exposure"]) if after > 100 else ("allow", [])
+        print(f"   (gross now ${a.gross():.2f}; ${after:.2f} after this order)")
+        return ("block", ["Account gross exposure"]) if after > 100 else ("allow", [])
 
     def exit_btc(a: Agent) -> dict[str, Any]:
         p = a.position("BTC")
@@ -320,7 +324,7 @@ def steps() -> list[Step]:
             after=filled,
         ),
         Step(
-            "4. $35 market buy ETH (portfolio ETH review)",
+            "4. $35 market buy ETH (account ETH review)",
             "require_approval",
             lambda a: a.market("ETH", "buy", "35", valid_for=1200),
             failing=["ETH exposure review"],
@@ -334,7 +338,7 @@ def steps() -> list[Step]:
                 "Max order size",
                 "Review large orders",
                 "Agent gross exposure",
-                "Portfolio gross exposure",
+                "Account gross exposure",
             ],
         ),
         Step(
@@ -345,7 +349,7 @@ def steps() -> list[Step]:
             after=filled,
         ),
         Step(
-            "7. $30 market buy BTC (portfolio gross cap)",
+            "7. $30 market buy BTC (account gross cap)",
             "block",
             lambda a: a.market("BTC", "buy", "30"),
             expect_fn=gross_step,

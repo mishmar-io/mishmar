@@ -27,10 +27,9 @@ In the console, open **Agents** and click **Add agent**.
 - **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Read only**. Nothing is picked until you choose.
 - **Reads**: tick each connected account the agent may read (the only one there is is ticked for you), or click **Connect an account** to connect one without leaving the dialog. It reads each account whole: balances, positions, value and every transaction, who placed each one included.
-- **Portfolio**: where the agent is listed. Rules and capital matter only to an agent that trades. The account's default portfolio is preselected.
 - **Description** (optional): what it reads them for.
 
-![Step 1 of 2, Add agent: the name Desk assistant, Read only chosen under What it is for, two connected accounts ticked under Reads with Connect an account below them, the default portfolio, and a description](/screens/start/add-a-read-agent/add-agent.png)
+![Step 1 of 2, Add agent: the name Desk assistant, Read only chosen under What it is for, two connected accounts ticked under Reads with Connect an account below them, and a description](/screens/start/add-a-read-agent/add-agent.png)
 
 Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes.
 
@@ -64,13 +63,15 @@ These are the tools a read agent uses:
 
 | Tool | What it reads |
 | --- | --- |
-| `get_identity` | Who the agent is: its id and name, its Mishmar account and portfolio, the id of its key. |
-| `list_connected_accounts` | The connected accounts it was given, each with its venue, status and how current its data is. |
-| `get_connected_account` | One of them, with its setup and no secret. |
-| `get_account_balances` | The account's balances, spot and margin, each with its value in USD, and the account's whole value; now, or at a past moment (`at`). |
-| `get_account_positions` | The venue's net position in each market, whoever placed it; now, or at a past moment (`at`). |
-| `list_account_transactions` | Trades, transfers, funding, fees and liquidations, newest first (`from`, `to`, `kind`, `limit`, `cursor`). A trade's `origin` says who placed it. |
+| `get_identity` | Who the agent is: its id and name, its Mishmar account, whether it reads or trades, its capital when it has some, the id of its key. |
+| `list_connected_accounts` | The connected accounts it was given, each with its name at the venue (`Spot`, `Perps`, `USDⓈ-M Futures`, or `Main` on a login with one account), its value in USD (and any asset with no price, in `unpricedAssets`), its status, and its connection: the venue login that holds it, which login it is there and how current its data is. |
+| `get_connected_account` | One of them, with its connection's setup and no secret. |
+| `get_account_balances` | The account's balances, each with its value in USD and the price used, and the account's value; now, or at a past moment (`at`). An asset with no price is named in `unpricedAssets` instead of being counted. |
+| `get_account_positions` | The venue's net position in each market (a symbol with its market kind: `perp`, `spot`, …), whoever placed it; now, or at a past moment (`at`). |
+| `list_account_transactions` | Trades, transfers, funding, fees and liquidations, newest first (`from`, `to`, `kind`, `limit`, `cursor`). A trade's `origin` says who placed it. A transfer to or from another account of the same connection names it in `counterpartConnectedAccountId` and shows on both: it moves each account's value by the amount and the connection's by nothing. |
 | `get_account_equity` | The account's value in USD over time, oldest first (`from`, `to`, `resolution`: `minute`, `hour` or `day`). |
+
+An account is one pool of money at a venue, and the venue login that holds it is its **connection**: a Binance login has a **Spot** and a **USDⓈ-M Futures** account, a Hyperliquid address has **Perps** and **Spot**. Every balance, position and transaction belongs to one account, and a connection's value is the sum of its accounts'. You give an agent accounts, so it may read one of a login's accounts and not the other: each account says how many its login has (`connection.accountCount`), and an agent that sees fewer adds up only the accounts it can see, not the login's value.
 
 The server lists its other tools too. For a read agent each of them answers `… is not open to a read agent, and nothing was sent`, without calling Mishmar, and the signer inside the server opens no channel to Mishmar and syncs no keys: the reads above are the only calls it makes.
 
@@ -83,8 +84,9 @@ from mishmar import Client
 
 client = Client.from_api_key()  # MISHMAR_API_KEY
 for account in client.connected_accounts():
+    login = account["connection"]  # the venue login that holds it
+    print(account["venue"], login["name"], account["name"], account.get("equityUsd"))
     snap = client.account_balances(account["id"])  # at="…" for a past moment
-    print(account["name"], snap.get("equityUsd"))
 
 page = client.account_transactions("ta_…", since="2026-11-01T00:00:00Z", kind="trade", limit=200)
 for t in page["items"]:
@@ -99,8 +101,9 @@ import { Client } from "mishmar";
 
 const client = Client.fromApiKey(); // MISHMAR_API_KEY
 for (const account of await client.connectedAccounts()) {
+  const login = account.connection; // the venue login that holds it
+  console.log(account.venue, login.name, account.name, account.equityUsd);
   const snap = await client.accountBalances(account.id); // { at } for a past moment
-  console.log(account.name, snap.equityUsd);
 }
 const page = await client.accountTransactions("ta_…", { from: "2026-11-01T00:00:00Z", kind: "trade", limit: 200 });
 ```
@@ -115,11 +118,13 @@ mishmar read accounts
 ```
 
 ```text
-ta_…  Hyperliquid main  hyperliquid  active  read only
-  balances current as of 2026-11-12T10:00:00Z; positions current as of 2026-11-12T10:00:00Z; equity current as of 2026-11-12T10:00:00Z; transactions current as of 2026-11-12T09:58:00Z
+ta_…  Hyperliquid · Main · Perps · 0x12ab…9f3c  790.12 USD  active  read only
+ta_…  Hyperliquid · Main · Spot · 0x12ab…9f3c   41.5 USD    active  read only
+      total                                     831.62 USD as of 2026-11-12T10:00:00Z
+      balances current as of 2026-11-12T10:00:00Z; positions current as of 2026-11-12T10:00:00Z; equity current as of 2026-11-12T10:00:00Z; transactions current as of 2026-11-12T09:58:00Z
 ```
 
-The last word is `traded` instead of `read only` when an agent holds a trading key on the account. The other reads take the account's id:
+Each line is one account: its id, then the venue, the connection's name, the account's name and the venue's own identifier for the login, shortened, then its value. On a login with a single account the account's name is left out. The last word is `traded` instead of `read only` when an agent holds a trading key on the account. Under a login's accounts, `total` is their sum; when the agent was given fewer than all of them, that line says how many it sees (`2 of 3 accounts, total of these`) and the sum is of those alone. The last line says how current the connection's data is. The other reads take the account's id:
 
 ```sh
 mishmar read balances ta_…                       # --at 2026-11-01 for a past moment

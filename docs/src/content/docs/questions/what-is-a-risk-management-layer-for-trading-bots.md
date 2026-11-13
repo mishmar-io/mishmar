@@ -16,7 +16,7 @@ Mishmar is a risk management layer for trading bots and AI agents: every order i
 | --- | --- | --- |
 | **Pre-trade checks** | every order is valued and checked against limits before the exchange sees it | eight kinds of limit, each set to block or to hold; resting orders and orders in flight count |
 | **Approval** | orders over a threshold wait for a person | a hold rule; you approve in the console with a passkey |
-| **Kill switch** | one action stops new orders, whatever the bot is doing | Pause (only closing orders pass) and Stop (only cancels pass), on the account, a portfolio, an agent or a connected account |
+| **Kill switch** | one action stops new orders, whatever the bot is doing | Pause (only closing orders pass) and Stop (only cancels pass), on the account, a connected account or an agent |
 | **Record** | every decision is kept, with why | each decision is signed and chained to the one before it; the ledger exports and verifies |
 
 ## Where the idea comes from
@@ -49,4 +49,4 @@ There are two ways to hold something the order needs. A proxy can hold the whole
 - [Is there an MCP server for trading on Hyperliquid or Binance with limits?](/questions/is-there-an-mcp-server-for-trading-on-hyperliquid-or-binance-with-limits/): the same layer for a language-model agent.
 - [Is it safe to give a trading bot my exchange API key?](/questions/is-it-safe-to-give-a-trading-bot-my-exchange-api-key/)
 
-Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one connected account.
+Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one venue connection.
