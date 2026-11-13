@@ -45,4 +45,4 @@ A rule set to start with, for a model trading a small account:
 
 ## What this does not do
 
-Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet, which is free for one agent and one connected account, with the rule set above, and read the ledger before you widen anything.
+Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet, which is free for one agent and one venue connection, with the rule set above, and read the ledger before you widen anything.

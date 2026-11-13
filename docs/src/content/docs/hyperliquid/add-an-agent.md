@@ -23,7 +23,7 @@ It takes about five minutes.
 - **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one agent and one connected account.
+- **Room on your plan.** The free plan holds one agent and one venue connection.
 
 :::note[Three agents per Hyperliquid account]
 Hyperliquid lets a master account approve up to three named API wallets, and each Mishmar agent on that account uses one. Named API wallets you use for other bots count toward the three. Mishmar names every key of one agent the same (`mishmar-` and the last eight characters of the agent's id), so a replacement key takes over the slot of the one it replaces.
@@ -163,7 +163,7 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 - **The approval does not show up.** Check the address you pasted is the one the dialog showed, and that you approved on the account's network (testnet or mainnet). Mishmar looks once a minute; open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify** to look now.
 - **You clicked Generate at Hyperliquid.** That made another wallet, which Mishmar does not hold half of. Remove it there and paste the dialog's address instead.
 - **`Agent …'s key on connected account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
-- **`The account's plan holds 1 agent; delete one or move to a larger plan`**, or the same for a connected account. The free plan holds one agent and one connected account, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
+- **`The account's plan holds 1 agent; delete one or move to a larger plan`**, or the same for a venue connection. The free plan holds one agent and one venue connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
 - **An order comes back `rate_limited`: `The account's request budget for hyperliquid is spent for now; send it again in … s`.** Each plan has a share of what Hyperliquid lets one address send. The SDKs and `mishmar signer run` send the order again after the wait. Closing positions and cancels always go.
 - **The connected account says New orders are blocked: Mishmar has lost the venue's stream of this account's fills and orders.** While Mishmar can't see the account's fills and orders, it blocks new risk. Closing positions still works. Trading starts again by itself once the stream is back; if it hasn't within a few minutes, tell us.
 

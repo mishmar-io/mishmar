@@ -30,6 +30,8 @@ from .data import (
     EquitySeries,
     SyncState,
     TransactionOrigin,
+    VenueAccount,
+    VenueConnectionRef,
 )
 from .proposal import Proposal, VenueMessage, is_decimal, new_nonce, rfc3339
 from .signer import Signer, download_binary, find_binary
@@ -56,6 +58,8 @@ __all__ = [
     "Signer",
     "SyncState",
     "TransactionOrigin",
+    "VenueAccount",
+    "VenueConnectionRef",
     "VenueMessage",
     "canonical_json",
     "download_binary",

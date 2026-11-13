@@ -320,7 +320,15 @@ registry lists the server as `io.github.mishmar-io/mishmar` (`server.json`).
 
 An agent is given connected accounts and reads each one whole: its
 balances, the venue's positions, its transactions and its value over time,
-other agents' and the owner's activity included. A trade's `origin` says who
+other agents' and the owner's activity included. A connected account is one
+pool of money at a venue, with its own value (`equityUsd`): a Binance login
+has a Spot and a USDⓈ-M Futures account, a Hyperliquid address has Perps
+and Spot. Each names its `connection`, the venue login that holds it (its
+name, which login it is, how current its data is and how many accounts it
+has, `accountCount`); the accounts' values add up to the login's only when
+the agent was given all of them, and a move between two of its accounts is
+a `transfer_out` on one and a `transfer_in` on the other, each naming the
+other in `counterpartConnectedAccountId`. A trade's `origin` says who
 placed it, with `own` true on the agent's own. Every read is signed with the
 agent's key and written to the account's access log. A read agent
 (`permission: read`) does only this: it has a Mishmar API key, no signer and
@@ -337,8 +345,8 @@ The API key alone is enough: it names the engine and the key id
 from mishmar import Client
 
 client = Client.from_api_key()                       # $MISHMAR_API_KEY
-for account in client.connected_accounts():
-    print(account["name"], client.account_balances(account["id"]).get("equityUsd"))
+for account in client.connected_accounts():          # each one pool, with its connection
+    print(account["connection"]["name"], account["name"], account.get("equityUsd"))
 page = client.account_transactions("ta_…", since="2026-11-01T00:00:00Z", kind="trade")
 mine = [t for t in page["items"] if t.get("origin", {}).get("own")]
 ```
@@ -355,9 +363,11 @@ The reads are `me`, `connected_accounts`, `connected_account`,
 `account_transactions` (a time range, a kind, `limit` and `cursor` pages)
 and `account_equity` (a range and a `resolution`), camelCase in TypeScript,
 on `Client` and `Signer` alike. From the shell, with the same key or the
-signer's config, `mishmar read agent`, `read accounts`, `read account
-<id>`, `read balances <id>`, `read positions <id>`, `read transactions <id>`
-and `read equity <id>`; `--json` prints the engine's answer as it came.
+signer's config, `mishmar read agent`, `read accounts` (by connection, each
+account with its value, and the total of a login's accounts, or of those
+shown when the agent was given fewer), `read account <id>`,
+`read balances <id>`, `read positions <id>`, `read transactions <id>` and
+`read equity <id>`; `--json` prints the engine's answer as it came.
 `mishmar mcp` serves them as read-only tools: `get_identity`,
 `list_connected_accounts`, `get_connected_account`, `get_account_balances`,
 `get_account_positions`, `list_account_transactions` and

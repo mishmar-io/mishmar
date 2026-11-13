@@ -1,14 +1,14 @@
 ---
 title: Connect a Binance account
-description: Connect your Binance USDⓈ-M futures account to Mishmar with a read-only API key made at Binance. Mishmar checks the key can do nothing but read, reads the account's balances, positions, value and recent transactions, and keeps reading it every minute. The key can't trade; agents are given the account afterwards.
+description: Connect your Binance login to Mishmar with a read-only API key made at Binance. Mishmar checks the key can do nothing but read, reads the balances, positions, value and recent transactions of its Spot and USDⓈ-M Futures accounts, and keeps reading them every minute. The key can't trade; agents are given the accounts afterwards.
 sidebar:
   order: 1
 lastUpdated: 2026-11-12
 ---
 
-When you are done, your Binance account is a **connected account** in Mishmar: an account at a venue that Mishmar can read. It reads the account with a **read-only API key** you make at Binance. That key cannot trade, so Mishmar keeps it whole, encrypted. From then on Mishmar reads the account every minute and keeps what it reads: balances, positions, the account's value over time and its transactions. [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) has the details.
+When you are done, your Binance login is a **connection** in Mishmar, and it holds two **connected accounts**, **Spot** and **USDⓈ-M Futures**, as Binance keeps them: each one pool of money that Mishmar can read. It reads them with a **read-only API key** you make at Binance. That key cannot trade, so Mishmar keeps it whole, encrypted. From then on Mishmar reads both accounts every minute and keeps what it reads: each one's balances, positions, value over time and transactions. The connection's value is the sum of the two, and a transfer between them shows on both. [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) has the details.
 
-A connected account needs no agent. Agents come afterwards, and you give each one the accounts it may use: a **read agent** only reads them, and a **trade agent** also gets its own trading key on one, an Ed25519 API key split between the agent's signer and Mishmar, which you register at Binance. [Add an agent on Binance](/binance/add-an-agent/) sets up a trade agent, and its dialog can connect the account on the way; [Add a read agent](/start/add-a-read-agent/) sets up one that only reads.
+A connected account needs no agent. Agents come afterwards, and you give each one the accounts it may use: a **read agent** only reads them, and a **trade agent** also gets its own trading key on one (on Binance, the USDⓈ-M Futures account: Spot is read, not traded, for now), an Ed25519 API key split between the agent's signer and Mishmar, which you register at Binance. [Add an agent on Binance](/binance/add-an-agent/) sets up a trade agent, and its dialog can connect the account on the way; [Add a read agent](/start/add-a-read-agent/) sets up one that only reads.
 
 Mishmar trades Binance's USDⓈ-M futures: perpetual contracts such as `BTCUSDT`. Which Binance depends on your console. **app.mishmar.io** trades real funds on [binance.com](https://www.binance.com), and shows an IP address to restrict your keys to (see the note under step 3). **app.testnet.mishmar.io** trades on **Binance demo trading**, virtual funds at real prices, which has its own site, [demo.binance.com](https://demo.binance.com), and its own API keys. Make every key for this account on the Binance that matches your console: a key from one does not work on the other.
 
@@ -19,7 +19,7 @@ It takes about five minutes.
 - **A Binance account**, on binance.com for app.mishmar.io or on demo.binance.com for the testnet. To be traded on later, its USDⓈ-M Futures account has to be opened and funded; [Before an agent trades on it](#before-an-agent-trades-on-it) says how. Connecting doesn't need either.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot connect accounts.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before a change like this one. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one connected account, on any venue.
+- **Room on your plan.** The free plan holds one venue connection, on any venue: one login, with all its accounts.
 
 ## 1. Make a read-only API key at Binance
 
@@ -31,9 +31,9 @@ At Binance ([binance.com](https://www.binance.com) for app.mishmar.io, [demo.bin
 
 Keep the key and its secret at hand for step 2.
 
-Mishmar uses this key to read the account (its futures and spot wallets, positions, fills and income) and never for orders. It checks with Binance that the key can do nothing but read, when you connect the account and again every hour; a key that can do more is not read with.
+Mishmar uses this key to read the login's Spot and USDⓈ-M Futures accounts (balances, positions, fills and income) and never for orders. It checks with Binance that the key can do nothing but read, when you connect the account and again every hour; a key that can do more is not read with.
 
-If you trade from a Binance subaccount, make the key on that subaccount: Mishmar reads the account the key belongs to.
+If you trade from a Binance subaccount, make the key on that subaccount: Mishmar reads the login the key belongs to, and a subaccount is a connection of its own.
 
 ## 2. Connect it
 
@@ -85,7 +85,7 @@ From now on Mishmar reads the account every minute, whether or not an agent uses
 
 Reading the account needs nothing more. Trading on it does, and Mishmar checks these when it verifies an agent's trading key, which stays pending until they pass:
 
-- **Open and fund the USDⓈ-M Futures account.** At Binance: open **USDⓈ-M Futures** under Derivatives if the account has none (agree to the terms), then **Wallet, Futures, Transfer** USDT or USDC from the spot wallet into the futures wallet. Until both are done the key's margin check reads `$0 available`, with Binance showing no futures account at all when it was never opened.
+- **Open and fund the USDⓈ-M Futures account.** At Binance: open **USDⓈ-M Futures** under Derivatives if the account has none (agree to the terms), then **Wallet, Futures, Transfer** USDT or USDC from the Spot account into the USDⓈ-M Futures account. Until both are done the key's margin check reads `$0 available`, with Binance showing no futures account at all when it was never opened.
 - **Set the position mode to One-way**, in Binance's futures settings. Mishmar doesn't support Hedge mode.
 - **Say who trades here**, on the account's page, under **Who trades here**: **Does anything other than your agents trade on this account?** Choose **No, only my agents** (the default) if Mishmar's agents are the only thing that trades here: an outside trade then blocks new orders until you say whose it is. Choose **Yes, I or other tools trade here too** if you or another bot also trade on it: outside trades then count toward this account's limits, not any agent's. While no agent holds a trading key on the account, the answer changes nothing.
 
@@ -100,5 +100,5 @@ Next, give the account to an agent: [add an agent on Binance](/binance/add-an-ag
 - **Read-only key cannot trade or withdraw fails, with `Binance would not say what this key may do: …`**: on binance.com, Mishmar has to ask Binance what the key may do, and Binance refused. Check the key as above, then click **Check again**.
 - **The toast says `… of 3 checks still failing`**: the failing checks are marked in red with what Binance answered. Fix them at Binance, then click **Verify again**.
 - **The account's page says `Mishmar can't read this account's … right now`**: the last reads of that kind failed, with the reason after it, and what you see is as of the time it gives. Mishmar keeps trying every minute; tell us if it doesn't clear.
-- **You need to delete the connected account.** On its page, click the bin icon (**Delete connected account**). Deleting stops Mishmar reading it, and the agents given it lose access. Mishmar refuses with `Agents still hold venue keys on this connected account; revoke them first` while an agent has a trading key on it: revoke those keys on each agent's **Keys** tab first.
-- **`The account's plan holds 1 connected account; delete one or move to a larger plan`**, or **Connect account** is greyed out with the reason beside it: the free plan holds one connected account, on Hyperliquid and Binance together. Delete one, or move to a larger plan.
+- **You need to delete the connected account.** On its page, click the bin icon (**Delete connected account**). Deleting removes the connection with all its accounts: Mishmar stops reading them, and the agents given them lose access. Mishmar refuses with `Agents still hold venue keys on this connected account; revoke them first` while an agent has a trading key on it: revoke those keys on each agent's **Keys** tab first.
+- **`The account's plan holds 1 venue connection; delete one or move to a larger plan`**, or **Connect account** is greyed out with the reason beside it: the free plan holds one venue connection, on Hyperliquid and Binance together, whatever the number of accounts under it. Delete one, or move to a larger plan.

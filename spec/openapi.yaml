@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.20.0
+  version: 0.21.0
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -643,10 +643,208 @@ paths:
               schema: { $ref: '#/components/schemas/Agent' }
         default: { $ref: '#/components/responses/Error' }
 
+  /venue-connections:
+    get:
+      tags: [connected-accounts]
+      operationId: listVenueConnections
+      summary: The venue logins connected, each with the ids of its accounts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [connected-accounts]
+      operationId: createVenueConnection
+      summary: Connect a venue login with read access
+      description: |
+        For an exchange, a read-only key the engine uses for balances,
+        positions and history; for Hyperliquid, the address and the network,
+        nothing secret; for Fireblocks, the callback. The engine creates the
+        connection's accounts at once (ConnectedAccount: one per pool of money
+        the venue keeps apart, e.g. Spot and USDⓈ-M Futures on Binance), all
+        `pending` with the connection until `verify` passes, which also checks
+        that the access given cannot trade or withdraw. Then the engine reads
+        each account's current state, and its history as far back as the venue
+        serves it (`sync`). No agent is needed. Trading keys are not here:
+        each trade agent gets its own on one connected account (VenueKey).
+
+        One venue login connects once: the same venue, network or environment
+        and `venueAccount.id` as a connection already there is 409
+        `already_connected`, at create when the identifier is given and at
+        `verify` when the venue reveals it. Refused at verify, the new
+        connection stays pending and reads nothing; delete it.
+
+        A sub-account is a connection of its own, with its own key or
+        address, and counts as one on the plan (`maxVenueConnections`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueConnectionCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+  /venue-connections/{venueConnectionId}:
+    parameters:
+      - $ref: '#/components/parameters/venueConnectionId'
+    get:
+      tags: [connected-accounts]
+      operationId: getVenueConnection
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [connected-accounts]
+      operationId: updateVenueConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueConnectionUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [connected-accounts]
+      operationId: deleteVenueConnection
+      summary: Remove the connection and its accounts. Refused while any agent holds a venue key on one of them.
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /venue-connections/{venueConnectionId}/read-key:
+    parameters:
+      - $ref: '#/components/parameters/venueConnectionId'
+    put:
+      tags: [connected-accounts]
+      operationId: setReadKey
+      summary: Give an exchange connection its read-only key
+      description: |
+        For an exchange connection added without one (or whose key the venue
+        refused before it was ever verified): the key is stored whole, like at
+        creation, `readKeyRegistered` turns true, and the connection can be
+        verified. Refused (409 `conflict`) for a connection that is not an
+        exchange's, or one already active: an active connection's key is
+        not replaced; delete the connection and add it again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExchangeReadKey' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+  /venue-connections/{venueConnectionId}/verify:
+    parameters:
+      - $ref: '#/components/parameters/venueConnectionId'
+    post:
+      tags: [connected-accounts]
+      operationId: verifyVenueConnection
+      summary: |
+        Run the venue checks: the exchange's read-only key is accepted and can
+        neither trade nor withdraw, and the environment matches; the
+        Hyperliquid address exists on the network (and a sub-account belongs
+        to its master); the Fireblocks callback is registered. All pass and
+        the connection and its accounts become `active`. Whether an account
+        can be traded (margin, one-way mode) is checked with each agent's
+        trading key (`verifyVenueKey`), not here.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+  /venue-connections/{venueConnectionId}/sync:
+    parameters:
+      - $ref: '#/components/parameters/venueConnectionId'
+    post:
+      tags: [connected-accounts]
+      operationId: syncVenueConnection
+      summary: Read the connection's accounts from the venue now
+      description: |
+        Asks the collector to catch up at once instead of at its next pass:
+        the console's Refresh. Answers with the connection as it stands;
+        `sync` on it moves as the reads finish. A connection that is pending,
+        or that the engine reads nothing from (a co-signer callback), is 409
+        `conflict`. No engine does this on demand yet: every one answers 501
+        `not_implemented`, and the collector's next pass is at most a minute
+        away, so a console offers no Refresh until one does.
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnection' }
+        default: { $ref: '#/components/responses/Error' }
+  /venue-connections/{venueConnectionId}/equity:
+    parameters:
+      - $ref: '#/components/parameters/venueConnectionId'
+    get:
+      tags: [connected-accounts]
+      operationId: getVenueConnectionEquity
+      summary: The connection's value over time, the sum of its accounts
+      description: |
+        Each point is one reading of the whole connection, with each
+        account's share (`accounts`), so a move between two of its accounts
+        changes the shares and not the total. Sub-account connections are not
+        included. Same range, resolution and plan limits as an account's
+        series (getConnectedAccountEquity).
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: resolution
+          in: query
+          schema: { $ref: '#/components/schemas/EquityResolution' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueConnectionEquitySeries' }
+        default: { $ref: '#/components/responses/Error' }
   /connected-accounts:
     get:
       tags: [connected-accounts]
       operationId: listConnectedAccounts
+      summary: Every account of every venue connection, in one flat list
+      description: |
+        Accounts are not created here: connecting a venue login
+        (createVenueConnection) creates its accounts. Each names its
+        connection (`connection`), so the list is enough to tell them apart.
+        In the order the connections were made, oldest first, each
+        connection's accounts together in the venue's own order
+        (`VenueConnection.connectedAccountIds`). The agent's list
+        (agentListConnectedAccounts) is in the same order.
+      parameters:
+        - name: venueConnectionId
+          in: query
+          description: Only this connection's accounts.
+          schema: { type: string }
       responses:
         '200':
           description: OK
@@ -655,31 +853,6 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/ConnectedAccount' }
-        default: { $ref: '#/components/responses/Error' }
-    post:
-      tags: [connected-accounts]
-      operationId: createConnectedAccount
-      summary: Connect a venue account with read access
-      description: |
-        For an exchange, a read-only key the engine uses for balances,
-        positions and history; for Hyperliquid, the account's address and the
-        network, nothing secret; for Fireblocks, the callback. The connected
-        account stays `pending` until `verify` passes, which also checks that
-        the access given cannot trade or withdraw. Then the engine reads its
-        current state, and its history as far back as the venue serves it
-        (`sync`). No agent is needed. Trading keys are not here: each trade
-        agent gets its own on the connected account (VenueKey).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ConnectedAccountCreate' }
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
   /connected-accounts/{connectedAccountId}:
     parameters:
@@ -702,59 +875,6 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/ConnectedAccountUpdate' }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ConnectedAccount' }
-        default: { $ref: '#/components/responses/Error' }
-    delete:
-      tags: [connected-accounts]
-      operationId: deleteConnectedAccount
-      summary: Remove the connected account. Refused while any agent holds a venue key on it.
-      responses:
-        '204': { description: Deleted }
-        default: { $ref: '#/components/responses/Error' }
-  /connected-accounts/{connectedAccountId}/read-key:
-    parameters:
-      - $ref: '#/components/parameters/connectedAccountId'
-    put:
-      tags: [connected-accounts]
-      operationId: setReadKey
-      summary: Give an exchange account its read-only key
-      description: |
-        For an exchange account added without one (or whose key the venue
-        refused before it was ever verified): the key is stored whole, like at
-        creation, `readKeyRegistered` turns true, and the account can be
-        verified. Refused (409 `conflict`) for a connected account that is not an
-        exchange account, or one already active: an active account's key is
-        not replaced; delete the account and add it again.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ExchangeReadKey' }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ConnectedAccount' }
-        default: { $ref: '#/components/responses/Error' }
-  /connected-accounts/{connectedAccountId}/verify:
-    parameters:
-      - $ref: '#/components/parameters/connectedAccountId'
-    post:
-      tags: [connected-accounts]
-      operationId: verifyConnectedAccount
-      summary: |
-        Run the venue checks: the exchange's read-only key is accepted and can
-        neither trade nor withdraw, the account has margin and is in one-way
-        mode, the environment matches; the Hyperliquid master exists on the
-        network; the Fireblocks callback is registered. All pass and the connected account
-        becomes `active`. Each agent's trading key is verified on its own
-        (`verifyVenueKey`).
       responses:
         '200':
           description: OK
@@ -883,8 +1003,8 @@ paths:
       operationId: getConnectedAccountBalances
       summary: The connected account's balances, now or at a past moment
       description: |
-        Every asset the account holds at the venue, spot and margin, with its
-        value in USD at that moment. A past moment the engine did not observe
+        Every asset the account holds, with its price and value in USD at
+        that moment, and the account's value. A past moment the engine did not observe
         is rebuilt from the account's transactions and the venue's historical
         prices (`source` says which). A moment before the plan's retention
         or before the account's history starts is 404.
@@ -908,7 +1028,7 @@ paths:
       operationId: getConnectedAccountPositions
       summary: The connected account's positions at the venue, now or at a past moment
       description: |
-        The venue's own net position per symbol, whoever placed the orders
+        The venue's own net position per market (a symbol with its `market` kind), whoever placed the orders
         behind it. The per-agent book is `listPositions` (people) and
         `agentListPositions` (the calling agent's own).
       parameters:
@@ -983,24 +1103,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EquitySeries' }
-        default: { $ref: '#/components/responses/Error' }
-  /connected-accounts/{connectedAccountId}/sync:
-    parameters:
-      - $ref: '#/components/parameters/connectedAccountId'
-    post:
-      tags: [connected-accounts]
-      operationId: syncConnectedAccount
-      summary: Read the connected account from the venue now
-      description: |
-        Asks the collector to catch up at once instead of at its next pass:
-        the console's Refresh. Answers with the account as it stands; `sync`
-        on it moves as the reads finish.
-      responses:
-        '202':
-          description: Accepted
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ConnectedAccount' }
         default: { $ref: '#/components/responses/Error' }
   /discrepancies:
     get:
@@ -1547,7 +1649,7 @@ paths:
       tags: [agent]
       operationId: agentGetConnectedAccount
       security: [{ agentAuth: [] }]
-      summary: A connected account as the agent may see it, its setup without any secret
+      summary: A connected account as the agent may see it, its connection's setup without any secret
       responses:
         '200':
           description: OK
@@ -1596,8 +1698,9 @@ paths:
       summary: The connected account's balances, now or at a past moment
       description: |
         Only for an account the agent was given (403 `forbidden` otherwise);
-        each read is written to the access log. Every asset the account holds at the venue, spot and margin, with its
-        value in USD at that moment. A past moment the engine did not observe
+        each read is written to the access log. Every asset the account
+        holds, with its price and value in USD at that moment, and the
+        account's value. A past moment the engine did not observe
         is rebuilt from the account's transactions and the venue's historical
         prices (`source` says which). A moment before the plan's retention
         or before the account's history starts is 404.
@@ -1623,7 +1726,7 @@ paths:
       security: [{ agentAuth: [] }]
       summary: The connected account's positions at the venue, now or at a past moment
       description: |
-        The venue's own net position per symbol, whoever placed the orders
+        The venue's own net position per market (a symbol with its `market` kind), whoever placed the orders
         behind it. The per-agent book is `listPositions` (people) and
         `agentListPositions` (the calling agent's own).
       parameters:
@@ -2065,6 +2168,11 @@ components:
       in: path
       required: true
       schema: { type: string }
+    venueConnectionId:
+      name: venueConnectionId
+      in: path
+      required: true
+      schema: { type: string }
     ruleId:
       name: ruleId
       in: path
@@ -2108,6 +2216,8 @@ components:
             `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
             `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
             `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+            `already_connected` (409) answers connecting or verifying a venue login
+            that is connected already; `details.venueConnectionId` is the existing one.
             `evaluation_changed` (409) answers an approve whose `revision` is not the
             current evaluation's: the rules now say something else than what the approver
             saw. `details.now` is the current ApprovalEvaluation; show it and approve again
@@ -2116,7 +2226,7 @@ components:
             answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
             signer and send the same request again.
             `limit_reached` (403) means the account's plan holds no more of what
-            the request would add (`Entitlements.maxAgents`, `maxConnectedAccounts`).
+            the request would add (`Entitlements.maxAgents`, `maxVenueConnections`).
             Sending it again changes nothing: delete one, or move to a larger plan.
             `unavailable` (503) means the request did nothing: the engine cannot read its
             state, it is starting or waiting for its account, or it is stopping. Send the
@@ -2227,14 +2337,17 @@ components:
             The most agents the account may have, stopped ones and read agents
             included. Absent means no limit. An account already over it keeps what it has;
             createAgent is refused with `limit_reached` until one is deleted.
-        maxConnectedAccounts:
+        maxVenueConnections:
           type: integer
           minimum: 1
           description: |
-            The most connected accounts the account may have, on every venue
-            together. Absent means no limit. createConnectedAccount is refused
-            with `limit_reached` past it, as createAgent is. One Mishmar only
-            reads counts like one agents trade on.
+            The most venue connections the account may have, on every venue
+            together. Absent means no limit. createVenueConnection is refused
+            with `limit_reached` past it, as createAgent is. A connection
+            counts once whatever the number of accounts under it; a
+            sub-account's connection counts like any other; one Mishmar only
+            reads counts like one agents trade on. Before contract 0.21.0
+            this was `maxConnectedAccounts`.
         accountData: { $ref: '#/components/schemas/AccountDataEntitlements' }
         venueBudgets:
           type: array
@@ -2531,7 +2644,7 @@ components:
               description: When the venue will expire the approval, as the venue reports it.
         withdrawalsDisabled: { type: boolean }
         ipAllowlisted: { type: boolean }
-        verification: { $ref: '#/components/schemas/ConnectedAccountVerification' }
+        verification: { $ref: '#/components/schemas/VenueConnectionVerification' }
         expiresAt:
           type: string
           format: date-time
@@ -2579,13 +2692,19 @@ components:
     Venue:
       type: string
       enum: [hyperliquid, binance, bybit, okx, coinbase, fireblocks]
-    ConnectedAccountKind:
+    VenueConnectionKind:
       type: string
       enum: [exchange, hyperliquid, cosigner_callback]
-      description: An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
+      description: |
+        An exchange login reached with API keys, a Hyperliquid address (a
+        master or one of its sub-accounts), or a custodian's co-signer
+        callback. Before contract 0.21.0 this was ConnectedAccountKind.
     ConnectedAccountStatus:
       type: string
       enum: [pending, active, paused, killed]
+      description: |
+        pending until the account's connection is verified. pause and stop
+        are per account.
     ConnectedAccountMode:
       type: string
       enum: [agents_only, shared]
@@ -2600,19 +2719,150 @@ components:
         passing, until the owner assigns it (resolveDiscrepancy) or it falls in
         a maintenance window. shared: such a fill is booked to the unassigned book
         and trading continues; account and connected account rules see it, agent rules do not.
-    ConnectedAccount:
+    VenueConnection:
       type: object
-      required: [id, name, venue, kind, status, mode, traded, setup, createdAt, updatedAt]
+      required: [id, name, venue, kind, status, venueAccount, connectedAccountIds, setup, createdAt, updatedAt]
       description: |
-        One account at a venue, connected with read access. It needs no agent:
-        it is connected by itself, the engine keeps its balances, positions,
-        equity and transactions over time, and agents are then given it to
-        read or to trade on. Before contract 0.20.0 this was TradingAccount.
+        One login at a venue, connected with read access: one owner and one
+        identifier there (a Hyperliquid master address or one sub-account's,
+        a Binance main account or one sub-account, one brokerage account
+        number). It is how Mishmar reaches the venue, and it holds one or
+        more accounts (ConnectedAccount), which are where the money is. The
+        read key, verification and sync are the connection's; balances,
+        positions, transactions, value, rules, agents' access and trading
+        keys are each account's. The plan counts connections.
+      properties:
+        id: { type: string }
+        name:
+          type: string
+          description: The person's own name for it, e.g. "Carry".
+        venue: { $ref: '#/components/schemas/Venue' }
+        kind: { $ref: '#/components/schemas/VenueConnectionKind' }
+        status:
+          type: string
+          enum: [pending, active]
+          description: pending until `verify` passes.
+        venueAccount: { $ref: '#/components/schemas/VenueAccount' }
+        parentId:
+          type: string
+          description: |
+            On a sub-account's connection, the connection of its main
+            account, when that is connected too. A main connection does not
+            include its sub-accounts: its accounts and its value are the main
+            login's alone. The engine keeps it in step as the main login is
+            connected or deleted.
+        connectedAccountIds:
+          type: array
+          description: |
+            The connection's accounts, in the venue's own order. Fixed by the
+            venue and what the engine reads there, and created with the
+            connection. A venue that keeps no pools apart, or one the engine
+            reads nothing from (a co-signer callback), has one account.
+          items: { type: string }
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: |
+            The connection's value at `equityAsOf`: the sum of its accounts'.
+            Absent until the first reading.
+        equityAsOf: { type: string, format: date-time }
+        unpricedAssets:
+          type: array
+          description: |
+            Assets some account of the connection held at `equityAsOf` that
+            the engine had no price for, so `equityUsd` leaves them out.
+            Absent when every asset was priced.
+          items: { type: string }
+        sync:
+          type: array
+          description: |
+            How current each kind of the connection's data is, across its
+            accounts. Absent until the connection is verified.
+          items: { $ref: '#/components/schemas/SyncState' }
+        setup: { $ref: '#/components/schemas/VenueConnectionSetup' }
+        verification: { $ref: '#/components/schemas/VenueConnectionVerification' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VenueConnectionRef:
+      type: object
+      required: [id, name, kind, venueAccount, accountCount, setup]
+      description: |
+        What an account says about its connection, so that the account alone
+        is enough to tell which one it is and, for a signer, how to reach
+        the venue. Nothing secret.
       properties:
         id: { type: string }
         name: { type: string }
+        accountCount:
+          type: integer
+          minimum: 1
+          description: |
+            How many accounts the connection has, whether or not the reader
+            was given all of them. An agent given fewer than this sees part
+            of the login, and the sum of what it sees is not the
+            connection's value. 1 means this account is the whole login.
+        kind: { $ref: '#/components/schemas/VenueConnectionKind' }
+        venueAccount: { $ref: '#/components/schemas/VenueAccount' }
+        parentId: { type: string, description: As on VenueConnection. }
+        sync:
+          type: array
+          description: |
+            As on VenueConnection: how current each kind of data is, across
+            the connection's accounts. It is how an agent, which reads no
+            connection, tells how fresh an account's data is.
+          items: { $ref: '#/components/schemas/SyncState' }
+        setup: { $ref: '#/components/schemas/VenueConnectionSetup' }
+    ConnectedAccountType:
+      type: string
+      enum: [spot, derivatives, margin, funding, unified, other]
+      description: |
+        spot: assets held outright (a broker's cash account). derivatives:
+        the collateral behind perpetuals and futures, with their positions
+        (Hyperliquid's perps, Binance's USDⓈ-M futures). margin: assets
+        bought with borrowing (cross or isolated margin, a broker's margin
+        account). funding: holds deposits, withdrawals and payments and
+        trades nothing. unified: one pool behind every kind of market (a
+        unified trading account). other: anything else the venue keeps
+        apart.
+    ConnectedAccount:
+      type: object
+      required: [id, venueConnectionId, connection, name, type, venueRef, venue, status, mode, traded, createdAt, updatedAt]
+      description: |
+        One pool of money at a venue, with its own balances, positions,
+        margin and value. The test: moving money between two of them takes a
+        transfer. A Binance login has a Spot account and a USDⓈ-M Futures
+        account; a Hyperliquid address has Perps and Spot; a brokerage
+        account number is one. Every balance, position, transaction and
+        equity reading belongs to exactly one, rules are scoped to one, and
+        an agent is given one to read or to trade on.
+
+        Accounts are not connected one by one: they come with their venue
+        connection (VenueConnection), which holds the read access. The
+        engine keeps each account's balances, positions, equity and
+        transactions over time. Before contract 0.21.0 a ConnectedAccount
+        was the whole login; an account connected before it keeps its id as
+        the pool its value measured (USDⓈ-M Futures on Binance, Perps on
+        Hyperliquid) and the login's other pools are new accounts. Before
+        contract 0.20.0 this was TradingAccount.
+      properties:
+        id: { type: string }
+        venueConnectionId: { type: string }
+        connection: { $ref: '#/components/schemas/VenueConnectionRef' }
+        name:
+          type: string
+          description: |
+            What the venue calls it: "Spot", "USDⓈ-M Futures", "Perps". On a
+            connection with a single account, "Main". Not editable; a person
+            names the connection. A line of text for the account is the
+            venue, the connection's name, this name and
+            `connection.venueAccount.label`.
+        type: { $ref: '#/components/schemas/ConnectedAccountType' }
+        venueRef:
+          type: string
+          description: |
+            The engine's stable word for the pool at this venue, readable:
+            `spot`, `usdm-futures`, `perps`, `main`. Unique within the
+            connection.
         venue: { $ref: '#/components/schemas/Venue' }
-        kind: { $ref: '#/components/schemas/ConnectedAccountKind' }
         status: { $ref: '#/components/schemas/ConnectedAccountStatus' }
         mode: { $ref: '#/components/schemas/ConnectedAccountMode' }
         traded:
@@ -2621,14 +2871,35 @@ components:
             Whether any agent holds an unrevoked trading key on the account.
             False, Mishmar can only read it: every trade there is recorded as
             it is, `mode` restricts nothing and no discrepancy is opened.
-        sync:
+        tradable:
+          type: boolean
+          description: |
+            Whether agents can trade on the account through Mishmar (with a
+            trading key, or through a custodian's callback). False on an
+            account the engine reads but cannot trade yet (Binance Spot,
+            Hyperliquid Spot, a Hyperliquid sub-account's): createVenueKey
+            there is 409 `conflict`. Absent means true.
+        untradableReason:
+          type: string
+          description: |
+            With `tradable` false, one line for a person saying why, without
+            the account's name: "Mishmar does not trade spot on Binance
+            yet", "Mishmar does not trade a Hyperliquid sub-account yet".
+            Absent when the account can be traded.
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: |
+            The account's value at `equityAsOf`: its balances at their prices
+            plus its positions' unrealised PnL. Absent until the first
+            reading.
+        equityAsOf: { type: string, format: date-time }
+        unpricedAssets:
           type: array
           description: |
-            How current each kind of the account's data is. Absent until the
-            account is verified.
-          items: { $ref: '#/components/schemas/SyncState' }
-        setup: { $ref: '#/components/schemas/ConnectedAccountSetup' }
-        verification: { $ref: '#/components/schemas/ConnectedAccountVerification' }
+            Assets the account held at `equityAsOf` that the engine had no
+            price for, so `equityUsd` leaves them out. Absent when every
+            asset was priced.
+          items: { type: string }
         restrictions:
           type: array
           description: |
@@ -2639,6 +2910,60 @@ components:
         maintenance: { $ref: '#/components/schemas/MaintenanceWindow' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    VenueAccount:
+      type: object
+      required: [role]
+      description: |
+        Which login this is at the venue, in the venue's own terms, so that
+        a person or an agent can tell two connections apart without relying
+        on the name someone typed.
+      properties:
+        id:
+          type: string
+          description: |
+            The venue's own identifier for the login: a Hyperliquid address,
+            a Binance account's UID, a sub-account's email or address, a
+            brokerage account number. Absent until the engine has learnt it
+            (verify), and on a venue that gives none (a co-signer callback
+            uses its API user id). One venue login connects once.
+        role:
+          type: string
+          enum: [main, subaccount]
+          description: |
+            On Hyperliquid the venue says which. An exchange's read key does
+            not, so an exchange connection is a subaccount when it was
+            connected with a `subaccount` name.
+        label:
+          type: string
+          description: |
+            `id` shortened for a line of text: `0x12ab…9f3c`, `UID …4471`,
+            or a sub-account's own name at the venue.
+        parentVenueAccountId:
+          type: string
+          description: On a sub-account, its main account's `id` at the venue, connected or not.
+    AccountValue:
+      type: object
+      required: [connectedAccountId, equityUsd]
+      description: One account's value at a moment, within its connection's.
+      properties:
+        connectedAccountId: { type: string }
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: Its balances at their prices plus its positions' unrealised PnL.
+        unpricedAssets:
+          type: array
+          description: |
+            Assets the account held that the engine had no price for at that
+            moment, so `equityUsd` leaves them out. Absent when every asset
+            was priced.
+          items: { type: string }
+    MarketKind:
+      type: string
+      enum: [perp, future, spot, option, equity]
+      description: |
+        What kind of market a symbol is on. A venue may use one symbol for
+        several (Binance's BTCUSDT is a spot pair and a perpetual), so a
+        symbol identifies a market only together with this.
     ConnectedAccountRestriction:
       type: object
       required: [scope, cause, since]
@@ -2681,7 +3006,7 @@ components:
       type: object
       properties:
         comment: { type: string }
-    ConnectedAccountSetup:
+    VenueConnectionSetup:
       oneOf:
         - $ref: '#/components/schemas/HyperliquidSetup'
         - $ref: '#/components/schemas/ExchangeSetup'
@@ -2698,6 +3023,12 @@ components:
       properties:
         kind: { type: string, enum: [hyperliquid] }
         network: { type: string, enum: [mainnet, testnet] }
+        subaccountAddress:
+          type: string
+          description: |
+            On a sub-account (`venueAccount.role` subaccount), its own
+            address: what the engine reads. `masterAddress` is then the
+            master that owns it, whose API wallets trade on it.
         masterAddress:
           type: string
           description: |
@@ -2719,9 +3050,9 @@ components:
         readKeyRegistered:
           type: boolean
           description: |
-            Whether the engine holds the account's read-only key, for margin,
+            Whether the engine holds the connection's read-only key, for margin,
             positions and fills. The trading keys belong to the agents (VenueKey);
-            a connected account without a read key verifies and streams nothing.
+            a connection without a read key verifies and streams nothing.
         readKeyFingerprint: { type: string }
         engineEgressIp:
           type: string
@@ -2737,8 +3068,8 @@ components:
         callbackPublicKey: { type: string }
         apiUserId:
           type: string
-          description: The Fireblocks API user that maps to this connected account.
-    ConnectedAccountVerification:
+          description: The Fireblocks API user that maps to this connection.
+    VenueConnectionVerification:
       type: object
       required: [checks]
       properties:
@@ -2752,7 +3083,7 @@ components:
               name: { type: string }
               passed: { type: boolean }
               detail: { type: string }
-    ConnectedAccountCreate:
+    VenueConnectionCreate:
       type: object
       required: [name, venue]
       properties:
@@ -2760,7 +3091,7 @@ components:
         venue: { $ref: '#/components/schemas/Venue' }
         mode:
           $ref: '#/components/schemas/ConnectedAccountMode'
-          description: Default agents_only.
+          description: The mode its accounts start in. Default agents_only.
         hyperliquid:
           type: object
           required: [network]
@@ -2769,9 +3100,15 @@ components:
               type: string
               description: |
                 The master account. Absent, the engine learns it from the first
-                API wallet an agent gets on this account that the master approves
-                at Hyperliquid (`userRole` names the approving account), and
-                verifies the account then; until that the account is pending.
+                API wallet an agent gets on one of this connection's accounts that
+                the master approves at Hyperliquid (`userRole` names the approving
+                account), and verifies the connection then; until that it is pending.
+            subaccountAddress:
+              type: string
+              description: |
+                To connect one of the master's sub-accounts: its address.
+                `masterAddress` is then required, and verify checks at
+                Hyperliquid that the master owns it.
             network:
               type: string
               enum: [mainnet, testnet]
@@ -2779,10 +3116,10 @@ components:
         exchange:
           type: object
           description: |
-            An exchange account. The trading keys come later, one per agent
-            (VenueKey). The read-only key may come later too (`setReadKey`):
-            without it the account is created with `readKeyRegistered` false
-            and cannot verify or stream until it has one.
+            An exchange login. The trading keys come later, one per agent
+            and account (VenueKey). The read-only key may come later too
+            (`setReadKey`): without it the connection is created with
+            `readKeyRegistered` false and cannot verify or stream until it has one.
           properties:
             subaccount: { type: string }
             readApiKey:
@@ -2796,28 +3133,31 @@ components:
           required: [apiUserId]
           properties:
             apiUserId: { type: string }
-    ConnectedAccountUpdate:
+    VenueConnectionUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1 }
+    ConnectedAccountUpdate:
+      type: object
+      properties:
         mode: { $ref: '#/components/schemas/ConnectedAccountMode' }
     ExchangeReadKey:
       type: object
       required: [readApiKey, readApiSecret]
-      description: An exchange account's read-only key, for `setReadKey`. Both write-only.
+      description: An exchange connection's read-only key, for `setReadKey`. Both write-only.
       properties:
         readApiKey: { type: string, minLength: 1 }
         readApiSecret: { type: string, minLength: 1 }
         subaccount:
           type: string
-          description: Replaces the account's subaccount name when given.
+          description: Replaces the connection's subaccount name when given.
     SyncKind:
       type: string
       enum: [balances, positions, equity, transactions]
     SyncState:
       type: object
       required: [kind, status]
-      description: How current one kind of a connected account's data is.
+      description: How current one kind of a venue connection's data is, across its accounts.
       properties:
         kind: { $ref: '#/components/schemas/SyncKind' }
         status:
@@ -2853,17 +3193,21 @@ components:
         served today is observed.
     Balance:
       type: object
-      required: [asset, wallet, amount]
+      required: [asset, amount]
+      description: |
+        One asset the account holds. Before contract 0.21.0 it carried
+        `wallet`, a label; the pool is now the account itself.
       properties:
         asset: { type: string, description: 'The asset as the venue names it, e.g. USDC, BTC.' }
-        wallet:
-          type: string
-          enum: [spot, margin, other]
-          description: Where the venue holds it. margin is what backs derivatives positions.
         amount: { $ref: '#/components/schemas/Decimal' }
+        priceUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The price `usdValue` was worked out at. Absent with it.
         usdValue:
           $ref: '#/components/schemas/Decimal'
-          description: Absent when the engine has no price for the asset.
+          description: |
+            Absent when the engine has no price for the asset; the
+            snapshot's `unpricedAssets` then names it.
     BalanceSnapshot:
       type: object
       required: [connectedAccountId, asOf, source, balances]
@@ -2876,12 +3220,22 @@ components:
           items: { $ref: '#/components/schemas/Balance' }
         equityUsd:
           $ref: '#/components/schemas/Decimal'
-          description: The account's whole value, balances plus unrealised PnL.
+          description: |
+            The account's value at `asOf`: balances at their prices plus
+            unrealised PnL. An asset with no price is left out and named in
+            `unpricedAssets`.
+        unpricedAssets:
+          type: array
+          description: Assets held at `asOf` with no price. Absent when every asset was priced.
+          items: { type: string }
     AccountPosition:
       type: object
-      required: [symbol, side, size, entryPrice]
-      description: The venue's own net position in one symbol, whoever placed the orders behind it.
+      required: [market, symbol, side, size, entryPrice]
+      description: |
+        The venue's own net position in one market, whoever placed the orders
+        behind it. Derivatives only: an asset held outright is a balance.
       properties:
+        market: { $ref: '#/components/schemas/MarketKind' }
         symbol: { type: string }
         side: { type: string, enum: [long, short] }
         size: { $ref: '#/components/schemas/Decimal' }
@@ -2903,6 +3257,13 @@ components:
     AccountTransactionKind:
       type: string
       enum: [trade, transfer_in, transfer_out, funding, fee, liquidation, rebate, other]
+      description: |
+        transfer_in and transfer_out cross the account's edge: deposits,
+        withdrawals, and moves to or from another account. A move between
+        two accounts of one connection (Binance Futures to Spot) is a
+        transfer_out on the one and a transfer_in on the other, each naming
+        the other side (`counterpartConnectedAccountId`); it moves each
+        account's value by the amount and the connection's by nothing.
     TransactionOrigin:
       type: object
       required: [kind]
@@ -2937,6 +3298,16 @@ components:
           description: The venue's own id for it; each is recorded once.
         kind: { $ref: '#/components/schemas/AccountTransactionKind' }
         at: { type: string, format: date-time }
+        counterpartConnectedAccountId:
+          type: string
+          description: |
+            On a transfer, the connected account on the other side, when the
+            engine can tell: always for a move within one connection, and
+            for a move to or from a sub-account whose connection is here
+            too. Absent on a deposit or a withdrawal.
+        market:
+          $ref: '#/components/schemas/MarketKind'
+          description: With `symbol`.
         symbol:
           type: string
           description: Trades, funding and liquidations.
@@ -2972,7 +3343,9 @@ components:
       required: [at, equityUsd, source]
       properties:
         at: { type: string, format: date-time }
-        equityUsd: { $ref: '#/components/schemas/Decimal' }
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The account's value at that moment.
         source: { $ref: '#/components/schemas/SnapshotSource' }
     EquitySeries:
       type: object
@@ -2984,6 +3357,31 @@ components:
           type: array
           description: Oldest first.
           items: { $ref: '#/components/schemas/EquityPoint' }
+    VenueConnectionEquityPoint:
+      type: object
+      required: [at, equityUsd, accounts]
+      properties:
+        at: { type: string, format: date-time }
+        equityUsd:
+          $ref: '#/components/schemas/Decimal'
+          description: The sum of `accounts`.
+        accounts:
+          type: array
+          description: Each account's value in that reading, in the connection's order.
+          items: { $ref: '#/components/schemas/AccountValue' }
+    VenueConnectionEquitySeries:
+      type: object
+      required: [venueConnectionId, resolution, points]
+      description: |
+        Starts at the first reading that covered every account of the
+        connection: for a login connected before contract 0.21.0, at the
+        upgrade.
+      properties:
+        venueConnectionId: { type: string }
+        resolution: { $ref: '#/components/schemas/EquityResolution' }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/VenueConnectionEquityPoint' }
     AccessLogRead:
       type: string
       enum: [accounts, balances, positions, transactions, equity]

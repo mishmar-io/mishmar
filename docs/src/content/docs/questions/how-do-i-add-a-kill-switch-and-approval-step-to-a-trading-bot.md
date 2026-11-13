@@ -89,4 +89,4 @@ In regulated markets the kill switch belongs to the firm that sends the orders, 
 3. Give orders that may be held a deadline long enough for you to answer, and handle all three verdicts in the bot.
 4. Try Pause and Stop once on the hosted testnet before you need them, and watch what the bot does.
 
-The hosted testnet is free for one agent and one connected account, on Hyperliquid testnet or Binance demo trading.
+The hosted testnet is free for one agent and one venue connection, on Hyperliquid testnet or Binance demo trading.
