@@ -93,6 +93,42 @@ func (e AccountTransactionKind) Valid() bool {
 	}
 }
 
+// Defines values for AgentKeyOrigin.
+const (
+	AgentKeyOriginIssued     AgentKeyOrigin = "issued"
+	AgentKeyOriginRegistered AgentKeyOrigin = "registered"
+)
+
+// Valid indicates whether the value is a known member of the AgentKeyOrigin enum.
+func (e AgentKeyOrigin) Valid() bool {
+	switch e {
+	case AgentKeyOriginIssued:
+		return true
+	case AgentKeyOriginRegistered:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentKeyScope.
+const (
+	AgentKeyScopeRead  AgentKeyScope = "read"
+	AgentKeyScopeTrade AgentKeyScope = "trade"
+)
+
+// Valid indicates whether the value is a known member of the AgentKeyScope enum.
+func (e AgentKeyScope) Valid() bool {
+	switch e {
+	case AgentKeyScopeRead:
+		return true
+	case AgentKeyScopeTrade:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentPermission.
 const (
 	AgentPermissionRead  AgentPermission = "read"
@@ -1353,6 +1389,21 @@ func (e Verdict) Valid() bool {
 	}
 }
 
+// Defines values for ListDecisionsParamsSigning.
+const (
+	ListDecisionsParamsSigningWaiting ListDecisionsParamsSigning = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the ListDecisionsParamsSigning enum.
+func (e ListDecisionsParamsSigning) Valid() bool {
+	switch e {
+	case ListDecisionsParamsSigningWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccessLogEntry One read of connected-account data by an agent.
 type AccessLogEntry struct {
 	AgentId   string    `json:"agentId"`
@@ -1646,7 +1697,15 @@ type AgentIdentity struct {
 	// own leverage and drawdown rules are measured against. Absent
 	// when none is set.
 	CapitalUsd *Decimal `json:"capitalUsd,omitempty"`
-	KeyId      string   `json:"keyId"`
+
+	// KeyExpiresAt When the key that asked stops working
+	KeyExpiresAt *time.Time `json:"keyExpiresAt,omitempty"`
+	KeyId        string     `json:"keyId"`
+
+	// KeyScope The scope of the key that asked. A signer starts its channel only
+	// with a `trade` key of a trade agent. An engine before 0.21.0
+	// sends none: read the agent's `permission` then.
+	KeyScope *AgentKeyScope `json:"keyScope,omitempty"`
 
 	// Permission What the agent may do. A signer or MCP server started with the
 	// key reads it first: for a read agent it starts no signer channel
@@ -1661,9 +1720,27 @@ type AgentIdentity struct {
 type AgentKey struct {
 	CreatedAt time.Time `json:"createdAt"`
 
+	// ExpiresAt After it the key is refused (401, "Key expired"). Absent when it does not expire.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
+	// Fingerprint The first 80 bits of SHA-256 of the raw 32-byte public key in
+	// Crockford base32, four groups of four. What a person compares
+	// between the console and the machine; its first two groups are
+	// the code a trade sign-in shows in both places
+	// (`spec/vectors/agent-key-fingerprint.json`).
+	Fingerprint *string `json:"fingerprint,omitempty"`
+
 	// Id key_<account suffix>_<12 random characters>; the account id is readable off it (acc_<suffix>), so a hosted router can map a proposal to its account's cell from the key id alone.
-	Id         string     `json:"id"`
+	Id string `json:"id"`
+
+	// Label A name for the key; a registered key's is its machine's own name for itself. Shown, never trusted.
+	Label      *string    `json:"label,omitempty"`
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+
+	// Origin issued: the engine made the pair and showed its secret once
+	// (issueAgentKey). registered: the agent's machine made it and sent only
+	// the public half (registerAgentKey).
+	Origin AgentKeyOrigin `json:"origin"`
 
 	// Prefix First characters of the key, enough to recognise it. Never the secret.
 	Prefix string `json:"prefix"`
@@ -1671,15 +1748,56 @@ type AgentKey struct {
 	// PublicKey The agent's Ed25519 public key, base64. The engine verifies proposal signatures with it.
 	PublicKey *string    `json:"publicKey,omitempty"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+
+	// Scope What a request signed with the key may do, within what the agent may.
+	// read: every GET under /agent; proposing (POST /proposals) and the
+	// signer channel (/agent/signer/*) are 403 `key_scope`. trade:
+	// everything the agent may; on a read agent it reads only. A key from
+	// before 0.21.0 has its agent's permission at the upgrade. A connected
+	// app's hosted key is `read` and stays so when the same agent gets a
+	// trading machine: the hosted side can never propose an order.
+	Scope AgentKeyScope `json:"scope"`
+}
+
+// AgentKeyIssue defines model for AgentKeyIssue.
+type AgentKeyIssue struct {
+	Label *string `json:"label,omitempty"`
+
+	// Scope What a request signed with the key may do, within what the agent may.
+	// read: every GET under /agent; proposing (POST /proposals) and the
+	// signer channel (/agent/signer/*) are 403 `key_scope`. trade:
+	// everything the agent may; on a read agent it reads only. A key from
+	// before 0.21.0 has its agent's permission at the upgrade. A connected
+	// app's hosted key is `read` and stays so when the same agent gets a
+	// trading machine: the hosted side can never propose an order.
+	Scope *AgentKeyScope `json:"scope,omitempty"`
 }
 
 // AgentKeyIssued defines model for AgentKeyIssued.
 type AgentKeyIssued struct {
 	CreatedAt time.Time `json:"createdAt"`
 
+	// ExpiresAt After it the key is refused (401, "Key expired"). Absent when it does not expire.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
+	// Fingerprint The first 80 bits of SHA-256 of the raw 32-byte public key in
+	// Crockford base32, four groups of four. What a person compares
+	// between the console and the machine; its first two groups are
+	// the code a trade sign-in shows in both places
+	// (`spec/vectors/agent-key-fingerprint.json`).
+	Fingerprint *string `json:"fingerprint,omitempty"`
+
 	// Id key_<account suffix>_<12 random characters>; the account id is readable off it (acc_<suffix>), so a hosted router can map a proposal to its account's cell from the key id alone.
-	Id         string     `json:"id"`
+	Id string `json:"id"`
+
+	// Label A name for the key; a registered key's is its machine's own name for itself. Shown, never trusted.
+	Label      *string    `json:"label,omitempty"`
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+
+	// Origin issued: the engine made the pair and showed its secret once
+	// (issueAgentKey). registered: the agent's machine made it and sent only
+	// the public half (registerAgentKey).
+	Origin AgentKeyOrigin `json:"origin"`
 
 	// Prefix First characters of the key, enough to recognise it. Never the secret.
 	Prefix string `json:"prefix"`
@@ -1687,6 +1805,15 @@ type AgentKeyIssued struct {
 	// PublicKey The agent's Ed25519 public key, base64. The engine verifies proposal signatures with it.
 	PublicKey *string    `json:"publicKey,omitempty"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+
+	// Scope What a request signed with the key may do, within what the agent may.
+	// read: every GET under /agent; proposing (POST /proposals) and the
+	// signer channel (/agent/signer/*) are 403 `key_scope`. trade:
+	// everything the agent may; on a read agent it reads only. A key from
+	// before 0.21.0 has its agent's permission at the upgrade. A connected
+	// app's hosted key is `read` and stays so when the same agent gets a
+	// trading machine: the hosted side can never propose an order.
+	Scope AgentKeyScope `json:"scope"`
 
 	// Secret The agent's API key, shown once:
 	// `msk_<environment>_<account suffix>_<key random part>_<seed>`.
@@ -1704,6 +1831,52 @@ type AgentKeyIssued struct {
 	// and keeps working, with the engine URL and key id given by hand.
 	Secret string `json:"secret"`
 }
+
+// AgentKeyOrigin issued: the engine made the pair and showed its secret once
+// (issueAgentKey). registered: the agent's machine made it and sent only
+// the public half (registerAgentKey).
+type AgentKeyOrigin string
+
+// AgentKeyRegister defines model for AgentKeyRegister.
+type AgentKeyRegister struct {
+	// ExpiresAt Required for scope trade; in the future, at most 366 days ahead.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	Label     *string    `json:"label,omitempty"`
+
+	// PublicKey The Ed25519 public key, 32 bytes, base64 (standard, padded), as
+	// AgentKey.publicKey. It must encode a point of the curve, and not
+	// one of small order (422 `validation`).
+	PublicKey string `json:"publicKey"`
+
+	// Scope What a request signed with the key may do, within what the agent may.
+	// read: every GET under /agent; proposing (POST /proposals) and the
+	// signer channel (/agent/signer/*) are 403 `key_scope`. trade:
+	// everything the agent may; on a read agent it reads only. A key from
+	// before 0.21.0 has its agent's permission at the upgrade. A connected
+	// app's hosted key is `read` and stays so when the same agent gets a
+	// trading machine: the hosted side can never propose an order.
+	Scope AgentKeyScope `json:"scope"`
+}
+
+// AgentKeyRegistered defines model for AgentKeyRegistered.
+type AgentKeyRegistered struct {
+	Key AgentKey `json:"key"`
+
+	// RevokedKeyIds The trading machine's key this one replaced, if any.
+	RevokedKeyIds []string `json:"revokedKeyIds"`
+
+	// RevokedVenueKeyIds The trading keys whose shares the replaced key's signer held.
+	RevokedVenueKeyIds []string `json:"revokedVenueKeyIds"`
+}
+
+// AgentKeyScope What a request signed with the key may do, within what the agent may.
+// read: every GET under /agent; proposing (POST /proposals) and the
+// signer channel (/agent/signer/*) are 403 `key_scope`. trade:
+// everything the agent may; on a read agent it reads only. A key from
+// before 0.21.0 has its agent's permission at the upgrade. A connected
+// app's hosted key is `read` and stays so when the same agent gets a
+// trading machine: the hosted side can never propose an order.
+type AgentKeyScope string
 
 // AgentPermission read: the agent has a Mishmar API key and reads the connected accounts
 // it is given; it has no signer and can hold no trading key
@@ -2512,6 +2685,9 @@ type Error struct {
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
 	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
 	// `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+	// `key_scope` (403): the request was signed with an agent key of scope
+	// `read`; proposing and the signer channel take a `trade` key. Nothing
+	// was done. A key past its `expiresAt` is 401, "Key expired".
 	// `already_connected` (409) answers connecting or verifying a venue login
 	// that is connected already; `details.venueConnectionId` is the existing one.
 	// `evaluation_changed` (409) answers an approve whose `revision` is not the
@@ -3486,6 +3662,13 @@ type SignRequest struct {
 	Id       string    `json:"id"`
 	IssuedAt time.Time `json:"issuedAt"`
 
+	// KeyId The agent key whose signer must answer: the key that proposed
+	// (orders, cancels), else the trading key's `agentKeyId`. Only that
+	// key's poll is handed the request and only its answer is taken.
+	// Absent when the trading key names no key: any of the agent's
+	// trade keys.
+	KeyId *string `json:"keyId,omitempty"`
+
 	// Message Base64 of the exact bytes the venue will verify: Binance's parameter
 	// string, Hyperliquid's EIP-712 digest. The signer decodes them itself
 	// and checks them against the order it proposed; `order` is a courtesy,
@@ -3607,7 +3790,11 @@ type SignerPoll struct {
 // forgets it until the signer polls again, which a running signer does
 // within seconds.
 type SignerPresence struct {
-	Connected  bool       `json:"connected"`
+	Connected bool `json:"connected"`
+
+	// KeyId The agent key whose signer this is: the one holding the agent's
+	// trading keys' shares, when the agent has several keys.
+	KeyId      *string    `json:"keyId,omitempty"`
 	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
 }
 
@@ -3623,12 +3810,33 @@ type SigningStatus struct {
 	Attempts   *int       `json:"attempts,omitempty"`
 
 	// Detail The signer's refusal reason, or why it could not be reached.
-	Detail      *string             `json:"detail,omitempty"`
-	RequestedAt *time.Time          `json:"requestedAt,omitempty"`
-	Status      SigningStatusStatus `json:"status"`
+	Detail      *string    `json:"detail,omitempty"`
+	RequestedAt *time.Time `json:"requestedAt,omitempty"`
+
+	// Status waiting: the order is with the signer, or a person approved it
+	// and the signer holding the trading key's share is not reaching
+	// the engine; it is sent when that signer polls, until `waitUntil`.
+	// signed, refused: the signer's answer. unreachable: no signer
+	// answered by the deadline. A wait ended because something stopped
+	// the order (a stop, a pause, a restriction, the rules, a
+	// revocation) leaves no signing status: the decision's `reason`
+	// says why it was not forwarded.
+	Status SigningStatusStatus `json:"status"`
+
+	// WaitUntil Until when an approved order waits for the signer, which is the
+	// proposal's `expiresAt`. Absent when it is not waiting on an
+	// approval.
+	WaitUntil *time.Time `json:"waitUntil,omitempty"`
 }
 
-// SigningStatusStatus defines model for SigningStatus.Status.
+// SigningStatusStatus waiting: the order is with the signer, or a person approved it
+// and the signer holding the trading key's share is not reaching
+// the engine; it is sent when that signer polls, until `waitUntil`.
+// signed, refused: the signer's answer. unreachable: no signer
+// answered by the deadline. A wait ended because something stopped
+// the order (a stop, a pause, a restriction, the rules, a
+// revocation) leaves no signing status: the decision's `reason`
+// says why it was not forwarded.
 type SigningStatusStatus string
 
 // SnapshotSource observed: read from the venue at that moment. rebuilt: worked out
@@ -4021,6 +4229,19 @@ type VenueConnectionVerification struct {
 type VenueKey struct {
 	AgentId string `json:"agentId"`
 
+	// AgentKeyId The registered agent key whose signer generated this trading
+	// key, or must (set at creation when the request names one, else
+	// when a registered key's signer generates it): the machine that
+	// holds the agent's share. Only that key
+	// proposes on it, runs its commitments and presigning (409
+	// `conflict` with `details.venueKeyId` for another), and is handed
+	// its sign requests. Absent when an issued key's signer generated
+	// it (a bot's own machine, whose API key may be replaced), for a
+	// key dealt with `mishmar keygen`, and for one from before 0.21.0:
+	// any of the agent's trade keys then, and the signer that holds
+	// the share is the one that can answer.
+	AgentKeyId *string `json:"agentKeyId,omitempty"`
+
 	// ApiKeyRegistered Whether the engine holds the key id the exchange issued (`register`). True from creation for HMAC keys, whose id the signer carries, and for Hyperliquid, which has none.
 	ApiKeyRegistered   bool      `json:"apiKeyRegistered"`
 	ConnectedAccountId string    `json:"connectedAccountId"`
@@ -4090,7 +4311,16 @@ type VenueKeyKeygen string
 
 // VenueKeyCreate defines model for VenueKeyCreate.
 type VenueKeyCreate struct {
-	ConnectedAccountId string `json:"connectedAccountId"`
+	// AgentKeyId The registered agent key (a trading machine) whose signer must
+	// generate this trading key. Only that key runs signerKeygen for
+	// it: another of the agent's keys, a bot's say, is 409 `conflict`
+	// with `details.venueKeyId`, so it cannot take the key first. It
+	// must be a live registered key of scope trade on this agent (422
+	// `validation` otherwise). A trading key set up for an app's
+	// computer names that computer's key. Refused with `engineShare`:
+	// a dealt key has no signer behind its generation.
+	AgentKeyId         *string `json:"agentKeyId,omitempty"`
+	ConnectedAccountId string  `json:"connectedAccountId"`
 
 	// EngineShare The engine's share as `mishmar keygen` printed it (JSON). Required for
 	// venues with Ed25519 or RSA keys, refused for HMAC venues. For
@@ -4328,14 +4558,22 @@ type ListConnectedAccountTransactionsParams struct {
 
 // ListDecisionsParams defines parameters for ListDecisions.
 type ListDecisionsParams struct {
-	AgentId            *string    `form:"agentId,omitempty" json:"agentId,omitempty"`
-	ConnectedAccountId *string    `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
-	Verdict            *Verdict   `form:"verdict,omitempty" json:"verdict,omitempty"`
-	From               *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To                 *time.Time `form:"to,omitempty" json:"to,omitempty"`
-	Cursor             *string    `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit              *int       `form:"limit,omitempty" json:"limit,omitempty"`
+	AgentId            *string  `form:"agentId,omitempty" json:"agentId,omitempty"`
+	ConnectedAccountId *string  `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
+	Verdict            *Verdict `form:"verdict,omitempty" json:"verdict,omitempty"`
+
+	// Signing Only orders a person approved that wait for the agent's signer
+	// (`signing.status` waiting). The hosted control plane reads it
+	// before letting a quiet account's engine stop.
+	Signing *ListDecisionsParamsSigning `form:"signing,omitempty" json:"signing,omitempty"`
+	From    *time.Time                  `form:"from,omitempty" json:"from,omitempty"`
+	To      *time.Time                  `form:"to,omitempty" json:"to,omitempty"`
+	Cursor  *string                     `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit   *int                        `form:"limit,omitempty" json:"limit,omitempty"`
 }
+
+// ListDecisionsParamsSigning defines parameters for ListDecisions.
+type ListDecisionsParamsSigning string
 
 // ListDiscrepanciesParams defines parameters for ListDiscrepancies.
 type ListDiscrepanciesParams struct {
@@ -4403,6 +4641,12 @@ type CreateAgentJSONRequestBody = AgentCreate
 
 // UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
 type UpdateAgentJSONRequestBody = AgentUpdate
+
+// IssueAgentKeyJSONRequestBody defines body for IssueAgentKey for application/json ContentType.
+type IssueAgentKeyJSONRequestBody = AgentKeyIssue
+
+// RegisterAgentKeyJSONRequestBody defines body for RegisterAgentKey for application/json ContentType.
+type RegisterAgentKeyJSONRequestBody = AgentKeyRegister
 
 // CreateVenueKeyJSONRequestBody defines body for CreateVenueKey for application/json ContentType.
 type CreateVenueKeyJSONRequestBody = VenueKeyCreate

@@ -34,6 +34,7 @@ func (r *Refusal) Error() string { return "signer: refused: " + r.Reason() }
 
 // The refusal codes, in the order the checks run.
 const (
+	RefuseOtherKey                 = "other_agent_key"
 	RefuseScheme                   = "unsupported_scheme"
 	RefuseUnknownKey               = "unknown_venue_key"
 	RefuseKeyMismatch              = "venue_key_mismatch"
@@ -51,6 +52,14 @@ const (
 	RefuseHookTimeout              = "hook_timeout"
 	RefuseMalformed                = "malformed_request"
 	RefuseNoSlot                   = "no_presigned_slot"
+	// RefuseMessageTime is a Binance message whose timestamp is not this
+	// machine's now, within BinanceClockTolerance, or whose window at the
+	// venue reaches past the proposal's end (checkBinanceTime).
+	RefuseMessageTime = "message_time"
+	// RefuseOrderSigned is an order whose venue message this signer signed
+	// already, and the engine took the answer, while that message can still
+	// reach the venue (Signer.Handle).
+	RefuseOrderSigned = "order_already_signed"
 )
 
 // Policy is what the signer refuses before it signs, from what it knows
@@ -77,6 +86,9 @@ type Policy struct {
 // the decoded message when the request may be signed, so the caller signs
 // exactly the bytes that were checked:
 //
+//  0. a request that names the agent key whose signer must answer
+//     (SignRequest.keyId, contract 0.21.0) names this signer's: another key's
+//     request is another signer's to answer, even on the same agent;
 //  1. the scheme is frost-ed25519 or ecdsa-2p (the others are not built yet);
 //  2. the venue key is in the config, with that scheme, on the request's connected account;
 //  3. the request has not expired and was not answered already;
@@ -87,11 +99,20 @@ type Policy struct {
 //     checkBinanceOrder), the cancel it names (checkBinanceCancel) or, for
 //     verify, no order at all; a Hyperliquid digest is recomputed from the
 //     action in the request's body, which must be the proposal's order or
-//     cancel (checkHyperliquid).
+//     cancel (checkHyperliquid);
+//  7. the message can be used only now and within the proposal's life: a
+//     Binance order's or cancel's timestamp is this machine's now within
+//     BinanceClockTolerance, and its window at the venue (timestamp plus
+//     recvWindow) ends by the proposal's expiresAt plus that tolerance
+//     (checkBinanceTime); a Hyperliquid nonce is this machine's now within
+//     hyperliquid.NonceWindow (checkHyperliquid).
 func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
 	now := time.Now()
 	if p.Now != nil {
 		now = p.Now()
+	}
+	if req.KeyId != nil && *req.KeyId != "" && *req.KeyId != p.KeyID {
+		return nil, &Refusal{RefuseOtherKey, fmt.Sprintf("the request is for the signer of agent key %s, this signer is %s", *req.KeyId, p.KeyID)}
 	}
 	if req.Scheme != api.SigningSchemeFrostEd25519 && req.Scheme != api.SigningSchemeEcdsa2p {
 		return nil, &Refusal{RefuseScheme, fmt.Sprintf("%s is not built yet; this signer signs %s and %s", req.Scheme, api.SigningSchemeFrostEd25519, api.SigningSchemeEcdsa2p)}
@@ -136,6 +157,9 @@ func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
 			r = checkBinanceCancel(req, message)
 		default:
 			r = checkBinanceOrder(req, message)
+		}
+		if r == nil && req.Purpose != api.SignRequestPurposeVerify {
+			r = checkBinanceTime(req, message, now)
 		}
 		if r != nil {
 			return nil, r
@@ -266,6 +290,57 @@ func intentOf(p api.ProposalSubmit) binance.Intent {
 		in.Price = *p.Price
 	}
 	return in
+}
+
+// BinanceClockTolerance is how far a Binance message's timestamp (the
+// engine's clock, which builds it when it sends) may be from this
+// machine's clock, either way: the same minute a Hyperliquid nonce is
+// allowed (hyperliquid.NonceWindow).
+const BinanceClockTolerance = hyperliquid.NonceWindow
+
+// binanceMaxRecvWindow is the longest recvWindow Binance takes, in ms.
+const binanceMaxRecvWindow = 60000
+
+// binanceTimes is a Binance order's or cancel's timestamp and recvWindow.
+func binanceTimes(purpose api.SignRequestPurpose, message []byte) (time.Time, time.Duration, error) {
+	if purpose == api.SignRequestPurposeCancel {
+		c, err := binance.DecodeCancel(message)
+		return c.Timestamp, time.Duration(c.RecvWindow) * time.Millisecond, err
+	}
+	o, err := binance.DecodeOrder(message)
+	return o.Timestamp, time.Duration(o.RecvWindow) * time.Millisecond, err
+}
+
+// binanceLiveUntil is, by this machine's clock, the last moment a Binance
+// message with this timestamp and window can reach the venue: its window's
+// end, plus the clock difference allowed.
+func binanceLiveUntil(ts time.Time, window time.Duration) time.Time {
+	return ts.Add(window).Add(BinanceClockTolerance)
+}
+
+// checkBinanceTime is the signer's own bound on when a Binance order or
+// cancel it signs can be used: built now (its timestamp within
+// BinanceClockTolerance of this machine's clock, either way), with a
+// recvWindow Binance takes, and good at the venue no later than the
+// proposal's expiresAt plus that tolerance. An approved order that waited
+// for this signer passes: the engine builds its message when it sends.
+func checkBinanceTime(req api.SignRequest, message []byte, now time.Time) *Refusal {
+	ts, window, err := binanceTimes(req.Purpose, message)
+	if err != nil {
+		return refusalOf(err)
+	}
+	tol := BinanceClockTolerance
+	switch {
+	case window <= 0 || window > binanceMaxRecvWindow*time.Millisecond:
+		return &Refusal{RefuseMessageTime, fmt.Sprintf("recvWindow %d ms is not between 1 and %d", window.Milliseconds(), binanceMaxRecvWindow)}
+	case ts.After(now.Add(tol)):
+		return &Refusal{RefuseMessageTime, fmt.Sprintf("the message's timestamp %s is %s ahead of this machine's clock, more than the %s allowed", ts.UTC().Format(time.RFC3339Nano), ts.Sub(now).Round(time.Millisecond), tol)}
+	case now.Sub(ts) > tol:
+		return &Refusal{RefuseMessageTime, fmt.Sprintf("the message's timestamp %s is %s old, more than the %s allowed: it was not built for this send", ts.UTC().Format(time.RFC3339Nano), now.Sub(ts).Round(time.Millisecond), tol)}
+	case req.Proposal != nil && ts.Add(window).After(req.Proposal.ExpiresAt.Add(tol)):
+		return &Refusal{RefuseMessageTime, fmt.Sprintf("the message is good at Binance until %s, past the proposal's end %s", ts.Add(window).UTC().Format(time.RFC3339Nano), req.Proposal.ExpiresAt.UTC().Format(time.RFC3339))}
+	}
+	return nil
 }
 
 // checkBinanceOrder checks a Binance order's parameter string against the

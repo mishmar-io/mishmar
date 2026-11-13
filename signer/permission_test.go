@@ -223,6 +223,42 @@ func TestAnOlderEngineIsTakenAsTrade(t *testing.T) {
 	}
 }
 
+// A key of scope read (contract 0.21.0, AgentIdentity.keyScope) starts no
+// signer channel and no key sync, even on a trade agent: the engine refuses
+// it the channel (403 key_scope), so it calls only its reads, as a read
+// agent's signer does. A trade key on a trade agent runs the channel; a
+// scope this signer does not know is taken as read.
+func TestAReadKeyStartsNoSignerChannel(t *testing.T) {
+	const (
+		readKeyOnTradeAgent  = `{"agentId":"agt_1","agentName":"App","accountId":"acc_1","keyId":"key_1","permission":"trade","keyScope":"read"}`
+		tradeKeyOnTradeAgent = `{"agentId":"agt_1","agentName":"App","accountId":"acc_1","keyId":"key_1","permission":"trade","keyScope":"trade","keyExpiresAt":"2027-05-12T10:00:00Z"}`
+		tradeKeyOnReadAgent  = `{"agentId":"agt_1","agentName":"App","accountId":"acc_1","keyId":"key_1","permission":"read","keyScope":"trade"}`
+		unknownScope         = `{"agentId":"agt_1","agentName":"App","accountId":"acc_1","keyId":"key_1","permission":"trade","keyScope":"admin"}`
+	)
+	for name, me := range map[string]string{"read key, trade agent": readKeyOnTradeAgent, "trade key, read agent": tradeKeyOnReadAgent, "unknown scope": unknownScope} {
+		t.Run(name, func(t *testing.T) {
+			eng := &meEngine{me: me}
+			s := running(t, eng)
+			if p, err := s.AwaitPermission(context.Background()); err != nil || p != api.AgentPermissionRead {
+				t.Fatalf("permission %q %v", p, err)
+			}
+			time.Sleep(150 * time.Millisecond)
+			if others, asked := eng.count(); others != 0 || asked < 2 || !s.Client.ReadOnly() {
+				t.Fatalf("a read key's signer sent %d calls outside its reads (asked GET /agent/me %d times, read-only %v): %v", others, asked, s.Client.ReadOnly(), eng.requests())
+			}
+		})
+	}
+	// The same key made a trade key starts the channel without a restart.
+	eng := &meEngine{me: readKeyOnTradeAgent}
+	s := running(t, eng)
+	eventually(t, "read", func() bool { p, _ := s.Permission(); return p == api.AgentPermissionRead })
+	eng.set(tradeKeyOnTradeAgent)
+	eventually(t, "the channel starts", func() bool { others, _ := eng.count(); return others > 0 })
+	if s.Client.ReadOnly() {
+		t.Fatal("a trade key's client is read-only")
+	}
+}
+
 func TestAwaitPermissionSaysWhyItIsNotKnown(t *testing.T) {
 	seed := testSeed(5)
 	s, err := New(&Config{Engine: "http://127.0.0.1:1/v1", KeyID: "key_1", Secret: agentkey.Secret("msk_abc", seed), AgentID: "agt_1", VenueKeys: map[string]VenueKey{}}, nil, nil)

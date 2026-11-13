@@ -144,6 +144,38 @@ where the money is.
   and the capital too (an order-size cap is copied whole), so nothing gets
   looser. A stopped portfolio leaves its agents stopped.
 
+### App trading (0.21.0, third part)
+
+An AI app attached to Mishmar is one agent, whether it reads through the
+hosted address, trades through a process on the person's machine, or both
+(Ishai, 12 Nov 2026; the proposal and the build plan are the wiki's
+`design/redesign-2026-11.md` and `design/app-trading-plan.md`). Mishmar never
+holds the customer's half of a trading key, so trading stays on the machine;
+the contract makes that safe on one agent.
+
+- **A key has a scope** (`AgentKey.scope`, read or trade). A read key makes
+  every GET under `/agent`; proposing and the signer channel are 403
+  `key_scope`. A connected app's hosted key is read and stays read when the
+  same agent gets a trading machine, so the hosted side can never propose.
+- **A key can be registered by its public half** (`registerAgentKey`): the
+  machine makes the pair and nothing secret crosses. An agent has one
+  registered trade key, its trading machine; another replaces it and revokes
+  the trading keys the old machine's signer made. A registered trade key has
+  an end (`expiresAt`).
+- **A trading key belongs to the key whose signer made it**
+  (`VenueKey.agentKeyId`). Only that key proposes on it and is handed its
+  sign requests (`SignRequest.keyId`).
+- **An approved order waits for the signer** until the proposal's own
+  deadline, not 60 seconds (`signing.status` waiting, `waitUntil`). The
+  engine sends it when the signer next polls, after running the stops and
+  the rules again, and builds the venue's request then. A wait outlives a
+  restart. `listDecisions?signing=waiting` lets the control plane keep an
+  account's engine up while one is open.
+- **Fingerprint.** `AgentKey.fingerprint` is what a person compares between
+  the console and the machine at a trade sign-in.
+- **Not in the first version:** signing in by typing a code (so a machine
+  reached over SSH cannot trade yet), renewing a registered key in place.
+
 ## Decided on 2026-11-11 (0.20.0)
 
 Accounts come first, and agents are given them to read or to trade on

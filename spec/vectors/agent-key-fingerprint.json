@@ -1,0 +1,44 @@
+{
+  "description": "AgentKey.fingerprint: the first 80 bits (10 bytes) of SHA-256 of the raw 32-byte Ed25519 public key, in Crockford base32 (alphabet 0123456789ABCDEFGHJKMNPQRSTVWXYZ, five bits a character, most significant bit first, no padding: 16 characters), in four groups of four joined by '-'. code is the first two groups, what a trade sign-in shows on the machine and on the approval page. seed is base64url without padding (absent when the case starts from a raw public key); publicKey is base64 standard padded, as the API carries it; sha256 is the hash of the raw key, lower-case hex.",
+  "cases": [
+    {
+      "name": "the vectors' key (seed 00 01 … 1f)",
+      "seed": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "sha256": "56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+      "fingerprint": "AS3N-N9TM-CD3M-R0M5",
+      "code": "AS3N-N9TM"
+    },
+    {
+      "name": "seed all zero",
+      "seed": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "publicKey": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik=",
+      "sha256": "139e3940e64b5491722088d9a0d741628fc826e09475d341a780acde3c4b8070",
+      "fingerprint": "2EF3-JG76-9DA9-2WH0",
+      "code": "2EF3-JG76"
+    },
+    {
+      "name": "seed all 0xff",
+      "seed": "__________________________________________8",
+      "publicKey": "dqFZIESm5PURJlvKc6YE2QsFKdHfYCvjChmpJXZg0fU=",
+      "sha256": "af822958f2d75afb91f8a8f4da253230d63bebf8c3ce8fa9a2e275c2cd35456e",
+      "fingerprint": "NY12-JP7J-TXDF-Q4FR",
+      "code": "NY12-JP7J"
+    },
+    {
+      "name": "seed 0x42 rising by 7",
+      "seed": "QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4_wYNFBs",
+      "publicKey": "SSSt1tbqTvaXynpg28mtrzylSxUhUKjdix/XyF77mOk=",
+      "sha256": "a8054bcca29f407f4b6e2de9a0547b4b20438d46d05fb0059b89272716d1ee20",
+      "fingerprint": "N02M-QK52-KX07-YJVE",
+      "code": "N02M-QK52"
+    },
+    {
+      "name": "raw public key 00 01 … 1f (any 32 bytes have a fingerprint)",
+      "publicKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "sha256": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "fingerprint": "CC6W-TAB6-RGSP-D48J",
+      "code": "CC6W-TAB6"
+    }
+  ]
+}

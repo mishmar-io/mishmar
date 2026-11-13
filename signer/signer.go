@@ -53,8 +53,14 @@ type Signer struct {
 	// PermissionInterval is how often Run asks GET /agent/me again whether
 	// the agent reads or trades (DefaultPermissionInterval).
 	PermissionInterval time.Duration
+	// DrainTimeout, when set, lets the answers in flight when Run's context
+	// ends finish for up to this long (the background signer's clean stop:
+	// it stops polling, then finishes what it holds). Zero ends them with
+	// the context, as before.
+	DrainTimeout time.Duration
 
 	perm      *permissionState
+	signed    orderMemory
 	key       *agentkey.Key
 	pub       string
 	mu        sync.Mutex
@@ -108,6 +114,9 @@ func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnsw
 		}
 	}
 	message, refusal := s.Policy().Check(req)
+	if refusal == nil {
+		refusal = s.signedAlready(req)
+	}
 	if refusal == nil && s.Config.Hook != "" {
 		refusal = RunHook(ctx, s.Config.Hook, req, s.hookTimeout())
 	}
@@ -270,7 +279,9 @@ func (s *Signer) runChannel(ctx context.Context) error {
 			go func(req api.SignRequest) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				s.serve(ctx, req)
+				actx, done := s.answerContext(ctx)
+				defer done()
+				s.serve(actx, req)
 			}(req)
 		}
 	}
@@ -291,7 +302,115 @@ func (s *Signer) serve(ctx context.Context, req api.SignRequest) {
 		s.Logger.Warn("signer: request", append(attrs, "delivery", err.Error())...)
 		return
 	}
+	if answer.Kind == api.SignerAnswerKindShare {
+		s.rememberSigned(req)
+	}
 	s.Logger.Info("signer: request", attrs...)
+}
+
+// An order the engine sends late (a person approved it, and it waited for
+// this signer) arrives as a request carrying the original signed proposal,
+// however old its proposedAt, with a venue message built at that moment;
+// the checks take it while the proposal has not expired. When an attempt
+// goes unanswered the engine asks again under a new request id, for the
+// same order and client order id, and that is signed too. What keeps two
+// sends of one order from both being signed: once the engine has taken
+// this signer's answer for an order (orderMemory), another request for the
+// same client order id on the same connected account is refused
+// (RefuseOrderSigned) for as long as the message signed first can reach the
+// venue: on Binance until its timestamp plus recvWindow plus the clock
+// difference allowed (binanceLiveUntil, the bound checkBinanceTime holds
+// every message to), after which the venue refuses it; elsewhere
+// (Hyperliquid's nonces stay usable for days) until the proposal's
+// expiresAt, after which nothing is signed for it at all. An answer that did not reach the engine signed nothing it can send,
+// so it is not remembered and the retry is signed.
+type orderMemory struct {
+	mu    sync.Mutex
+	until map[string]time.Time
+}
+
+func orderMemoryKey(req api.SignRequest) (string, bool) {
+	if req.Purpose != api.SignRequestPurposeOrder || req.ClientOrderId == nil || *req.ClientOrderId == "" {
+		return "", false
+	}
+	return req.ConnectedAccountId + "/" + *req.ClientOrderId, true
+}
+
+// liveUntil is until when the request's venue message can reach the venue.
+func liveUntil(req api.SignRequest) time.Time {
+	var until time.Time
+	if req.Proposal != nil {
+		until = req.Proposal.ExpiresAt
+	}
+	if req.Venue == api.VenueBinance {
+		if raw, err := base64.StdEncoding.DecodeString(req.Message); err == nil {
+			if ts, window, err := binanceTimes(req.Purpose, raw); err == nil {
+				until = binanceLiveUntil(ts, window)
+			}
+		}
+	}
+	return until
+}
+
+// signedAlready refuses an order whose earlier message this signer signed
+// and the engine took, while that message can still reach the venue.
+func (s *Signer) signedAlready(req api.SignRequest) *Refusal {
+	k, ok := orderMemoryKey(req)
+	if !ok {
+		return nil
+	}
+	s.signed.mu.Lock()
+	until, seen := s.signed.until[k]
+	s.signed.mu.Unlock()
+	if !seen || s.now().After(until) {
+		return nil
+	}
+	return &Refusal{RefuseOrderSigned, fmt.Sprintf("client order id %s was signed already and the engine took the answer; that message can reach the venue until %s, so no second one is signed before then", *req.ClientOrderId, until.UTC().Format(time.RFC3339Nano))}
+}
+
+// rememberSigned records an order whose answer the engine took.
+func (s *Signer) rememberSigned(req api.SignRequest) {
+	k, ok := orderMemoryKey(req)
+	if !ok {
+		return
+	}
+	now := s.now()
+	s.signed.mu.Lock()
+	defer s.signed.mu.Unlock()
+	if s.signed.until == nil {
+		s.signed.until = map[string]time.Time{}
+	}
+	for key, until := range s.signed.until {
+		if now.After(until) {
+			delete(s.signed.until, key)
+		}
+	}
+	s.signed.until[k] = liveUntil(req)
+}
+
+// answerContext is the context one answer runs under: ctx, or with a
+// DrainTimeout, one that outlives ctx by that long.
+func (s *Signer) answerContext(ctx context.Context) (context.Context, func()) {
+	if s.DrainTimeout <= 0 {
+		return ctx, func() {}
+	}
+	actx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	var timer *time.Timer
+	var mu sync.Mutex
+	stop := context.AfterFunc(ctx, func() {
+		mu.Lock()
+		timer = time.AfterFunc(s.DrainTimeout, cancel)
+		mu.Unlock()
+	})
+	return actx, func() {
+		stop()
+		mu.Lock()
+		if timer != nil {
+			timer.Stop()
+		}
+		mu.Unlock()
+		cancel()
+	}
 }
 
 func (s *Signer) now() time.Time {

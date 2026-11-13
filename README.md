@@ -21,7 +21,8 @@ on the Releases page.
 
 ```
 spec/openapi.yaml     the API contract, the single source of truth for every client and the engine
-spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth), the engine's signature on a decision
+spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth), the engine's signature on a decision,
+                      an agent key's fingerprint, the trade sign-in's machine proof, the app setup text
 api/                  the contract as Go types (generated; `make gen`)
 canon/                canonical JSON: the bytes an agent signs
 agentkey/             the agent's Ed25519 identity key: parse the secret, sign, verify, sign requests
@@ -29,8 +30,10 @@ proposal/             build, validate and sign a proposal for POST /v1/proposals
 decision/             verify the engine's signature on a decision, per signing version, from the decision as served
 frost/                two-party FROST over Ed25519: the split key behind a Binance connectedAccount
 ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
-signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
-cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, read, mcp
+signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop;
+                      signin/ (an AI app's trade sign-in) and daemon/ (the background signer behind `mishmar mcp --app`)
+appsetup/             the setup text an AI app is given for trading through Mishmar from the person's computer
+cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run|daemon, propose, read, mcp, daemon status|stop
 mcp/                  the MCP server behind `mishmar mcp`: the signer's tools for a language model, over stdio
 python/               the Python SDK (`mishmar` on PyPI)
 typescript/           the TypeScript SDK (`mishmar` on npm); no runtime dependencies

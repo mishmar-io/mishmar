@@ -243,12 +243,60 @@ paths:
       tags: [agents]
       operationId: issueAgentKey
       summary: Issue a new API key. The secret is returned once and never again.
+      description: |
+        The engine makes the key pair and answers its secret once. The key's
+        `scope` is the agent's permission unless the body names one; `trade`
+        on a read agent is 409 `conflict`. A key whose private half must stay
+        on the agent's machine is registered by its public half instead
+        (registerAgentKey).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentKeyIssue' }
       responses:
         '201':
           description: Created
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AgentKeyIssued' }
+        default: { $ref: '#/components/responses/Error' }
+  /agents/{agentId}/keys/register:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [agents]
+      operationId: registerAgentKey
+      summary: Register a key made on the agent's machine, by its public half
+      description: |
+        The machine made the key pair; only the public half comes here and
+        nothing secret is answered. The engine names the key (`key.id`); the
+        machine renders its own API key from that id and its seed, in the
+        form issueAgentKey answers.
+
+        An agent holds at most one live registered key of scope `trade`: its
+        trading machine. Registering another replaces it in the same
+        revision: the old key is revoked, and so is every trading key its
+        signer generated (`VenueKey.agentKeyId`), whose shares are on that
+        machine. The answer names them. A new machine's trading keys are made
+        by its own signer and authorised at the venue again; it inherits
+        nothing.
+
+        A public key already registered, on this agent or another, live or
+        revoked, is 409 `conflict` (`details.keyId`): a machine that signs in
+        again makes a new key. Scope `trade` on a read agent is 409
+        `conflict`. A `trade` key needs `expiresAt`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentKeyRegister' }
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentKeyRegistered' }
         default: { $ref: '#/components/responses/Error' }
   /agents/{agentId}/keys/{keyId}:
     parameters:
@@ -260,6 +308,15 @@ paths:
     delete:
       tags: [agents]
       operationId: revokeAgentKey
+      description: |
+        The key is refused from then on. Revoking any key ends its open sign
+        requests, its polls and the approved orders waiting for it (not
+        forwarded; each decision says so). Revoking a registered key also
+        revokes the trading keys its signer generated (`VenueKey.agentKeyId`).
+        Revoking an issued key leaves the agent's trading keys, which name no
+        key: another of the agent's trade keys, on a machine that holds their
+        shares, goes on using them, so a bot's API key can be replaced
+        without a new trading key at the venue.
       responses:
         '204': { description: Revoked }
         default: { $ref: '#/components/responses/Error' }
@@ -1162,6 +1219,13 @@ paths:
         - name: verdict
           in: query
           schema: { $ref: '#/components/schemas/Verdict' }
+        - name: signing
+          in: query
+          schema: { type: string, enum: [waiting] }
+          description: |
+            Only orders a person approved that wait for the agent's signer
+            (`signing.status` waiting). The hosted control plane reads it
+            before letting a quiet account's engine stop.
         - name: from
           in: query
           schema: { type: string, format: date-time }
@@ -1255,6 +1319,18 @@ paths:
         `evaluation_changed` with `details.now`, for the approver to confirm
         again with the new `revision`. Without a `revision` only the block check
         applies. Nothing is decided on a 409.
+
+        When the signer that holds the trading key's share is not reaching
+        the engine, approving records the approval and answers at once:
+        `decision.signing.status` is `waiting` and `decision.signing.waitUntil`
+        the proposal's `expiresAt`. The engine sends the order when that
+        signer next polls, after checking again that nothing stops it (the
+        account, the connected account or the agent stopped or paused, a
+        restriction, the trading key or the agent's key revoked or expired)
+        and that the rules do not block it then, and builds the venue's
+        request at that moment. Otherwise, or once `waitUntil` passes, the
+        decision records why it was not forwarded (`signing.status`
+        `unreachable` past the deadline). A wait outlives an engine restart.
       requestBody:
         content:
           application/json:
@@ -1303,6 +1379,13 @@ paths:
         Agent-facing. The agent names its key by `keyId` and proves possession
         with an Ed25519 signature over the canonical proposal (see
         ProposalSubmit). The engine never holds the agent's private key.
+
+        The key must be of scope `trade` (403 `key_scope` otherwise, before
+        anything is read or written), and when the trading key on the
+        connected account was generated by another of the agent's keys
+        (`VenueKey.agentKeyId`), the proposal is refused with 409 `conflict`
+        (`details.venueKeyId`): only the key whose signer holds the share
+        proposes on it. No decision is written for either.
 
         The engine decodes the action, evaluates every rule in scope against
         the projected state, writes the decision to the ledger, and only then
@@ -2102,6 +2185,9 @@ components:
             `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
             `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
             `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+            `key_scope` (403): the request was signed with an agent key of scope
+            `read`; proposing and the signer channel take a `trade` key. Nothing
+            was done. A key past its `expiresAt` is 401, "Key expired".
             `already_connected` (409) answers connecting or verifying a venue login
             that is connected already; `details.venueConnectionId` is the existing one.
             `evaluation_changed` (409) answers an approve whose `revision` is not the
@@ -2283,9 +2369,27 @@ components:
     AgentStatus:
       type: string
       enum: [active, paused, killed]
+    AgentKeyScope:
+      type: string
+      enum: [read, trade]
+      description: |
+        What a request signed with the key may do, within what the agent may.
+        read: every GET under /agent; proposing (POST /proposals) and the
+        signer channel (/agent/signer/*) are 403 `key_scope`. trade:
+        everything the agent may; on a read agent it reads only. A key from
+        before 0.21.0 has its agent's permission at the upgrade. A connected
+        app's hosted key is `read` and stays so when the same agent gets a
+        trading machine: the hosted side can never propose an order.
+    AgentKeyOrigin:
+      type: string
+      enum: [issued, registered]
+      description: |
+        issued: the engine made the pair and showed its secret once
+        (issueAgentKey). registered: the agent's machine made it and sent only
+        the public half (registerAgentKey).
     AgentKey:
       type: object
-      required: [id, prefix, createdAt]
+      required: [id, prefix, scope, origin, createdAt]
       properties:
         id:
           type: string
@@ -2296,9 +2400,62 @@ components:
         publicKey:
           type: string
           description: The agent's Ed25519 public key, base64. The engine verifies proposal signatures with it.
+        scope: { $ref: '#/components/schemas/AgentKeyScope' }
+        origin: { $ref: '#/components/schemas/AgentKeyOrigin' }
+        label:
+          type: string
+          maxLength: 100
+          description: A name for the key; a registered key's is its machine's own name for itself. Shown, never trusted.
+        fingerprint:
+          type: string
+          pattern: '^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){3}$'
+          description: |
+            The first 80 bits of SHA-256 of the raw 32-byte public key in
+            Crockford base32, four groups of four. What a person compares
+            between the console and the machine; its first two groups are
+            the code a trade sign-in shows in both places
+            (`spec/vectors/agent-key-fingerprint.json`).
+        expiresAt:
+          type: string
+          format: date-time
+          description: After it the key is refused (401, "Key expired"). Absent when it does not expire.
         createdAt: { type: string, format: date-time }
         lastUsedAt: { type: string, format: date-time }
         revokedAt: { type: string, format: date-time }
+    AgentKeyIssue:
+      type: object
+      properties:
+        scope: { $ref: '#/components/schemas/AgentKeyScope' }
+        label: { type: string, maxLength: 100 }
+    AgentKeyRegister:
+      type: object
+      required: [publicKey, scope]
+      properties:
+        publicKey:
+          type: string
+          description: |
+            The Ed25519 public key, 32 bytes, base64 (standard, padded), as
+            AgentKey.publicKey. It must encode a point of the curve, and not
+            one of small order (422 `validation`).
+        scope: { $ref: '#/components/schemas/AgentKeyScope' }
+        label: { type: string, maxLength: 100 }
+        expiresAt:
+          type: string
+          format: date-time
+          description: Required for scope trade; in the future, at most 366 days ahead.
+    AgentKeyRegistered:
+      type: object
+      required: [key, revokedKeyIds, revokedVenueKeyIds]
+      properties:
+        key: { $ref: '#/components/schemas/AgentKey' }
+        revokedKeyIds:
+          type: array
+          items: { type: string }
+          description: The trading machine's key this one replaced, if any.
+        revokedVenueKeyIds:
+          type: array
+          items: { type: string }
+          description: The trading keys whose shares the replaced key's signer held.
     AgentKeyIssued:
       allOf:
         - $ref: '#/components/schemas/AgentKey'
@@ -2331,6 +2488,13 @@ components:
         agentName: { type: string }
         accountId: { type: string }
         keyId: { type: string }
+        keyScope:
+          $ref: '#/components/schemas/AgentKeyScope'
+          description: |
+            The scope of the key that asked. A signer starts its channel only
+            with a `trade` key of a trade agent. An engine before 0.21.0
+            sends none: read the agent's `permission` then.
+        keyExpiresAt: { type: string, format: date-time, description: When the key that asked stops working, if it does. }
         capitalUsd:
           $ref: '#/components/schemas/Decimal'
           description: |
@@ -2359,6 +2523,11 @@ components:
       properties:
         connected: { type: boolean }
         lastSeenAt: { type: string, format: date-time }
+        keyId:
+          type: string
+          description: |
+            The agent key whose signer this is: the one holding the agent's
+            trading keys' shares, when the agent has several keys.
     Agent:
       type: object
       required: [id, name, permission, status, keys, venueKeys, connectedAccountIds, createdAt, updatedAt]
@@ -2469,6 +2638,20 @@ components:
       properties:
         id: { type: string }
         agentId: { type: string }
+        agentKeyId:
+          type: string
+          description: |
+            The registered agent key whose signer generated this trading
+            key, or must (set at creation when the request names one, else
+            when a registered key's signer generates it): the machine that
+            holds the agent's share. Only that key
+            proposes on it, runs its commitments and presigning (409
+            `conflict` with `details.venueKeyId` for another), and is handed
+            its sign requests. Absent when an issued key's signer generated
+            it (a bot's own machine, whose API key may be replaced), for a
+            key dealt with `mishmar keygen`, and for one from before 0.21.0:
+            any of the agent's trade keys then, and the signer that holds
+            the share is the one that can answer.
         connectedAccountId: { type: string }
         venue: { $ref: '#/components/schemas/Venue' }
         scheme: { $ref: '#/components/schemas/VenueKeyScheme' }
@@ -2527,6 +2710,17 @@ components:
       required: [connectedAccountId]
       properties:
         connectedAccountId: { type: string }
+        agentKeyId:
+          type: string
+          description: |
+            The registered agent key (a trading machine) whose signer must
+            generate this trading key. Only that key runs signerKeygen for
+            it: another of the agent's keys, a bot's say, is 409 `conflict`
+            with `details.venueKeyId`, so it cannot take the key first. It
+            must be a live registered key of scope trade on this agent (422
+            `validation` otherwise). A trading key set up for an app's
+            computer names that computer's key. Refused with `engineShare`:
+            a dealt key has no signer behind its generation.
         replaces:
           type: string
           description: |
@@ -4168,6 +4362,14 @@ components:
           description: Groups the rounds of one signature. A one-round scheme has one request per session.
         round: { type: integer, minimum: 1 }
         agentId: { type: string }
+        keyId:
+          type: string
+          description: |
+            The agent key whose signer must answer: the key that proposed
+            (orders, cancels), else the trading key's `agentKeyId`. Only that
+            key's poll is handed the request and only its answer is taken.
+            Absent when the trading key names no key: any of the agent's
+            trade keys.
         connectedAccountId: { type: string }
         venueKeyId:
           type: string
@@ -4309,6 +4511,22 @@ components:
         status:
           type: string
           enum: [waiting, signed, refused, unreachable]
+          description: |
+            waiting: the order is with the signer, or a person approved it
+            and the signer holding the trading key's share is not reaching
+            the engine; it is sent when that signer polls, until `waitUntil`.
+            signed, refused: the signer's answer. unreachable: no signer
+            answered by the deadline. A wait ended because something stopped
+            the order (a stop, a pause, a restriction, the rules, a
+            revocation) leaves no signing status: the decision's `reason`
+            says why it was not forwarded.
+        waitUntil:
+          type: string
+          format: date-time
+          description: |
+            Until when an approved order waits for the signer, which is the
+            proposal's `expiresAt`. Absent when it is not waiting on an
+            approval.
         requestedAt: { type: string, format: date-time }
         answeredAt: { type: string, format: date-time }
         attempts: { type: integer }
