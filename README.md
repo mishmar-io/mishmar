@@ -21,15 +21,19 @@ on the Releases page.
 
 ```
 spec/openapi.yaml     the API contract, the single source of truth for every client and the engine
-spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth)
+spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth), the engine's signature on a decision,
+                      an agent key's fingerprint, the trade sign-in's machine proof, the app setup text
 api/                  the contract as Go types (generated; `make gen`)
 canon/                canonical JSON: the bytes an agent signs
 agentkey/             the agent's Ed25519 identity key: parse the secret, sign, verify, sign requests
 proposal/             build, validate and sign a proposal for POST /v1/proposals
+decision/             verify the engine's signature on a decision, per signing version, from the decision as served
 frost/                two-party FROST over Ed25519: the split key behind a Binance connectedAccount
 ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
-signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
-cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, read, mcp
+signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop;
+                      signin/ (an AI app's trade sign-in) and daemon/ (the background signer behind `mishmar mcp --app`)
+appsetup/             the setup text an AI app is given for trading through Mishmar from the person's computer
+cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run|daemon, propose, read, mcp, daemon status|stop
 mcp/                  the MCP server behind `mishmar mcp`: the signer's tools for a language model, over stdio
 python/               the Python SDK (`mishmar` on PyPI)
 typescript/           the TypeScript SDK (`mishmar` on npm); no runtime dependencies
@@ -77,7 +81,12 @@ by default.
    the signer checks that it is the order it proposed before it signs.
 
 The exact bytes signed are specified in `proposal` and `agentkey` and pinned
-in `spec/vectors/`.
+in `spec/vectors/`. The engine signs each decision as it writes it
+(`engineSignature`); `decision.Verify` checks one with the engine's public
+key (`GET /v1/ledger/head`), rebuilding the record its `signingVersion`
+names: 3 since contract 0.21.0, without `portfolioId`; 2 with it; 1 under
+the names from before 0.20.0. A version it does not know is refused.
+`spec/vectors/decision-signing.json` pins the three.
 
 ## The signer
 
@@ -195,8 +204,9 @@ mishmar signer run
 # agent, issue its key, make a venue key per connected account by two-party
 # key generation with the engine's signer (FROST for Binance, ECDSA for
 # Hyperliquid; no machine ever holds the whole key), write the config. It
-# prints what to register or approve at the venue. The agent joins the
-# account's default portfolio unless --portfolio pf_… names another.
+# prints what to register or approve at the venue. --capital 5000 allocates
+# the agent capital: a leverage or drawdown rule on the agent is measured
+# against it, and is refused while the agent has none.
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
   --name momentum-1 --connected-account ta_…
 
@@ -320,7 +330,15 @@ registry lists the server as `io.github.mishmar-io/mishmar` (`server.json`).
 
 An agent is given connected accounts and reads each one whole: its
 balances, the venue's positions, its transactions and its value over time,
-other agents' and the owner's activity included. A trade's `origin` says who
+other agents' and the owner's activity included. A connected account is one
+pool of money at a venue, with its own value (`equityUsd`): a Binance login
+has a Spot and a USDⓈ-M Futures account, a Hyperliquid address has Perps
+and Spot. Each names its `connection`, the venue login that holds it (its
+name, which login it is, how current its data is and how many accounts it
+has, `accountCount`); the accounts' values add up to the login's only when
+the agent was given all of them, and a move between two of its accounts is
+a `transfer_out` on one and a `transfer_in` on the other, each naming the
+other in `counterpartConnectedAccountId`. A trade's `origin` says who
 placed it, with `own` true on the agent's own. Every read is signed with the
 agent's key and written to the account's access log. A read agent
 (`permission: read`) does only this: it has a Mishmar API key, no signer and
@@ -337,8 +355,8 @@ The API key alone is enough: it names the engine and the key id
 from mishmar import Client
 
 client = Client.from_api_key()                       # $MISHMAR_API_KEY
-for account in client.connected_accounts():
-    print(account["name"], client.account_balances(account["id"]).get("equityUsd"))
+for account in client.connected_accounts():          # each one pool, with its connection
+    print(account["connection"]["name"], account["name"], account.get("equityUsd"))
 page = client.account_transactions("ta_…", since="2026-11-01T00:00:00Z", kind="trade")
 mine = [t for t in page["items"] if t.get("origin", {}).get("own")]
 ```
@@ -355,9 +373,11 @@ The reads are `me`, `connected_accounts`, `connected_account`,
 `account_transactions` (a time range, a kind, `limit` and `cursor` pages)
 and `account_equity` (a range and a `resolution`), camelCase in TypeScript,
 on `Client` and `Signer` alike. From the shell, with the same key or the
-signer's config, `mishmar read agent`, `read accounts`, `read account
-<id>`, `read balances <id>`, `read positions <id>`, `read transactions <id>`
-and `read equity <id>`; `--json` prints the engine's answer as it came.
+signer's config, `mishmar read agent`, `read accounts` (by connection, each
+account with its value, and the total of a login's accounts, or of those
+shown when the agent was given fewer), `read account <id>`,
+`read balances <id>`, `read positions <id>`, `read transactions <id>` and
+`read equity <id>`; `--json` prints the engine's answer as it came.
 `mishmar mcp` serves them as read-only tools: `get_identity`,
 `list_connected_accounts`, `get_connected_account`, `get_account_balances`,
 `get_account_positions`, `list_account_transactions` and

@@ -95,12 +95,12 @@ From version 0.3.0 of the SDKs, `npx -y mishmar mcp` and `uvx mishmar mcp` do th
 | `get_pnl` | Daily PnL (realised, unrealised, fees, funding), by day. |
 | `list_approvals` | Proposals that wait for a person, or were decided by one. |
 | `get_venue_rules` | What the exchange accepts per symbol: tick size, step size, minimums. The model uses it to size and price orders. |
-| `get_identity` | Who this agent is: its id and name, the Mishmar account and portfolio it belongs to, and the id of the key it signs with. |
-| `list_connected_accounts` | The connected accounts this agent was given, each with its venue, status, whether any agent trades on it, and how current its data is. |
-| `get_connected_account` | One of them: venue, kind, status, how current its data is, and its setup, with no secret. |
-| `get_account_balances` | A connected account's balances at the venue, spot and margin, each with its value in USD, and the account's whole value, now or at a past moment. |
-| `get_account_positions` | The venue's net position per symbol on a connected account, whoever placed the orders behind it, now or at a past moment. |
-| `list_account_transactions` | Trades, transfers, funding, fees and liquidations on a connected account, newest first. A trade's origin says who placed it, and `origin.own` marks this agent's own. |
+| `get_identity` | Who this agent is: its id and name, the Mishmar account it belongs to, whether it reads or trades (permission), the capital its own leverage and drawdown rules are measured against (capitalUsd, absent when none is set), and the id of the key it signs with. |
+| `list_connected_accounts` | The connected accounts this agent was given, each one pool of money at a venue (Spot and USDⓈ-M Futures on a Binance login, Perps and Spot on a Hyperliquid address), with its value in USD, its status, whether any agent trades on it, and its connection: the venue login that holds it, which login it is and how current its data is. |
+| `get_connected_account` | One of them: its name at the venue, value, status, and its connection, with the connection's setup and no secret. |
+| `get_account_balances` | A connected account's balances, each with its value in USD and the price used, and the account's value, now or at a past moment. An asset with no price is named rather than counted. |
+| `get_account_positions` | The venue's net position per market (a symbol with its market kind) on a connected account, whoever placed the orders behind it, now or at a past moment. |
+| `list_account_transactions` | Trades, transfers, funding, fees and liquidations on a connected account, newest first. A trade's origin says who placed it, and `origin.own` marks this agent's own. A transfer between two accounts of one connection shows on both, each naming the other: it moves each account's value by the amount and the connection's by nothing. |
 | `get_account_equity` | A connected account's value in USD over time, oldest point first. |
 
 Each tool carries the protocol's hints, which a client uses to decide what to confirm with you: `propose_order` and `cancel_order` are marked as reaching the exchange and changing what is there, and the other fourteen as read-only.
@@ -113,4 +113,4 @@ Each tool carries the protocol's hints, which a client uses to decide what to co
 - Approve its own order. There is no approval tool.
 - Change a rule. There is no rule tool; rules live in the console.
 - Withdraw. On Hyperliquid an API wallet cannot; on Binance you leave withdrawals off the key.
-- Keep going after you stop it. Stop the agent, the portfolio or the account in the console, and nothing more is signed; cancels still go through.
+- Keep going after you stop it. Stop the agent, its connected account or the whole account in the console, and nothing more is signed; cancels still go through.

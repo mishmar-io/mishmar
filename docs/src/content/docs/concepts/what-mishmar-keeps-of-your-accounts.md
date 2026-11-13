@@ -12,10 +12,12 @@ Once you connect an account ([on Hyperliquid](/hyperliquid/connect-an-account/) 
 
 | Kind | What it is | On the account's page |
 | --- | --- | --- |
-| Balances | every asset the account holds at the venue, spot and margin, valued in USD | **Balances** |
-| Positions | the venue's own net position in each market, whoever placed the orders behind it: size, entry, mark, notional, unrealised PnL, leverage | **Positions**, under **At the venue** |
-| Value | the account's whole value in USD over time: its balances plus the unrealised PnL of its positions. Deposits and withdrawals move it too | **Value** |
-| Transactions | trades, deposits, withdrawals, funding, fees, liquidations and rebates, as the venue reports them | **Transactions** |
+| Balances | every asset the account holds, valued in USD at the price shown | **Balances** |
+| Positions | the venue's own net position in each market (a symbol with its market kind), whoever placed the orders behind it: size, entry, mark, notional, unrealised PnL, leverage | **Positions**, under **At the venue** |
+| Value | the account's value in USD over time: its balances plus the unrealised PnL of its positions. Deposits, withdrawals and transfers to or from another account move it | **Value** |
+| Transactions | trades, deposits, withdrawals, transfers to and from other accounts, funding, fees, liquidations and rebates, as the venue reports them | **Transactions** |
+
+A connected account is one pool of money at a venue, and the venue login that holds it is its **connection**. Connecting a login brings in each of its accounts: a Binance login has a **Spot** and a **USDⓈ-M Futures** account, a Hyperliquid address has **Perps** and **Spot**. Every balance, position and transaction belongs to one account, and a connection's value is the sum of its accounts'. A move between two accounts of one connection shows on both, out of one and into the other, each naming the other: it moves each account's value by the amount and the connection's by nothing. An asset Mishmar has no price for is listed with its amount and no value, and named, rather than counted as nothing. A sub-account at the venue is a connection of its own: a main login's value does not include its sub-accounts'. Agents trade on Hyperliquid Perps and Binance USDⓈ-M Futures. Hyperliquid Spot, Binance Spot and both accounts of a Hyperliquid sub-account are read like any other, but agents can't trade on them yet, and each says why.
 
 ![A Hyperliquid account's Balances tab: each asset with its wallet, amount, value in USD and share, as of the last read, and the account's whole value under them](/screens/concepts/what-mishmar-keeps-of-your-accounts/balances.png)
 
@@ -25,7 +27,7 @@ Each trade says who placed it: an agent through Mishmar, named, with the decisio
 
 ![The Transactions tab, newest first: each trade's time, what was bought or sold at what price, its value and fee, and who placed it, an agent with a link to its decision or Outside Mishmar](/screens/concepts/what-mishmar-keeps-of-your-accounts/transactions.png)
 
-The positions here are the venue's, for the whole account. Each agent's own book, built from its own fills, is on its page under **Agents** and summed by portfolio under **Portfolios**; that is what rules on an agent or a portfolio measure. The record of Mishmar's decisions on orders is separate again, under **Decisions**.
+The positions here are the venue's, for the whole account. Each agent's own book, built from its own fills, is on its page under **Agents**; that is what rules on an agent measure. Rules on the connected account, its connection or the whole Mishmar account see every position on the account, the ones no agent placed included ([Where rules apply](/start/where-rules-apply/)). The record of Mishmar's decisions on orders is separate again, under **Decisions**.
 
 ![The Positions tab, At the venue: the venue's net position in each market with its side, size, entry, mark, notional, unrealised PnL and leverage](/screens/concepts/what-mishmar-keeps-of-your-accounts/positions.png)
 

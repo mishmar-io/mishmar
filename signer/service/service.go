@@ -748,7 +748,11 @@ type approvalRecord struct {
 
 // decision verifies the engine's signature over the decision record and
 // reads it. Without a decision, or without an engine key to check it with,
-// nil: the action is then checked for its kind alone.
+// nil: the action is then checked for its kind alone. The record is the bytes
+// the engine signed, verified as they came, so the service rebuilds nothing
+// and needs no signing version: it reads only id, verdict and proposal, the
+// same in every version (a version 3 record has no portfolioId, a version 2
+// one has it; package decision rebuilds either from a served decision).
 func (s *Service) decision(d *signerapi.Decision) (*decisionRecord, error) {
 	if d == nil {
 		if s.opts.EnginePublicKey != nil {

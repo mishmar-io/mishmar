@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/spf13/cobra"
 
 	"github.com/mishmar-io/mishmar/agentkey"
@@ -35,6 +36,16 @@ each one's balances, the venue's positions, its transactions and its value
 over time. An agent reads each account it was given whole, other agents'
 and the owner's activity included; every read is signed with the agent's
 key and written to the account's access log, which its owner sees.
+
+A connected account is one pool of money at a venue, and its connection is
+the venue login that holds it: a Binance login has a Spot and a USDⓈ-M
+Futures account, a Hyperliquid address has Perps and Spot. Every balance,
+position and transaction belongs to one account. "read accounts" lists the
+accounts by connection, each with its value, and the connection's total;
+when the agent was given only some of a login's accounts it says how many
+("2 of 3 accounts") and totals those alone. A move between two accounts of
+one connection is a transfer_out on one and a transfer_in on the other,
+each naming the other account.
 
 These are the reads a read agent is for, and on hosted Mishmar they are
 answered while the account's engine sleeps, so they never wake it.
@@ -65,7 +76,7 @@ answer as it came.`,
 func newReadAgentCmd(o *readOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "agent",
-		Short: "Who the key belongs to: the agent, its account and portfolio",
+		Short: "Who the key belongs to: the agent, its Mishmar account, the key, whether it reads or trades, and its capital",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := readClient(*o)
@@ -77,17 +88,42 @@ func newReadAgentCmd(o *readOptions) *cobra.Command {
 				return err
 			}
 			return o.print(cmd.OutOrStdout(), me, func(w io.Writer) {
-				fmt.Fprintf(w, "agent %s (%s)\n  account %s, portfolio %s, key %s\n", me.AgentId, me.AgentName, me.AccountId, me.PortfolioId, me.KeyId)
+				fmt.Fprint(w, identityText(me))
 			})
 		},
 	}
 }
 
+// identityText is "mishmar read agent"'s answer: the agent, its Mishmar
+// account and key, what it may do (an engine from before contract 0.20.0
+// names no permission, and its agents trade) and, when it has some, the
+// capital its own leverage and drawdown rules are measured against.
+func identityText(me api.AgentIdentity) string {
+	may := "reads and trades"
+	if me.Permission == api.AgentPermissionRead {
+		may = "reads only"
+	}
+	s := fmt.Sprintf("agent %s (%s)\n  account %s, key %s, %s\n", me.AgentId, me.AgentName, me.AccountId, me.KeyId, may)
+	if me.CapitalUsd != nil {
+		s += fmt.Sprintf("  capital %s USD\n", *me.CapitalUsd)
+	}
+	return s
+}
+
 func newReadAccountsCmd(o *readOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "accounts",
-		Short: "The connected accounts the agent was given",
-		Args:  cobra.NoArgs,
+		Short: "The connected accounts the agent was given, by connection, each with its value",
+		Long: `The connected accounts the agent was given, grouped by their connection
+(the venue login that holds them). Each line is one account: its id, then
+venue · connection · account · login (the account's name left out on a
+login with a single account), its value in USD, its status, and whether an
+agent trades on it. Under a login's accounts, "total" is their sum; when the
+agent was given fewer than all of them, the line says how many it sees ("2
+of 3 accounts, total of these") and the sum is of those alone, not the
+login's value. An asset with no price is not in a value and is named on its
+line.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := readClient(*o)
 			if err != nil {
@@ -102,9 +138,7 @@ func newReadAccountsCmd(o *readOptions) *cobra.Command {
 					fmt.Fprintln(w, "no connected accounts: the agent was given none yet (its owner gives them on the agent's page in the console)")
 					return
 				}
-				for _, a := range accounts {
-					printAccount(w, a)
-				}
+				printAccounts(w, accounts)
 			})
 		},
 	}
@@ -113,7 +147,7 @@ func newReadAccountsCmd(o *readOptions) *cobra.Command {
 func newReadAccountCmd(o *readOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "account <connected account>",
-		Short: "One connected account the agent was given, its setup without any secret",
+		Short: "One connected account the agent was given, with its connection, its setup without any secret",
 		Args:  connectedAccountArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := readClient(*o)
@@ -133,8 +167,12 @@ func newReadBalancesCmd(o *readOptions) *cobra.Command {
 	var at string
 	cmd := &cobra.Command{
 		Use:   "balances <connected account>",
-		Short: "The account's balances at the venue, each with its value in USD, now or at a past moment",
-		Args:  connectedAccountArg,
+		Short: "The account's balances, each with its value in USD, now or at a past moment",
+		Long: `The account's balances: its value first, then every asset it holds with
+its amount, its value in USD and the price that value was worked out at. An
+asset with no price shows "-" and is named on the first line, since its
+value is not in the account's.`,
+		Args: connectedAccountArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			when, err := readTime("--at", at)
 			if err != nil {
@@ -151,7 +189,7 @@ func newReadBalancesCmd(o *readOptions) *cobra.Command {
 			return o.print(cmd.OutOrStdout(), b, func(w io.Writer) {
 				fmt.Fprintf(w, "%s at %s (%s)", b.ConnectedAccountId, stampOf(b.AsOf), b.Source)
 				if b.EquityUsd != nil {
-					fmt.Fprintf(w, ", equity %s USD", *b.EquityUsd)
+					fmt.Fprintf(w, ", value %s USD%s", *b.EquityUsd, notCounting(b.UnpricedAssets))
 				}
 				fmt.Fprintln(w)
 				if len(b.Balances) == 0 {
@@ -160,7 +198,11 @@ func newReadBalancesCmd(o *readOptions) *cobra.Command {
 				}
 				tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 				for _, x := range b.Balances {
-					fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", x.Wallet, x.Asset, x.Amount, usd(x.UsdValue))
+					fmt.Fprintf(tw, "  %s\t%s\t%s", x.Asset, x.Amount, usd(x.UsdValue))
+					if x.PriceUsd != nil {
+						fmt.Fprintf(tw, "\tat %s", *x.PriceUsd)
+					}
+					fmt.Fprintln(tw)
 				}
 				tw.Flush()
 			})
@@ -174,7 +216,7 @@ func newReadPositionsCmd(o *readOptions) *cobra.Command {
 	var at string
 	cmd := &cobra.Command{
 		Use:   "positions <connected account>",
-		Short: "The venue's net positions on the account, whoever placed them, now or at a past moment",
+		Short: "The venue's net positions on the account, whoever placed them, with their market, now or at a past moment",
 		Args:  connectedAccountArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			when, err := readTime("--at", at)
@@ -197,7 +239,7 @@ func newReadPositionsCmd(o *readOptions) *cobra.Command {
 				}
 				tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 				for _, x := range p.Positions {
-					fmt.Fprintf(tw, "  %s\t%s\t%s\tentry %s", x.Side, x.Symbol, x.Size, x.EntryPrice)
+					fmt.Fprintf(tw, "  %s\t%s %s\t%s\tentry %s", x.Side, x.Symbol, x.Market, x.Size, x.EntryPrice)
 					if x.MarkPrice != nil {
 						fmt.Fprintf(tw, "\tmark %s", *x.MarkPrice)
 					}
@@ -226,11 +268,17 @@ func newReadTransactionsCmd(o *readOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "transactions <connected account>",
 		Short: "Trades, transfers, funding and fees on the account, newest first, with who placed each trade",
-		Long: `The account's transactions as the venue reports them, newest first. A
-trade's last column says who placed it: "this agent", another agent by name
-(through Mishmar), or "outside Mishmar" (the owner by hand, another program
-or the venue). A longer history comes a page at a time: the last line names
-the --cursor of the next page.`,
+		Long: `The account's transactions as the venue reports them, newest first, with
+the market (perp, spot, …) beside a symbol. transfer_in and transfer_out
+cross the account's edge: a move to or from another account of the same
+connection, or of a connected sub-account, names that account ("to
+bn_spot", "from bn_futures") and shows there too with the opposite kind;
+without one the other side is outside Mishmar (a deposit, a withdrawal, or
+an account not connected here). A trade's last column says who placed it:
+"this agent", another agent by name (through Mishmar), or "outside
+Mishmar" (the owner by hand, another program or the venue). A longer
+history comes a page at a time: the last line names the --cursor of the
+next page.`,
 		Args: connectedAccountArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			q := signer.TransactionQuery{Kind: kind, Cursor: cursor, Limit: limit}
@@ -399,47 +447,293 @@ func readTime(flag, v string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("%s %q: use RFC 3339 (2026-11-12T09:30:00Z) or a date (2026-11-12)", flag, v)
 }
 
-// printAccount is a connected account in a line, then how current its data is.
-func printAccount(w io.Writer, a api.ConnectedAccount) {
-	use := "read only"
-	if a.Traded {
-		use = "traded"
-	}
-	fmt.Fprintf(w, "%s  %s  %s  %s  %s\n", a.Id, a.Name, a.Venue, a.Status, use)
-	if a.Sync != nil && len(*a.Sync) > 0 {
-		parts := make([]string, 0, len(*a.Sync))
-		for _, s := range *a.Sync {
-			part := fmt.Sprintf("%s %s", s.Kind, s.Status)
-			if s.AsOf != nil {
-				part += " as of " + stampOf(*s.AsOf)
-			}
-			if s.Progress != nil && s.Status == "backfilling" {
-				part += " (" + *s.Progress + " done)"
-			}
-			if s.Error != nil && *s.Error != "" {
-				part += " (" + *s.Error + ")"
-			}
-			parts = append(parts, part)
+// printAccounts lists accounts by connection in the engine's order
+// (connections oldest first, each one's accounts together in the venue's
+// order), which it keeps; an account listed apart from its connection's
+// others is shown with them. A line per account, then the connection's
+// line (the total of a login with more than one account, or how many of
+// its accounts are shown when the agent was given fewer than all, with the
+// total of those), then how current the connection's data is. A blank line
+// separates connections.
+func printAccounts(w io.Writer, accounts []api.ConnectedAccount) {
+	var order []string
+	byConnection := map[string][]api.ConnectedAccount{}
+	for _, a := range accounts {
+		id := connectionOf(a)
+		if _, ok := byConnection[id]; !ok {
+			order = append(order, id)
 		}
-		fmt.Fprintf(w, "  %s\n", strings.Join(parts, "; "))
+		byConnection[id] = append(byConnection[id], a)
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for i, id := range order {
+		if i > 0 {
+			fmt.Fprintln(tw)
+		}
+		group := byConnection[id]
+		for _, a := range group {
+			fmt.Fprintln(tw, accountRow(a))
+		}
+		if line := connectionLine(group); line != "" {
+			fmt.Fprintln(tw, line)
+		}
+		if fresh := syncOf(group[0].Connection.Sync); fresh != "" {
+			fmt.Fprintf(tw, "\t%s\n", fresh)
+		}
+	}
+	tw.Flush()
+}
+
+// printAccount is one account's line, then what it is at its connection,
+// what its value leaves out and what restricts it.
+func printAccount(w io.Writer, a api.ConnectedAccount) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, accountRow(a))
+	tw.Flush()
+	c := a.Connection
+	fmt.Fprintf(w, "  %s account %s, %s connection %s (%s)", a.Type, a.VenueRef, shareOf(c.AccountCount), connectionOf(a), c.Kind)
+	v := c.VenueAccount
+	login := "main login"
+	if v.Role == api.VenueAccountRoleSubaccount {
+		login = "sub-account"
+	}
+	if v.Id != nil && *v.Id != "" {
+		login += " " + *v.Id
+	}
+	if v.ParentVenueAccountId != nil && *v.ParentVenueAccountId != "" {
+		login += " of " + *v.ParentVenueAccountId
+	}
+	fmt.Fprintf(w, ", %s", login)
+	if c.ParentId != nil && *c.ParentId != "" {
+		fmt.Fprintf(w, " (its main login is connection %s)", *c.ParentId)
+	}
+	fmt.Fprintln(w)
+	if a.EquityAsOf != nil {
+		fmt.Fprintf(w, "  value as of %s%s\n", stampOf(*a.EquityAsOf), notCounting(a.UnpricedAssets))
+	}
+	if fresh := syncOf(c.Sync); fresh != "" {
+		fmt.Fprintf(w, "  %s\n", fresh)
 	}
 	if a.Restrictions != nil {
 		for _, r := range *a.Restrictions {
-			on := "the account"
-			if r.Asset != nil && *r.Asset != "" {
-				on = *r.Asset
-			}
-			fmt.Fprintf(w, "  restricted: %s on %s since %s\n", r.Cause, on, stampOf(r.Since))
+			fmt.Fprintf(w, "  restricted: %s\n", restrictionOf(r))
 		}
 	}
 }
 
+// accountRow is an account's cells: its id, its line, its value, its status,
+// whether an agent trades on it, and what to know about its value.
+func accountRow(a api.ConnectedAccount) string {
+	use := "read only"
+	switch {
+	case a.Traded:
+		use = "traded"
+	case a.Tradable != nil && !*a.Tradable:
+		use = "read only (not tradable yet)"
+		if r := deref(a.UntradableReason); r != "" {
+			use = "read only (" + r + ")"
+		}
+	}
+	value := "no value yet"
+	if a.EquityUsd != nil {
+		value = *a.EquityUsd + " USD"
+	}
+	var notes []string
+	if u := a.UnpricedAssets; u != nil && len(*u) > 0 {
+		notes = append(notes, "not counting "+strings.Join(*u, ", ")+" (no price)")
+	}
+	if a.Restrictions != nil {
+		for _, r := range *a.Restrictions {
+			notes = append(notes, "restricted: "+restrictionOf(r))
+		}
+	}
+	row := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", a.Id, accountLine(a), value, a.Status, use)
+	if len(notes) > 0 {
+		row += "\t" + strings.Join(notes, "; ")
+	}
+	return row
+}
+
+// connectionLine is the line under a connection's accounts: "total" and
+// their sum when they are the whole login and more than one, "2 of 3
+// accounts, total of these" and their sum when the agent was given some of
+// the login's accounts, "1 of 2 accounts" for one of them alone, and ""
+// for a login's single account.
+func connectionLine(group []api.ConnectedAccount) string {
+	shown, count := len(group), group[0].Connection.AccountCount
+	switch {
+	case count > shown && shown == 1:
+		return fmt.Sprintf("\t1 of %d accounts", count)
+	case count > shown:
+		return fmt.Sprintf("\t%d of %d accounts, total of these\t%s", shown, count, connectionTotal(group))
+	case shown > 1:
+		return "\ttotal\t" + connectionTotal(group)
+	}
+	return ""
+}
+
+// shareOf says which share of its connection an account is, from the
+// connection's accountCount.
+func shareOf(count int) string {
+	switch {
+	case count == 1:
+		return "the only account of"
+	case count > 1:
+		return fmt.Sprintf("one of the %d accounts of", count)
+	}
+	return "an account of"
+}
+
+// connectionTotal is the sum of the accounts' values, as of the oldest
+// reading among them, naming what it leaves out.
+func connectionTotal(group []api.ConnectedAccount) string {
+	sum := decimal.Zero
+	var asOf *time.Time
+	var unpriced, missing []string
+	seen := map[string]bool{}
+	for _, a := range group {
+		d, err := decimal.NewFromString(deref(a.EquityUsd))
+		if a.EquityUsd == nil || err != nil {
+			missing = append(missing, a.Id)
+			continue
+		}
+		sum = sum.Add(d)
+		if a.EquityAsOf != nil && (asOf == nil || a.EquityAsOf.Before(*asOf)) {
+			asOf = a.EquityAsOf
+		}
+		if a.UnpricedAssets != nil {
+			for _, x := range *a.UnpricedAssets {
+				if !seen[x] {
+					seen[x] = true
+					unpriced = append(unpriced, x)
+				}
+			}
+		}
+	}
+	if len(missing) == len(group) {
+		return "no value yet"
+	}
+	out := sum.String() + " USD"
+	if asOf != nil {
+		out += " as of " + stampOf(*asOf)
+	}
+	if len(unpriced) > 0 {
+		out += ", not counting " + strings.Join(unpriced, ", ") + " (no price)"
+	}
+	if len(missing) > 0 {
+		out += ", without " + strings.Join(missing, ", ") + " (no value yet)"
+	}
+	return out
+}
+
+// accountLine names an account for a person, in one line: the venue, the
+// connection's name, the account's own name (left out when the login has a
+// single account, connection.accountCount 1) and which login it is.
+func accountLine(a api.ConnectedAccount) string {
+	parts := []string{venueName(a.Venue)}
+	if a.Connection.Name != "" {
+		parts = append(parts, a.Connection.Name)
+	}
+	if a.Name != "" && a.Connection.AccountCount != 1 {
+		parts = append(parts, a.Name)
+	}
+	v := a.Connection.VenueAccount
+	switch {
+	case v.Label != nil && *v.Label != "":
+		parts = append(parts, *v.Label)
+	case v.Id != nil && *v.Id != "":
+		parts = append(parts, *v.Id)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// connectionOf is the id of an account's connection.
+func connectionOf(a api.ConnectedAccount) string {
+	if a.Connection.Id != "" {
+		return a.Connection.Id
+	}
+	return a.VenueConnectionId
+}
+
+// venueName is a venue as a person writes it.
+func venueName(v api.Venue) string {
+	switch v {
+	case api.VenueHyperliquid:
+		return "Hyperliquid"
+	case api.VenueBinance:
+		return "Binance"
+	case api.VenueBybit:
+		return "Bybit"
+	case api.VenueOkx:
+		return "OKX"
+	case api.VenueCoinbase:
+		return "Coinbase"
+	case api.VenueFireblocks:
+		return "Fireblocks"
+	}
+	return string(v)
+}
+
+// syncOf says how current each kind of a connection's data is, in a line;
+// "" before the connection is verified.
+func syncOf(sync *[]api.SyncState) string {
+	if sync == nil || len(*sync) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(*sync))
+	for _, s := range *sync {
+		part := fmt.Sprintf("%s %s", s.Kind, s.Status)
+		if s.AsOf != nil {
+			part += " as of " + stampOf(*s.AsOf)
+		}
+		if s.Progress != nil && s.Status == api.SyncStateStatusBackfilling {
+			part += " (" + *s.Progress + " done)"
+		}
+		if s.Error != nil && *s.Error != "" {
+			part += " (" + *s.Error + ")"
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// restrictionOf is a restriction in a few words.
+func restrictionOf(r api.ConnectedAccountRestriction) string {
+	on := "the account"
+	if r.Asset != nil && *r.Asset != "" {
+		on = *r.Asset
+	}
+	return fmt.Sprintf("%s on %s since %s", r.Cause, on, stampOf(r.Since))
+}
+
+// notCounting names the assets with no price, which a value leaves out; ""
+// when every asset was priced.
+func notCounting(unpriced *[]string) string {
+	if unpriced == nil || len(*unpriced) == 0 {
+		return ""
+	}
+	return ", not counting " + strings.Join(*unpriced, ", ") + " (no price)"
+}
+
+// symbolOf is a symbol with its market kind, which it needs to name a market
+// (BTCUSDT perp, BTCUSDT spot).
+func symbolOf(x api.AccountTransaction) string {
+	if x.Symbol == nil {
+		return ""
+	}
+	if x.Market != nil && *x.Market != "" {
+		return *x.Symbol + " " + string(*x.Market)
+	}
+	return *x.Symbol
+}
+
 // transactionWhat is a transaction in a few words: a trade's side, size,
-// symbol and price, or an amount in its asset.
+// market and price, or an amount in its asset, and on a transfer the account
+// on the other side when it is one here.
 func transactionWhat(x api.AccountTransaction) string {
 	var b strings.Builder
 	if x.Side != nil && x.Size != nil && x.Symbol != nil {
-		fmt.Fprintf(&b, "%s %s %s", *x.Side, *x.Size, *x.Symbol)
+		fmt.Fprintf(&b, "%s %s %s", *x.Side, *x.Size, symbolOf(x))
 		if x.Price != nil {
 			fmt.Fprintf(&b, " at %s", *x.Price)
 		}
@@ -457,11 +751,21 @@ func transactionWhat(x api.AccountTransaction) string {
 			fmt.Fprintf(&b, " (%s USD)", *x.AmountUsd)
 		}
 	}
+	if other := deref(x.CounterpartConnectedAccountId); other != "" {
+		switch x.Kind {
+		case api.AccountTransactionKindTransferOut:
+			b.WriteString(" to " + other)
+		case api.AccountTransactionKindTransferIn:
+			b.WriteString(" from " + other)
+		default:
+			b.WriteString(" with " + other)
+		}
+	}
 	if x.Symbol != nil {
 		if b.Len() > 0 {
 			b.WriteString(" ")
 		}
-		b.WriteString("on " + *x.Symbol)
+		b.WriteString("on " + symbolOf(x))
 	}
 	return b.String()
 }
@@ -486,6 +790,13 @@ func usd(d *string) string {
 		return "-"
 	}
 	return *d + " USD"
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func stampOf(t time.Time) string { return t.UTC().Format(time.RFC3339) }

@@ -79,16 +79,17 @@ func (d *dataEngine) handler() http.Handler {
 		var out any
 		switch {
 		case path == "/agent/me":
-			out = api.AgentIdentity{AgentId: "agt_1", AgentName: agentName, AccountId: "acc_1", KeyId: d.keyID, PortfolioId: "pf_1"}
+			out = api.AgentIdentity{AgentId: "agt_1", AgentName: agentName, AccountId: "acc_1", KeyId: d.keyID}
 		case path == "/agent/connected-accounts":
-			out = []api.ConnectedAccount{{Id: "ta_1", Name: "Main", Venue: api.VenueHyperliquid, Kind: api.ConnectedAccountKindHyperliquid, Status: api.ConnectedAccountStatusActive}}
+			out = []api.ConnectedAccount{{Id: "ta_1", Name: "Perps", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "perps", Venue: api.VenueHyperliquid, Status: api.ConnectedAccountStatusActive,
+				VenueConnectionId: "hl_main", Connection: api.VenueConnectionRef{Id: "hl_main", Name: "Main", Kind: api.VenueConnectionKindHyperliquid, AccountCount: 2, VenueAccount: api.VenueAccount{Role: api.VenueAccountRoleMain}}}}
 		case strings.HasSuffix(path, "/balances"):
-			equity := "1500.5"
+			equity, price := "1500.5", "1"
 			out = api.BalanceSnapshot{ConnectedAccountId: "ta_1", AsOf: at, Source: api.SnapshotSourceObserved, EquityUsd: &equity,
-				Balances: []api.Balance{{Asset: "USDC", Wallet: "margin", Amount: "1500.5", UsdValue: &equity}}}
+				Balances: []api.Balance{{Asset: "USDC", Amount: "1500.5", PriceUsd: &price, UsdValue: &equity}}}
 		case strings.HasSuffix(path, "/positions"):
 			out = api.AccountPositionSnapshot{ConnectedAccountId: "ta_1", AsOf: at, Source: api.SnapshotSourceObserved,
-				Positions: []api.AccountPosition{{Symbol: "BTC", Side: "long", Size: "0.01", EntryPrice: "79500"}}}
+				Positions: []api.AccountPosition{{Market: api.MarketKindPerp, Symbol: "BTC", Side: "long", Size: "0.01", EntryPrice: "79500"}}}
 		case strings.HasSuffix(path, "/transactions"):
 			next := "c2"
 			agentID := "agt_1"
@@ -126,21 +127,21 @@ func TestClientReadsConnectedAccountData(t *testing.T) {
 		t.Fatalf("me: %+v %v", me, err)
 	}
 	accounts, err := c.ConnectedAccounts(ctx)
-	if err != nil || len(accounts) != 1 || accounts[0].Id != "ta_1" {
+	if err != nil || len(accounts) != 1 || accounts[0].Id != "ta_1" || accounts[0].Connection.Id != "hl_main" || accounts[0].Connection.Kind != api.VenueConnectionKindHyperliquid {
 		t.Fatalf("connected accounts: %+v %v", accounts, err)
 	}
 	if one, err := c.ConnectedAccount(ctx, "ta_1"); err != nil || one.Id != "ta_1" {
 		t.Fatalf("connected account: %+v %v", one, err)
 	}
 	bal, err := c.AccountBalances(ctx, "ta_1", time.Time{})
-	if err != nil || bal.EquityUsd == nil || *bal.EquityUsd != "1500.5" || bal.Balances[0].Asset != "USDC" {
+	if err != nil || bal.EquityUsd == nil || *bal.EquityUsd != "1500.5" || bal.Balances[0].Asset != "USDC" || *bal.Balances[0].PriceUsd != "1" {
 		t.Fatalf("balances: %+v %v", bal, err)
 	}
 	if _, err := c.AccountBalances(ctx, "ta_1", from); err != nil {
 		t.Fatal(err)
 	}
 	pos, err := c.AccountPositions(ctx, "ta_1", to)
-	if err != nil || pos.Positions[0].Symbol != "BTC" {
+	if err != nil || pos.Positions[0].Symbol != "BTC" || pos.Positions[0].Market != api.MarketKindPerp {
 		t.Fatalf("positions: %+v %v", pos, err)
 	}
 	page, err := c.AccountTransactions(ctx, "ta_1", TransactionQuery{From: from, To: to, Kind: "trade", Limit: 2, Cursor: "c1"})

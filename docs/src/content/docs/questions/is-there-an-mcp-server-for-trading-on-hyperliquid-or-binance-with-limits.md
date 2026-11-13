@@ -20,7 +20,7 @@ Mishmar is a risk management layer for trading bots and AI agents: every order i
 | Pause and Stop | from the console: Pause lets only closing orders through, Stop only cancels |
 | A record | every decision, allowed, held or blocked, signed and chained |
 
-The limits are set in the console, on the account, a portfolio, the agent or the connected account. No tool can change them, approve an order or lift a stop, so a model that is confused or talked into something cannot either.
+The limits are set in the console, on the whole account, a venue connection, the connected account or the agent. No tool can change them, approve an order or lift a stop, so a model that is confused or talked into something cannot either.
 
 ## Set it up
 
@@ -76,4 +76,4 @@ Found an error here? [Edit this page on GitHub](https://github.com/mishmar-io/mi
 
 ## Try it
 
-The hosted testnet is free for one agent and one connected account, on Hyperliquid testnet or Binance demo trading.
+The hosted testnet is free for one agent and one venue connection, on Hyperliquid testnet or Binance demo trading.

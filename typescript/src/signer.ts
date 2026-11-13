@@ -411,7 +411,7 @@ export class Signer {
 
   // Connected-account data, through the child: the same reads as Client's, signed with the agent's key there.
 
-  /** Who the agent's key belongs to: the agent, its account and portfolio. */
+  /** Who the agent's key belongs to: the agent, its Mishmar account, whether it reads or trades, and the key id. */
   async me(): Promise<AgentIdentity> {
     return (await this.#request("GET", "/me")) as AgentIdentity;
   }

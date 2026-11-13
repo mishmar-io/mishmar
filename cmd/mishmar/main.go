@@ -61,7 +61,9 @@ This binary is the agent's side:
   read         read the connected accounts the agent was given: balances,
                positions, transactions, value over time
   mcp          serve the agent's tools to a language model over MCP, the
-               signer built in
+               signer built in; with --app, an AI app's server that trades
+               from this computer through the background signer
+  daemon       see or stop the background signer of the AI apps
 
 The signer's config (the agent's secret and its shares) lives in
 ~/.mishmar/agent.json, or the file MISHMAR_AGENT_CONFIG names, mode 0600.
@@ -86,6 +88,7 @@ engine), and the running signer generates the agent's trading keys itself.`,
 		newProposeCmd(),
 		newReadCmd(),
 		newMCPCmd(),
+		newDaemonCmd(),
 		newVersionCmd(),
 	)
 	return root

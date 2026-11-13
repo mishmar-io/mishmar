@@ -85,19 +85,25 @@ func (f *fakeBackend) Permission(context.Context) (api.AgentPermission, error) {
 	return f.perm, nil
 }
 func (f *fakeBackend) Me(context.Context) (api.AgentIdentity, error) {
-	return api.AgentIdentity{AgentId: "agt_1", AgentName: "Reader", AccountId: "acc_1", KeyId: "key_1", PortfolioId: "pf_1"}, nil
+	capital := "5000"
+	return api.AgentIdentity{AgentId: "agt_1", AgentName: "Reader", AccountId: "acc_1", KeyId: "key_1", CapitalUsd: &capital}, nil
 }
 func (f *fakeBackend) ConnectedAccounts(context.Context) ([]api.ConnectedAccount, error) {
 	f.record("accounts")
-	return []api.ConnectedAccount{{Id: "ta_1", Name: "Main", Venue: api.VenueHyperliquid}}, nil
+	main := api.VenueConnectionRef{Id: "hl_main", Name: "Main", Kind: api.VenueConnectionKindHyperliquid, AccountCount: 2, VenueAccount: api.VenueAccount{Role: api.VenueAccountRoleMain}}
+	value, spot := "1500", "0"
+	return []api.ConnectedAccount{
+		{Id: "ta_1", VenueConnectionId: "hl_main", Connection: main, Name: "Perps", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "perps", Venue: api.VenueHyperliquid, EquityUsd: &value},
+		{Id: "ta_2", VenueConnectionId: "hl_main", Connection: main, Name: "Spot", Type: api.ConnectedAccountTypeSpot, VenueRef: "spot", Venue: api.VenueHyperliquid, EquityUsd: &spot, UnpricedAssets: &[]string{"HYPE"}},
+	}, nil
 }
 func (f *fakeBackend) AccountBalances(_ context.Context, id string, at time.Time) (api.BalanceSnapshot, error) {
 	f.record("balances " + id + " " + stamp(at))
-	return api.BalanceSnapshot{ConnectedAccountId: id, Source: api.SnapshotSourceObserved, Balances: []api.Balance{{Asset: "USDC", Wallet: "margin", Amount: "1500"}}}, nil
+	return api.BalanceSnapshot{ConnectedAccountId: id, Source: api.SnapshotSourceObserved, Balances: []api.Balance{{Asset: "USDC", Amount: "1500"}}}, nil
 }
 func (f *fakeBackend) AccountPositions(_ context.Context, id string, at time.Time) (api.AccountPositionSnapshot, error) {
 	f.record("positions " + id + " " + stamp(at))
-	return api.AccountPositionSnapshot{ConnectedAccountId: id, Positions: []api.AccountPosition{{Symbol: "ETH", Side: "short", Size: "2", EntryPrice: "3100"}}}, nil
+	return api.AccountPositionSnapshot{ConnectedAccountId: id, Positions: []api.AccountPosition{{Market: api.MarketKindPerp, Symbol: "ETH", Side: "short", Size: "2", EntryPrice: "3100"}}}, nil
 }
 func (f *fakeBackend) AccountTransactions(_ context.Context, id string, q signer.TransactionQuery) (api.AccountTransactionPage, error) {
 	f.record(fmt.Sprintf("transactions %s %s %s %s %d %s", id, stamp(q.From), stamp(q.To), q.Kind, q.Limit, q.Cursor))
@@ -323,5 +329,33 @@ func TestWaitForDecisionFollowsAnApproval(t *testing.T) {
 	res = s.call("tools/call", map[string]any{"name": "get_connected_account", "arguments": map[string]any{"connectedAccountId": "ta_9"}})
 	if txt, isErr := text(t, res); isErr || !strings.Contains(txt, `"id":"ta_9"`) {
 		t.Fatalf("get_connected_account: %v %q", isErr, txt)
+	}
+}
+
+// Contract 0.21.0 has no portfolios: the rules sit on the account, a venue
+// connection, a connected account or the agent, and an agent's leverage and
+// drawdown are measured against its own capital. Nothing the model reads
+// speaks of a portfolio.
+func TestTheRulesScopesWithoutPortfolios(t *testing.T) {
+	s := start(t, &fakeBackend{})
+	res := s.call("initialize", map[string]any{"protocolVersion": ProtocolVersion})
+	instructions := strings.Join(strings.Fields(res["result"].(map[string]any)["instructions"].(string)), " ")
+	for _, want := range []string{"the whole Mishmar account", "on a venue connection", "on this agent alone", "scope.kind: account, venue_connection, connected_account or agent", "the capital the person allocated to it"} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("the instructions do not say %q:\n%s", want, instructions)
+		}
+	}
+	texts := []string{instructions}
+	for _, tl := range s.call("tools/list", nil)["result"].(map[string]any)["tools"].([]any) {
+		m := tl.(map[string]any)
+		texts = append(texts, m["name"].(string)+": "+m["description"].(string))
+	}
+	if !strings.Contains(strings.Join(texts, "\n"), "get_identity: Who this agent is: its id and name, the Mishmar account it belongs to, whether it reads or trades (permission), the capital its own leverage and drawdown rules are measured against (capitalUsd") {
+		t.Fatal("get_identity does not say the identity carries the agent's capital")
+	}
+	for _, text := range texts {
+		if strings.Contains(strings.ToLower(text), "portfolio") {
+			t.Fatalf("still speaks of portfolios: %s", text)
+		}
 	}
 }

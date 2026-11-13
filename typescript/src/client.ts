@@ -228,23 +228,26 @@ export class Client {
   // read is written to the account's access log. On hosted Mishmar these
   // (with connectedAccount) are answered while the account's engine sleeps,
   // so an agent that only reads never wakes it. Times are RFC 3339 strings or Dates.
+  // A connected account is one pool of money at a venue; its `connection` is the
+  // venue login that holds it. The accounts' values add up to the login's only
+  // when the agent was given all `connection.accountCount` of them.
 
-  /** Who the key belongs to: the agent, its account and portfolio, and the key id. The engine answers only a key it knows, so this is the read that proves one. */
+  /** Who the key belongs to: the agent, its Mishmar account, whether it reads or trades, and the key id. The engine answers only a key it knows, so this is the read that proves one. */
   async me(): Promise<AgentIdentity> {
     return (await this.#agentCall("GET", "/agent/me")) as AgentIdentity;
   }
 
-  /** The connected accounts this agent was given, in the order it got them. */
+  /** The connected accounts this agent was given, in the order it got them, each with its value and its `connection`; accounts with the same `connection.id` are one venue login's, which has `connection.accountCount` accounts in all. */
   async connectedAccounts(): Promise<ConnectedAccount[]> {
     return (await this.#agentCall("GET", "/agent/connected-accounts")) as ConnectedAccount[];
   }
 
-  /** The connected account's balances at the venue, spot and margin, each with its value in USD, at `at` (default now). */
+  /** The connected account's balances, each with its price and value in USD, and the account's value, at `at` (default now). An asset with no price has no `usdValue` and is named in `unpricedAssets`. */
   async accountBalances(connectedAccountId: string, { at }: { at?: When } = {}): Promise<BalanceSnapshot> {
     return (await this.#agentCall("GET", accountPath(connectedAccountId, "/balances"), { query: { at: when(at) } })) as BalanceSnapshot;
   }
 
-  /** The venue's own net positions on the connected account, whoever placed the orders behind them, at `at` (default now). This agent's own book is `positions()`. */
+  /** The venue's own net positions on the connected account, whoever placed the orders behind them, each with its `market` kind, at `at` (default now). This agent's own book is `positions()`. */
   async accountPositions(connectedAccountId: string, { at }: { at?: When } = {}): Promise<AccountPositionSnapshot> {
     return (await this.#agentCall("GET", accountPath(connectedAccountId, "/positions"), { query: { at: when(at) } })) as AccountPositionSnapshot;
   }
@@ -252,8 +255,11 @@ export class Client {
   /**
    * A page of the connected account's trades, transfers, funding and fees as
    * the venue reports them, newest first. A trade's `origin` says who placed
-   * it; `origin.own` is true on this agent's own. Pass the page's
-   * `nextCursor` as `cursor` for the page after.
+   * it; `origin.own` is true on this agent's own. A move between two accounts
+   * of one connection is a `transfer_out` on one and a `transfer_in` on the
+   * other, each naming the other in `counterpartConnectedAccountId`: it moves
+   * each account's value by the amount and the connection's by nothing. Pass
+   * the page's `nextCursor` as `cursor` for the page after.
    */
   async accountTransactions(connectedAccountId: string, q: TransactionQuery = {}): Promise<AccountTransactionPage> {
     const query = { from: when(q.from), to: when(q.to), kind: q.kind, cursor: q.cursor, limit: q.limit };

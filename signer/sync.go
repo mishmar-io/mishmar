@@ -68,10 +68,18 @@ func (s *Signer) SyncKeys(ctx context.Context) ([]Generated, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.noteOthers(engineKeys)
 	next := s.keysWithFile()
 	var made []Generated
 	for _, k := range engineKeys {
 		if _, held := next[k.Id]; held {
+			continue
+		}
+		if k.AgentKeyId != nil && *k.AgentKeyId != "" && *k.AgentKeyId != s.Config.KeyID {
+			// Another of the agent's keys made it and holds its share
+			// (VenueKey.agentKeyId, contract 0.21.0): that key's signer
+			// signs with it, and only that key proposes on it.
+			s.noteOnce(k, "signer: a trading key of this agent belongs to another of its keys, whose signer holds the share; this signer leaves it alone", "heldBy", *k.AgentKeyId)
 			continue
 		}
 		switch {
@@ -182,6 +190,10 @@ func (s *Signer) saveKeys(next map[string]VenueKey) error {
 	return nil
 }
 
+// HeldVenueKeys is the trading keys whose share the signer holds now, by
+// id: a snapshot, not to be changed.
+func (s *Signer) HeldVenueKeys() map[string]VenueKey { return s.venueKeys() }
+
 // venueKeys is the keys the signer holds now. The map is replaced as a
 // whole (setVenueKeys), never changed in place, so a snapshot stays good.
 func (s *Signer) venueKeys() map[string]VenueKey {
@@ -209,9 +221,9 @@ func (s *Signer) hyperliquidNetwork(ctx context.Context, connectedAccountID stri
 	if err != nil {
 		return "", fmt.Errorf("signer: reading connected account %s for the key's network: %w", connectedAccountID, err)
 	}
-	hl, err := ta.Setup.AsHyperliquidSetup()
+	hl, err := ta.Connection.Setup.AsHyperliquidSetup()
 	if err != nil || hl.Network == "" {
-		return "", fmt.Errorf("signer: connected account %s names no Hyperliquid network in its setup", connectedAccountID)
+		return "", fmt.Errorf("signer: connected account %s names no Hyperliquid network in its connection's setup", connectedAccountID)
 	}
 	if _, err := hyperliquid.ParseNetwork(string(hl.Network)); err != nil {
 		return "", fmt.Errorf("signer: connected account %s: %w", connectedAccountID, err)
@@ -221,16 +233,29 @@ func (s *Signer) hyperliquidNetwork(ctx context.Context, connectedAccountID stri
 
 // warnOnce logs the message once per key, with the key's particulars.
 func (s *Signer) warnOnce(k api.VenueKey, msg string) {
+	if s.firstTime(k.Id + " " + msg) {
+		s.Logger.Warn(msg, "venueKey", k.Id, "connectedAccount", k.ConnectedAccountId, "venue", k.Venue, "status", k.Status)
+	}
+}
+
+// noteOnce logs the message once per key at info level, with the key's
+// particulars and the attributes given.
+func (s *Signer) noteOnce(k api.VenueKey, msg string, attrs ...any) {
+	if s.firstTime(k.Id + " " + msg) {
+		s.Logger.Info(msg, append([]any{"venueKey", k.Id, "connectedAccount", k.ConnectedAccountId, "venue", k.Venue, "status", k.Status}, attrs...)...)
+	}
+}
+
+// firstTime says whether the message is new, and remembers it.
+func (s *Signer) firstTime(what string) bool {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.warned == nil {
 		s.warned = map[string]bool{}
 	}
-	seen := s.warned[k.Id+" "+msg]
-	s.warned[k.Id+" "+msg] = true
-	s.mu.Unlock()
-	if !seen {
-		s.Logger.Warn(msg, "venueKey", k.Id, "connectedAccount", k.ConnectedAccountId, "venue", k.Venue, "status", k.Status)
-	}
+	seen := s.warned[what]
+	s.warned[what] = true
+	return !seen
 }
 
 // syncLoop runs SyncKeys every KeySyncInterval until ctx ends, backing off
