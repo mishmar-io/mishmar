@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,8 @@ func TestAccountReadTools(t *testing.T) {
 	if txt, isErr := call("get_identity", nil); isErr || !strings.Contains(txt, `"agentName":"Reader"`) {
 		t.Fatalf("get_identity: %v %q", isErr, txt)
 	}
-	if txt, isErr := call("list_connected_accounts", nil); isErr || !strings.Contains(txt, `"id":"ta_1"`) {
+	// Each account says which connection holds it, so one list tells them apart.
+	if txt, isErr := call("list_connected_accounts", nil); isErr || !strings.Contains(txt, `"id":"ta_1"`) || strings.Count(txt, `"connection":{"accountCount":2,"id":"hl_main"`) != 2 || !strings.Contains(txt, `"unpricedAssets":["HYPE"]`) {
 		t.Fatalf("list_connected_accounts: %v %q", isErr, txt)
 	}
 	if txt, isErr := call("get_account_balances", map[string]any{"connectedAccountId": "ta_1"}); isErr || !strings.Contains(txt, `"asset":"USDC"`) {
@@ -43,7 +45,7 @@ func TestAccountReadTools(t *testing.T) {
 	if _, isErr := call("get_account_balances", map[string]any{"connectedAccountId": "ta_1", "at": "2026-11-12T12:00:00+02:00"}); isErr {
 		t.Fatal("balances at a moment")
 	}
-	if txt, isErr := call("get_account_positions", map[string]any{"connectedAccountId": "ta_1", "at": "2026-11-01"}); isErr || !strings.Contains(txt, `"symbol":"ETH"`) {
+	if txt, isErr := call("get_account_positions", map[string]any{"connectedAccountId": "ta_1", "at": "2026-11-01"}); isErr || !strings.Contains(txt, `"market":"perp","side":"short","size":"2","symbol":"ETH"`) {
 		t.Fatalf("get_account_positions: %v %q", isErr, txt)
 	}
 	txt, isErr := call("list_account_transactions", map[string]any{"connectedAccountId": "ta_1", "from": "2026-11-01", "kind": "trade"})
@@ -69,6 +71,10 @@ func TestAccountReadTools(t *testing.T) {
 		t.Fatalf("backend calls:\n%s\nwant:\n%s", strings.Join(b.calls, "\n"), strings.Join(want, "\n"))
 	}
 
+	// The wallet filter of the first 0.21.0 draft is gone: an account is the pool.
+	if txt, isErr := call("get_account_balances", map[string]any{"connectedAccountId": "ta_1", "walletId": "spot"}); !isErr || !strings.Contains(txt, "walletId") {
+		t.Fatalf("walletId: %v %q", isErr, txt)
+	}
 	// A time that is neither is refused before anything is read, naming the field.
 	if txt, isErr := call("get_account_equity", map[string]any{"connectedAccountId": "ta_1", "from": "yesterday"}); !isErr || !strings.Contains(txt, "from:") || !strings.Contains(txt, "RFC 3339") {
 		t.Fatalf("bad time: %v %q", isErr, txt)
@@ -327,5 +333,56 @@ func TestEveryOtherToolAnswersAReadAgentHere(t *testing.T) {
 	}
 	if _, isErr := text(t, s.call("tools/call", map[string]any{"name": "list_connected_accounts"})); isErr {
 		t.Fatal("an account read waited for the permission")
+	}
+}
+
+// The instructions and the account reads tell a model what an account is:
+// one pool of money, held by a connection (the venue login), every balance,
+// position and transaction one account's, and a move between two accounts
+// of a connection on both with the other side named. No tool speaks of
+// wallets or takes one.
+func TestTheAccountReadsDescribeTheAccountModel(t *testing.T) {
+	s := start(t, &fakeBackend{})
+	res := s.call("initialize", map[string]any{"protocolVersion": ProtocolVersion})
+	// Line breaks in the instructions are only wrapping.
+	instructions := strings.Join(strings.Fields(res["result"].(map[string]any)["instructions"].(string)), " ")
+	for _, want := range []string{"one pool of money", "venue login", "belongs to exactly one account", "accountCount", "the accounts you can see", "transfer_out on one and a transfer_in on the other", "counterpartConnectedAccountId", "never count it as a deposit or a withdrawal"} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("the instructions do not say %q:\n%s", want, instructions)
+		}
+	}
+	for _, gone := range []string{"wallet", "walletId", "wallet_transfer"} {
+		if strings.Contains(instructions, gone) {
+			t.Fatalf("the instructions still say %q", gone)
+		}
+	}
+	descriptions := map[string]string{}
+	for _, tl := range s.call("tools/list", nil)["result"].(map[string]any)["tools"].([]any) {
+		m := tl.(map[string]any)
+		name, desc := m["name"].(string), m["description"].(string)
+		descriptions[name] = desc
+		props := m["inputSchema"].(map[string]any)["properties"].(map[string]any)
+		if strings.Contains(strings.ToLower(desc), "wallet") || props["walletId"] != nil {
+			t.Fatalf("%s still speaks of wallets: %s %v", name, desc, props)
+		}
+		if name == "list_account_transactions" {
+			if kinds := props["kind"].(map[string]any)["enum"].([]any); fmt.Sprint(kinds) != fmt.Sprint(transactionKinds) {
+				t.Fatalf("kinds %v", kinds)
+			}
+		}
+	}
+	for name, wants := range map[string][]string{
+		"list_connected_accounts":   {"one pool of money", "connection", "venueAccount", "connection.sync", "same connection.id", "only when you see accountCount of them", "the accounts you can see", "unpricedAssets", "tradable", "Binance · Carry · USDⓈ-M Futures · UID …7868", "leaving the account name out when accountCount is 1"},
+		"get_connected_account":     {"connection", "venue login", "tradable", "sync", "accountCount"},
+		"get_account_balances":      {"priceUsd", "unpricedAssets", "not in equityUsd", "read on its own"},
+		"get_account_positions":     {"per market (a symbol with its market kind)", "an asset held outright is a balance"},
+		"list_account_transactions": {"counterpartConnectedAccountId", "opposite kind", "no money in or out", "a deposit, a withdrawal, or an account not connected here"},
+		"get_account_equity":        {"no other account's", "only when you have all connection.accountCount of them"},
+	} {
+		for _, want := range wants {
+			if !strings.Contains(descriptions[name], want) {
+				t.Fatalf("%s does not say %q: %s", name, want, descriptions[name])
+			}
+		}
 	}
 }

@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { after, before, beforeEach, test } from "node:test";
 import { AgentKey, Client, EngineError, engineUrlFor, newSecret, parseSecret, secret, verifyRequest } from "../src/index.ts";
+import type { TransactionQuery } from "../src/index.ts";
 
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => i);
 const KEY = AgentKey.fromSeed(SEED);
@@ -43,18 +44,49 @@ test("malformed secrets are refused", () => {
 });
 
 const AT = "2026-11-12T10:00:00Z";
-const ACCOUNT = { id: "ta_1", name: "Main", venue: "hyperliquid", kind: "hyperliquid", status: "active", mode: "agents_only", traded: false, setup: { kind: "hyperliquid", network: "testnet" }, createdAt: AT, updatedAt: AT };
+const CONNECTION = {
+  id: "hl_main",
+  name: "Main",
+  accountCount: 2,
+  kind: "hyperliquid",
+  venueAccount: { id: "0x12ab", role: "main", label: "0x12ab…9f3c" },
+  setup: { kind: "hyperliquid", network: "testnet" },
+  sync: [{ kind: "balances", status: "current", asOf: AT }],
+};
+const ACCOUNT = { id: "ta_1", venueConnectionId: "hl_main", connection: CONNECTION, name: "Perps", type: "derivatives", venueRef: "perps", venue: "hyperliquid", status: "active", mode: "agents_only", traded: false, equityUsd: "1500.5", equityAsOf: AT, createdAt: AT, updatedAt: AT };
+const SPOT = {
+  ...ACCOUNT,
+  id: "ta_2",
+  name: "Spot",
+  type: "spot",
+  venueRef: "spot",
+  equityUsd: "0",
+  unpricedAssets: ["HYPE"],
+  tradable: false,
+  untradableReason: "Mishmar does not trade spot on Hyperliquid yet",
+};
 // The seven reads a hosted account's collector answers while its engine sleeps.
 const ANSWERS: Record<string, unknown> = {
-  "/agent/me": { agentId: "agt_1", agentName: "Reader", accountId: "acc_k7f2q9x1m3n4", keyId: KEY_ID, portfolioId: "pf_1" },
-  "/agent/connected-accounts": [ACCOUNT],
+  "/agent/me": { agentId: "agt_1", agentName: "Reader", accountId: "acc_k7f2q9x1m3n4", keyId: KEY_ID, portfolioId: "pf_1", permission: "read" },
+  "/agent/connected-accounts": [ACCOUNT, SPOT],
   "/agent/connected-accounts/ta_1": ACCOUNT,
-  "/agent/connected-accounts/ta_1/balances": { connectedAccountId: "ta_1", asOf: AT, source: "observed", balances: [{ asset: "USDC", wallet: "margin", amount: "1500.5", usdValue: "1500.5" }], equityUsd: "1500.5" },
-  "/agent/connected-accounts/ta_1/positions": { connectedAccountId: "ta_1", asOf: AT, source: "observed", positions: [{ symbol: "BTC", side: "long", size: "0.01", entryPrice: "79500" }] },
+  "/agent/connected-accounts/ta_1/balances": {
+    connectedAccountId: "ta_1",
+    asOf: AT,
+    source: "observed",
+    balances: [
+      { asset: "USDC", amount: "1500.5", priceUsd: "1", usdValue: "1500.5" },
+      { asset: "PURR", amount: "20" },
+    ],
+    equityUsd: "1500.5",
+    unpricedAssets: ["PURR"],
+  },
+  "/agent/connected-accounts/ta_1/positions": { connectedAccountId: "ta_1", asOf: AT, source: "observed", positions: [{ market: "perp", symbol: "BTC", side: "long", size: "0.01", entryPrice: "79500" }] },
   "/agent/connected-accounts/ta_1/transactions": {
     items: [
       { id: "tx_2", connectedAccountId: "ta_1", kind: "trade", at: AT, origin: { kind: "agent", agentName: "Reader", own: true } },
       { id: "tx_1", connectedAccountId: "ta_1", kind: "trade", at: AT, origin: { kind: "outside", own: false } },
+      { id: "tx_0", connectedAccountId: "ta_1", kind: "transfer_in", at: AT, asset: "USDC", amount: "500", counterpartConnectedAccountId: "ta_2" },
     ],
     nextCursor: "c2",
   },
@@ -107,18 +139,45 @@ test("a read agent needs only its API key", async () => {
     const client = Client.fromApiKey();
     assert.equal(client.keyId, KEY_ID);
     assert.equal(client.engineUrl, base);
-    assert.equal((await client.me()).agentName, "Reader");
-    assert.deepEqual((await client.connectedAccounts()).map((a) => a.id), ["ta_1"]);
+    const me = await client.me();
+    assert.deepEqual([me.agentName, me.permission], ["Reader", "read"]);
+    // Each account names its connection, so one list tells them apart.
+    const accounts = await client.connectedAccounts();
+    assert.deepEqual(
+      accounts.map((a) => [a.id, a.name, a.connection.id]),
+      [
+        ["ta_1", "Perps", "hl_main"],
+        ["ta_2", "Spot", "hl_main"],
+      ],
+    );
+    assert.deepEqual(accounts[1]?.unpricedAssets, ["HYPE"]);
+    // Read only, with the reason for a person; the tradable one has none.
+    assert.deepEqual([accounts[1]?.tradable, accounts[1]?.untradableReason], [false, "Mishmar does not trade spot on Hyperliquid yet"]);
+    assert.equal(accounts[0]?.untradableReason, undefined);
+    assert.equal("wallets" in (accounts[0] ?? {}), false);
+    // How fresh an account's data is comes with its connection.
+    assert.equal(accounts[0]?.connection.sync?.[0]?.status, "current");
+    // The login has two accounts and the agent sees both: their sum is its value.
+    assert.equal(accounts[0]?.connection.accountCount, accounts.length);
     assert.equal((await client.connectedAccount("ta_1")).traded, false);
     const balances = await client.accountBalances("ta_1");
     assert.equal(balances.equityUsd, "1500.5");
-    assert.equal(balances.balances[0]?.asset, "USDC");
+    assert.deepEqual(balances.unpricedAssets, ["PURR"]);
+    assert.deepEqual(
+      balances.balances.map((b) => [b.asset, b.priceUsd]),
+      [
+        ["USDC", "1"],
+        ["PURR", undefined],
+      ],
+    );
     const at = new Date("2026-11-01T02:00:00+02:00");
     assert.equal((await client.accountBalances("ta_1", { at })).source, "observed");
-    assert.equal((await client.accountPositions("ta_1", { at: "2026-11-01T00:00:00Z" })).positions[0]?.symbol, "BTC");
+    const position = (await client.accountPositions("ta_1", { at: "2026-11-01T00:00:00Z" })).positions[0];
+    assert.deepEqual([position?.symbol, position?.market], ["BTC", "perp"]);
     const page = await client.accountTransactions("ta_1", { from: at, kind: "trade", limit: 2, cursor: "c1" });
     assert.equal(page.nextCursor, "c2");
-    assert.deepEqual(page.items.map((t) => t.origin?.own), [true, false]);
+    assert.deepEqual(page.items.slice(0, 2).map((t) => t.origin?.own), [true, false]);
+    assert.equal(page.items[2]?.counterpartConnectedAccountId, "ta_2");
     assert.equal((await client.accountEquity("ta_1", { from: "2026-11-01T00:00:00Z", resolution: "hour" })).points[0]?.equityUsd, "1500.5");
     assert.deepEqual(others, []);
     assert.deepEqual(seen, [
@@ -146,3 +205,7 @@ test("without a key the error says where it goes", () => {
   delete process.env.MISHMAR_API_KEY;
   assert.throws(() => Client.fromApiKey(), /MISHMAR_API_KEY/);
 });
+
+// Contract 0.21.0 took the wallet level out: an account is the pool, so no read takes a wallet.
+// @ts-expect-error walletId is gone
+export const noWallet: TransactionQuery = { walletId: "spot" };

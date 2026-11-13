@@ -89,15 +89,20 @@ func (f *fakeBackend) Me(context.Context) (api.AgentIdentity, error) {
 }
 func (f *fakeBackend) ConnectedAccounts(context.Context) ([]api.ConnectedAccount, error) {
 	f.record("accounts")
-	return []api.ConnectedAccount{{Id: "ta_1", Name: "Main", Venue: api.VenueHyperliquid}}, nil
+	main := api.VenueConnectionRef{Id: "hl_main", Name: "Main", Kind: api.VenueConnectionKindHyperliquid, AccountCount: 2, VenueAccount: api.VenueAccount{Role: api.VenueAccountRoleMain}}
+	value, spot := "1500", "0"
+	return []api.ConnectedAccount{
+		{Id: "ta_1", VenueConnectionId: "hl_main", Connection: main, Name: "Perps", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "perps", Venue: api.VenueHyperliquid, EquityUsd: &value},
+		{Id: "ta_2", VenueConnectionId: "hl_main", Connection: main, Name: "Spot", Type: api.ConnectedAccountTypeSpot, VenueRef: "spot", Venue: api.VenueHyperliquid, EquityUsd: &spot, UnpricedAssets: &[]string{"HYPE"}},
+	}, nil
 }
 func (f *fakeBackend) AccountBalances(_ context.Context, id string, at time.Time) (api.BalanceSnapshot, error) {
 	f.record("balances " + id + " " + stamp(at))
-	return api.BalanceSnapshot{ConnectedAccountId: id, Source: api.SnapshotSourceObserved, Balances: []api.Balance{{Asset: "USDC", Wallet: "margin", Amount: "1500"}}}, nil
+	return api.BalanceSnapshot{ConnectedAccountId: id, Source: api.SnapshotSourceObserved, Balances: []api.Balance{{Asset: "USDC", Amount: "1500"}}}, nil
 }
 func (f *fakeBackend) AccountPositions(_ context.Context, id string, at time.Time) (api.AccountPositionSnapshot, error) {
 	f.record("positions " + id + " " + stamp(at))
-	return api.AccountPositionSnapshot{ConnectedAccountId: id, Positions: []api.AccountPosition{{Symbol: "ETH", Side: "short", Size: "2", EntryPrice: "3100"}}}, nil
+	return api.AccountPositionSnapshot{ConnectedAccountId: id, Positions: []api.AccountPosition{{Market: api.MarketKindPerp, Symbol: "ETH", Side: "short", Size: "2", EntryPrice: "3100"}}}, nil
 }
 func (f *fakeBackend) AccountTransactions(_ context.Context, id string, q signer.TransactionQuery) (api.AccountTransactionPage, error) {
 	f.record(fmt.Sprintf("transactions %s %s %s %s %d %s", id, stamp(q.From), stamp(q.To), q.Kind, q.Limit, q.Cursor))

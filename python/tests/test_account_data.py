@@ -78,17 +78,41 @@ def test_malformed_secrets_are_refused(bad):
         parse_secret(bad)
 
 
+CONNECTION = {
+    "id": "hl_main",
+    "name": "Main",
+    "accountCount": 2,
+    "kind": "hyperliquid",
+    "venueAccount": {"id": "0x12ab", "role": "main", "label": "0x12ab…9f3c"},
+    "setup": {"kind": "hyperliquid", "network": "testnet"},
+    "sync": [{"kind": "balances", "status": "current", "asOf": "2026-11-12T10:00:00Z"}],
+}
 ACCOUNT = {
     "id": "ta_1",
-    "name": "Main",
+    "venueConnectionId": "hl_main",
+    "connection": CONNECTION,
+    "name": "Perps",
+    "type": "derivatives",
+    "venueRef": "perps",
     "venue": "hyperliquid",
-    "kind": "hyperliquid",
     "status": "active",
     "mode": "agents_only",
     "traded": False,
-    "setup": {"kind": "hyperliquid", "network": "testnet"},
+    "equityUsd": "1500.5",
+    "equityAsOf": "2026-11-12T10:00:00Z",
     "createdAt": "2026-11-01T00:00:00Z",
     "updatedAt": "2026-11-01T00:00:00Z",
+}
+SPOT = {
+    **ACCOUNT,
+    "id": "ta_2",
+    "name": "Spot",
+    "type": "spot",
+    "venueRef": "spot",
+    "equityUsd": "0",
+    "unpricedAssets": ["HYPE"],
+    "tradable": False,
+    "untradableReason": "Mishmar does not trade spot on Hyperliquid yet",
 }
 
 
@@ -139,8 +163,9 @@ class Collector(BaseHTTPRequestHandler):
                 "accountId": "acc_k7f2q9x1m3n4",
                 "keyId": KEY_ID,
                 "portfolioId": "pf_1",
+                "permission": "read",
             },
-            "/agent/connected-accounts": [ACCOUNT],
+            "/agent/connected-accounts": [ACCOUNT, SPOT],
             "/agent/connected-accounts/ta_1": ACCOUNT,
             "/agent/connected-accounts/ta_1/balances": {
                 "connectedAccountId": "ta_1",
@@ -149,12 +174,14 @@ class Collector(BaseHTTPRequestHandler):
                 "balances": [
                     {
                         "asset": "USDC",
-                        "wallet": "margin",
                         "amount": "1500.5",
+                        "priceUsd": "1",
                         "usdValue": "1500.5",
-                    }
+                    },
+                    {"asset": "PURR", "amount": "20"},
                 ],
                 "equityUsd": "1500.5",
+                "unpricedAssets": ["PURR"],
             },
             "/agent/connected-accounts/ta_1/positions": {
                 "connectedAccountId": "ta_1",
@@ -162,6 +189,7 @@ class Collector(BaseHTTPRequestHandler):
                 "source": "observed",
                 "positions": [
                     {
+                        "market": "perp",
                         "symbol": "BTC",
                         "side": "long",
                         "size": "0.01",
@@ -184,6 +212,15 @@ class Collector(BaseHTTPRequestHandler):
                         "kind": "trade",
                         "at": at,
                         "origin": {"kind": "outside", "own": False},
+                    },
+                    {
+                        "id": "tx_0",
+                        "connectedAccountId": "ta_1",
+                        "kind": "transfer_in",
+                        "at": at,
+                        "asset": "USDC",
+                        "amount": "500",
+                        "counterpartConnectedAccountId": "ta_2",
                     },
                 ],
                 "nextCursor": "c2",
@@ -219,26 +256,45 @@ def collector(monkeypatch):
 def test_a_read_agent_needs_only_its_api_key(collector):
     client = Client.from_api_key()
     assert client.key_id == KEY_ID and client.engine_url.endswith(PREFIX)
-    assert client.me()["agentName"] == "Reader"
-    assert [a["id"] for a in client.connected_accounts()] == ["ta_1"]
+    me = client.me()
+    assert (me["agentName"], me.get("permission")) == ("Reader", "read")
+    # Each account names its connection, so one list tells them apart.
+    accounts = client.connected_accounts()
+    assert [(a["id"], a["name"], a["connection"]["id"]) for a in accounts] == [
+        ("ta_1", "Perps", "hl_main"),
+        ("ta_2", "Spot", "hl_main"),
+    ]
+    assert accounts[1]["unpricedAssets"] == ["HYPE"]
+    # Read only, with the reason for a person; the tradable one has none.
+    assert (accounts[1]["tradable"], accounts[1]["untradableReason"]) == (
+        False,
+        "Mishmar does not trade spot on Hyperliquid yet",
+    )
+    assert "untradableReason" not in accounts[0]
+    assert "wallets" not in accounts[0] and "kind" not in accounts[0]
+    # How fresh an account's data is comes with its connection.
+    assert accounts[0]["connection"]["sync"][0]["status"] == "current"
+    # The login has two accounts and the agent sees both: their sum is its value.
+    assert accounts[0]["connection"]["accountCount"] == len(accounts)
     assert client.connected_account("ta_1")["traded"] is False
     balances = client.account_balances("ta_1")
-    assert (
-        balances["equityUsd"] == "1500.5" and balances["balances"][0]["asset"] == "USDC"
-    )
+    assert balances["equityUsd"] == "1500.5" and balances["unpricedAssets"] == ["PURR"]
+    assert [(b["asset"], b.get("priceUsd")) for b in balances["balances"]] == [
+        ("USDC", "1"),
+        ("PURR", None),
+    ]
     at = datetime(2026, 11, 1, 2, 0, tzinfo=timezone(timedelta(hours=2)))
     assert client.account_balances("ta_1", at=at)["source"] == "observed"
-    assert (
-        client.account_positions("ta_1", at="2026-11-01T00:00:00Z")["positions"][0][
-            "symbol"
-        ]
-        == "BTC"
-    )
+    position = client.account_positions("ta_1", at="2026-11-01T00:00:00Z")["positions"][
+        0
+    ]
+    assert (position["symbol"], position["market"]) == ("BTC", "perp")
     page = client.account_transactions(
         "ta_1", since=at, kind="trade", limit=2, cursor="c1"
     )
     assert page["nextCursor"] == "c2"
-    assert [t["origin"]["own"] for t in page["items"]] == [True, False]
+    assert [t["origin"]["own"] for t in page["items"][:2]] == [True, False]
+    assert page["items"][2]["counterpartConnectedAccountId"] == "ta_2"
     assert (
         client.account_equity("ta_1", since="2026-11-01T00:00:00Z", resolution="hour")[
             "points"
@@ -269,3 +325,17 @@ def test_without_a_key_the_error_says_where_it_goes(monkeypatch):
     monkeypatch.delenv("MISHMAR_API_KEY", raising=False)
     with pytest.raises(ValueError, match="MISHMAR_API_KEY"):
         Client.from_api_key()
+
+
+def test_the_wallet_argument_is_gone():
+    """Contract 0.21.0 took the wallet level out: an account is the pool, so
+    the reads take no ``wallet_id``."""
+    client = Client("http://127.0.0.1:9/v1", KEY, KEY_ID)
+    for read in (
+        client.account_balances,
+        client.account_positions,
+        client.account_transactions,
+        client.account_equity,
+    ):
+        with pytest.raises(TypeError, match="wallet_id"):
+            read("ta_1", wallet_id="spot")

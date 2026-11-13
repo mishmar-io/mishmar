@@ -270,7 +270,10 @@ class Client:
     # read is written to the account's access log. On hosted Mishmar these
     # (with connected_account) are answered while the account's engine
     # sleeps, so an agent that only reads never wakes it. Times are RFC 3339
-    # strings or timezone-aware datetimes.
+    # strings or timezone-aware datetimes. A connected account is one pool of
+    # money at a venue; its ``connection`` is the venue login that holds it.
+    # The accounts' values add up to the login's only when the agent was
+    # given all ``connection["accountCount"]`` of them.
 
     def me(self) -> AgentIdentity:
         """Who the key belongs to: the agent, its account and portfolio, and
@@ -279,15 +282,20 @@ class Client:
         return self._agent_call("GET", "/agent/me")
 
     def connected_accounts(self) -> list[ConnectedAccount]:
-        """The connected accounts this agent was given, in the order it got them."""
+        """The connected accounts this agent was given, in the order it got
+        them, each with its value and its ``connection``; accounts with the
+        same ``connection["id"]`` are one venue login's, which has
+        ``connection["accountCount"]`` accounts in all."""
         return self._agent_call("GET", "/agent/connected-accounts")
 
     def account_balances(
         self, connected_account_id: str, *, at: str | datetime | None = None
     ) -> BalanceSnapshot:
-        """The connected account's balances at the venue, spot and margin, each
-        with its value in USD, at ``at`` (default now). A moment before the
-        account's history or the plan's retention is a 404."""
+        """The connected account's balances, each with its price and value in
+        USD, and the account's value, at ``at`` (default now). An asset with
+        no price has no ``usdValue`` and is named in ``unpricedAssets``. A
+        moment before the account's history or the plan's retention is a
+        404."""
         return self._agent_call(
             "GET",
             _account_path(connected_account_id, "/balances"),
@@ -298,8 +306,8 @@ class Client:
         self, connected_account_id: str, *, at: str | datetime | None = None
     ) -> AccountPositionSnapshot:
         """The venue's own net positions on the connected account, whoever
-        placed the orders behind them, at ``at`` (default now). This agent's
-        own book is :meth:`positions`."""
+        placed the orders behind them, each with its ``market`` kind, at
+        ``at`` (default now). This agent's own book is :meth:`positions`."""
         return self._agent_call(
             "GET",
             _account_path(connected_account_id, "/positions"),
@@ -318,8 +326,12 @@ class Client:
     ) -> AccountTransactionPage:
         """A page of the connected account's trades, transfers, funding and
         fees as the venue reports them, newest first. A trade's ``origin``
-        says who placed it; ``origin["own"]`` is true on this agent's own.
-        Pass the page's ``nextCursor`` as ``cursor`` for the page after;
+        says who placed it; ``origin["own"]`` is true on this agent's own. A
+        move between two accounts of one connection is a ``transfer_out`` on
+        one and a ``transfer_in`` on the other, each naming the other in
+        ``counterpartConnectedAccountId``: it moves each account's value by
+        the amount and the connection's by nothing. Pass the page's
+        ``nextCursor`` as ``cursor`` for the page after;
         ``limit`` is 1 to 500 (the engine's default 100)."""
         return self._agent_call(
             "GET",

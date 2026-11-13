@@ -59,29 +59,55 @@ func newReadEngine(t *testing.T, keyID, publicKey string) (*readEngine, *httptes
 			_ = json.NewEncoder(w).Encode(api.Error{Code: "unauthorized", Message: "unknown key or bad signature"})
 			return
 		}
-		account := api.ConnectedAccount{Id: "ta_1", Name: "Main", Venue: api.VenueHyperliquid, Kind: api.ConnectedAccountKindHyperliquid, Status: api.ConnectedAccountStatusActive,
-			Sync: &[]api.SyncState{{Kind: "balances", Status: "current", AsOf: &at}, {Kind: "transactions", Status: "backfilling", Progress: str("0.4")}}}
+		// Both accounts of a Hyperliquid login; the one account of a Bybit
+		// login (its name left out of the line for accountCount 1, whatever
+		// the venue calls it); one of a sub-account's two accounts, not read
+		// yet; two of a Binance login's three.
+		hlMain := api.VenueConnectionRef{Id: "hl_main", Name: "Main", Kind: api.VenueConnectionKindHyperliquid, AccountCount: 2,
+			VenueAccount: api.VenueAccount{Id: str("0x12ab000000000000000000000000000000009f3c"), Label: str("0x12ab…9f3c"), Role: api.VenueAccountRoleMain},
+			Sync:         &[]api.SyncState{{Kind: "balances", Status: "current", AsOf: &at}, {Kind: "transactions", Status: "backfilling", Progress: str("0.4")}}}
+		perps := api.ConnectedAccount{Id: "ta_1", VenueConnectionId: "hl_main", Connection: hlMain, Name: "Perps", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "perps",
+			Venue: api.VenueHyperliquid, Status: api.ConnectedAccountStatusActive, EquityUsd: str("2300.5"), EquityAsOf: &at}
+		spot := api.ConnectedAccount{Id: "ta_2", VenueConnectionId: "hl_main", Connection: hlMain, Name: "Spot", Type: api.ConnectedAccountTypeSpot, VenueRef: "spot",
+			Venue: api.VenueHyperliquid, Status: api.ConnectedAccountStatusActive, EquityUsd: str("0"), EquityAsOf: &at, UnpricedAssets: &[]string{"HYPE"},
+			Tradable: &no, UntradableReason: str("Mishmar does not trade spot on Hyperliquid yet")}
+		bybit := api.ConnectedAccount{Id: "ta_3", VenueConnectionId: "bybit_test", Name: "Unified", Type: api.ConnectedAccountTypeUnified, VenueRef: "unified",
+			Connection: api.VenueConnectionRef{Id: "bybit_test", Name: "Test", Kind: api.VenueConnectionKindExchange, AccountCount: 1, VenueAccount: api.VenueAccount{Id: str("104471"), Label: str("UID …4471"), Role: api.VenueAccountRoleMain}},
+			Venue:      api.VenueBybit, Status: api.ConnectedAccountStatusActive, Traded: true, EquityUsd: str("1200"), EquityAsOf: &at}
+		basis := api.ConnectedAccount{Id: "ta_4", VenueConnectionId: "hl_basis", Name: "Perps", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "perps",
+			Connection: api.VenueConnectionRef{Id: "hl_basis", Name: "Basis", Kind: api.VenueConnectionKindHyperliquid, ParentId: str("hl_main"), AccountCount: 2,
+				VenueAccount: api.VenueAccount{Id: str("0x34cd0000000000000000000000000000000011aa"), Label: str("0x34cd…11aa"), Role: api.VenueAccountRoleSubaccount, ParentVenueAccountId: str("0x12ab000000000000000000000000000000009f3c")}},
+			Venue: api.VenueHyperliquid, Status: api.ConnectedAccountStatusPending, Tradable: &no, UntradableReason: str("Mishmar does not trade a Hyperliquid sub-account yet")}
+		bnCarry := api.VenueConnectionRef{Id: "bn_carry", Name: "Carry", Kind: api.VenueConnectionKindExchange, AccountCount: 3,
+			VenueAccount: api.VenueAccount{Id: str("123457868"), Label: str("UID …7868"), Role: api.VenueAccountRoleMain}}
+		// Binance Spot from an engine that gives no reason.
+		bnSpot := api.ConnectedAccount{Id: "ta_5", VenueConnectionId: "bn_carry", Connection: bnCarry, Name: "Spot", Type: api.ConnectedAccountTypeSpot, VenueRef: "spot",
+			Venue: api.VenueBinance, Status: api.ConnectedAccountStatusActive, Tradable: &no, EquityUsd: str("120"), EquityAsOf: &at}
+		bnFutures := api.ConnectedAccount{Id: "ta_6", VenueConnectionId: "bn_carry", Connection: bnCarry, Name: "USDⓈ-M Futures", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "usdm-futures",
+			Venue: api.VenueBinance, Status: api.ConnectedAccountStatusActive, Traded: true, EquityUsd: str("2180.5"), EquityAsOf: &at}
 		var out any
 		switch {
 		case r.Method != http.MethodGet:
 		case path == "/agent/me":
 			out = api.AgentIdentity{AgentId: "agt_reader", AgentName: "Reader", AccountId: "acc_main", KeyId: keyID, PortfolioId: "pf_main", Permission: api.AgentPermissionRead}
 		case path == "/agent/connected-accounts":
-			out = []api.ConnectedAccount{account}
+			out = []api.ConnectedAccount{perps, bybit, spot, basis, bnSpot, bnFutures}
 		case path == "/agent/connected-accounts/ta_1":
-			out = account
+			out = perps
 		case path == "/agent/connected-accounts/ta_1/balances":
-			out = api.BalanceSnapshot{ConnectedAccountId: "ta_1", AsOf: at, Source: api.SnapshotSourceObserved, EquityUsd: str("2300.5"),
-				Balances: []api.Balance{{Asset: "USDC", Wallet: "margin", Amount: "1500.5", UsdValue: str("1500.5")}, {Asset: "HYPE", Wallet: "spot", Amount: "20"}}}
+			out = api.BalanceSnapshot{ConnectedAccountId: "ta_1", AsOf: at, Source: api.SnapshotSourceObserved, EquityUsd: str("2300.5"), UnpricedAssets: &[]string{"PURR"},
+				Balances: []api.Balance{{Asset: "USDC", Amount: "2300.5", UsdValue: str("2300.5"), PriceUsd: str("1")}, {Asset: "PURR", Amount: "20"}}}
 		case path == "/agent/connected-accounts/ta_1/positions":
 			out = api.AccountPositionSnapshot{ConnectedAccountId: "ta_1", AsOf: at, Source: api.SnapshotSourceObserved,
-				Positions: []api.AccountPosition{{Symbol: "BTC", Side: "long", Size: "0.01", EntryPrice: "79500", MarkPrice: str("80000"), UnrealizedUsd: str("5")}}}
+				Positions: []api.AccountPosition{{Market: api.MarketKindPerp, Symbol: "BTC", Side: "long", Size: "0.01", EntryPrice: "79500", MarkPrice: str("80000"), UnrealizedUsd: str("5")}}}
 		case path == "/agent/connected-accounts/ta_1/transactions":
+			perp := api.MarketKindPerp
 			out = api.AccountTransactionPage{NextCursor: str("c2"), Items: []api.AccountTransaction{
-				{Id: "tx_3", ConnectedAccountId: "ta_1", Kind: "trade", At: at, Side: &buy, Size: str("0.01"), Symbol: str("BTC"), Price: str("79500"), FeeUsd: str("0.28"),
+				{Id: "tx_4", ConnectedAccountId: "ta_1", Kind: "trade", At: at, Market: &perp, Side: &buy, Size: str("0.01"), Symbol: str("BTC"), Price: str("79500"), FeeUsd: str("0.28"),
 					Origin: &api.TransactionOrigin{Kind: api.TransactionOriginKindAgent, AgentName: str("Reader"), Own: &yes}},
-				{Id: "tx_2", ConnectedAccountId: "ta_1", Kind: "trade", At: at.Add(-time.Hour), Side: &sell, Size: str("2"), Symbol: str("ETH"), Price: str("3100"),
+				{Id: "tx_3", ConnectedAccountId: "ta_1", Kind: "trade", At: at.Add(-time.Hour), Market: &perp, Side: &sell, Size: str("2"), Symbol: str("ETH"), Price: str("3100"),
 					Origin: &api.TransactionOrigin{Kind: api.TransactionOriginKindAgent, AgentName: str("Mean reversion"), Own: &no}},
+				{Id: "tx_2", ConnectedAccountId: "ta_1", Kind: "transfer_in", At: at.Add(-2 * time.Hour), Amount: str("500"), Asset: str("USDC"), CounterpartConnectedAccountId: str("ta_2")},
 				{Id: "tx_1", ConnectedAccountId: "ta_1", Kind: "transfer_in", At: at.Add(-24 * time.Hour), Amount: str("1000"), Asset: str("USDC"), AmountUsd: str("1000")},
 			}}
 		case path == "/agent/connected-accounts/ta_1/equity":
@@ -120,17 +146,45 @@ func TestReadFromTheAPIKey(t *testing.T) {
 		want []string
 	}{
 		{[]string{"agent"}, []string{"agent agt_reader (Reader)", "account acc_main, portfolio pf_main, key " + keyID}},
-		{[]string{"accounts"}, []string{"ta_1  Main  hyperliquid  active  read only", "balances current as of 2026-11-12T10:00:00Z; transactions backfilling (0.4 done)"}},
-		{[]string{"account", "ta_1"}, []string{"ta_1  Main  hyperliquid  active  read only"}},
-		{[]string{"balances", "ta_1"}, []string{"ta_1 at 2026-11-12T10:00:00Z (observed), equity 2300.5 USD", "margin  USDC  1500.5  1500.5 USD", "spot    HYPE  20      -"}},
-		{[]string{"positions", "ta_1", "--at", "2026-11-01"}, []string{"long  BTC  0.01  entry 79500  mark 80000  unrealised 5 USD"}},
+		// By connection, in the order each first comes: a login's total; a
+		// single account's line without its name; how many of a login's
+		// accounts the agent sees when it was given fewer than all, and the
+		// total of those alone.
+		{[]string{"accounts"}, []string{"" +
+			"ta_1  Hyperliquid · Main · Perps · 0x12ab…9f3c  2300.5 USD  active  read only\n" +
+			"ta_2  Hyperliquid · Main · Spot · 0x12ab…9f3c   0 USD       active  read only (Mishmar does not trade spot on Hyperliquid yet)  not counting HYPE (no price)\n" +
+			"      total                                     2300.5 USD as of 2026-11-12T10:00:00Z, not counting HYPE (no price)\n" +
+			"      balances current as of 2026-11-12T10:00:00Z; transactions backfilling (0.4 done)\n" +
+			"\n" +
+			"ta_3  Bybit · Test · UID …4471  1200 USD  active  traded\n" +
+			"\n" +
+			"ta_4  Hyperliquid · Basis · Perps · 0x34cd…11aa  no value yet  pending  read only (Mishmar does not trade a Hyperliquid sub-account yet)\n" +
+			"      1 of 2 accounts\n" +
+			"\n" +
+			"ta_5  Binance · Carry · Spot · UID …7868            120 USD     active  read only (not tradable yet)\n" +
+			"ta_6  Binance · Carry · USDⓈ-M Futures · UID …7868  2180.5 USD  active  traded\n" +
+			"      2 of 3 accounts, total of these               2300.5 USD as of 2026-11-12T10:00:00Z\n",
+		}},
+		{[]string{"account", "ta_1"}, []string{"" +
+			"ta_1  Hyperliquid · Main · Perps · 0x12ab…9f3c  2300.5 USD  active  read only\n" +
+			"  derivatives account perps, one of the 2 accounts of connection hl_main (hyperliquid), main login 0x12ab000000000000000000000000000000009f3c\n" +
+			"  value as of 2026-11-12T10:00:00Z\n" +
+			"  balances current as of 2026-11-12T10:00:00Z; transactions backfilling (0.4 done)\n",
+		}},
+		{[]string{"balances", "ta_1"}, []string{"" +
+			"ta_1 at 2026-11-12T10:00:00Z (observed), value 2300.5 USD, not counting PURR (no price)\n" +
+			"  USDC  2300.5  2300.5 USD  at 1\n" +
+			"  PURR  20      -\n",
+		}},
+		{[]string{"positions", "ta_1", "--at", "2026-11-01"}, []string{"long  BTC perp  0.01  entry 79500  mark 80000  unrealised 5 USD"}},
 		{[]string{"transactions", "ta_1", "--from", "2026-11-01T02:00:00+02:00", "--kind", "trade", "--limit", "3"}, []string{
-			"2026-11-12T10:00:00Z  trade        buy 0.01 BTC at 79500, fee 0.28 USD  this agent",
-			"2026-11-12T09:00:00Z  trade        sell 2 ETH at 3100                   agent Mean reversion",
+			"2026-11-12T10:00:00Z  trade        buy 0.01 BTC perp at 79500, fee 0.28 USD  this agent",
+			"2026-11-12T09:00:00Z  trade        sell 2 ETH perp at 3100                   agent Mean reversion",
+			"2026-11-12T08:00:00Z  transfer_in  500 USDC from ta_2",
 			"2026-11-11T10:00:00Z  transfer_in  1000 USDC (1000 USD)",
 			"more: --cursor c2",
 		}},
-		{[]string{"equity", "ta_1", "--resolution", "hour"}, []string{"ta_1 per hour, 2 points", "2026-11-12T09:00:00Z  2290 USD", "2026-11-12T10:00:00Z  2300.5 USD"}},
+		{[]string{"equity", "ta_1", "--resolution", "hour"}, []string{"ta_1 per hour, 2 points", "2026-11-12T09:00:00Z  2290 USD\n", "2026-11-12T10:00:00Z  2300.5 USD\n"}},
 	} {
 		out := run(tc.args...)
 		for _, want := range tc.want {
@@ -139,9 +193,13 @@ func TestReadFromTheAPIKey(t *testing.T) {
 			}
 		}
 	}
+	// No read takes a wallet any more.
+	if out, err := execute(context.Background(), t, strings.NewReader(""), 10*time.Second, "read", "balances", "ta_1", "--wallet", "spot"); err == nil || !strings.Contains(err.Error(), "unknown flag") {
+		t.Fatalf("--wallet: %v\n%s", err, out)
+	}
 	// --json is the engine's answer as it came, origin and all.
 	var page api.AccountTransactionPage
-	if err := json.Unmarshal([]byte(run("transactions", "ta_1", "--json")), &page); err != nil || len(page.Items) != 3 || page.Items[0].Origin == nil || !*page.Items[0].Origin.Own {
+	if err := json.Unmarshal([]byte(run("transactions", "ta_1", "--json")), &page); err != nil || len(page.Items) != 4 || page.Items[0].Origin == nil || !*page.Items[0].Origin.Own || *page.Items[2].CounterpartConnectedAccountId != "ta_2" {
 		t.Fatalf("--json: %+v %v", page, err)
 	}
 
@@ -176,7 +234,7 @@ func TestReadFromTheConfig(t *testing.T) {
 	}
 	t.Setenv(signer.EnvAPIKey, "")
 	out, err := execute(context.Background(), t, strings.NewReader(""), 10*time.Second, "read", "accounts", "--config", path)
-	if err != nil || !strings.Contains(out, "ta_1  Main") {
+	if err != nil || !strings.Contains(out, "ta_1  Hyperliquid · Main · Perps") {
 		t.Fatalf("--config: %v\n%s", err, out)
 	}
 	// Without the flag, the default config.
