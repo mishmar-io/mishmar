@@ -171,6 +171,11 @@ the contract makes that safe on one agent.
   the rules again, and builds the venue's request then. A wait outlives a
   restart. `listDecisions?signing=waiting` lets the control plane keep an
   account's engine up while one is open.
+- **A signer signs one order per proposal** (by `keyId` and `nonce`) for the
+  proposal's life, and keeps the record on disk. After an answer that did
+  not reach the engine, the engine's next request for that proposal is
+  refused with `order_already_signed`, and a waiting order ends there: the
+  signer cannot tell an engine that lost the answer from one that kept it.
 - **Fingerprint.** `AgentKey.fingerprint` is what a person compares between
   the console and the machine at a trade sign-in.
 - **Not in the first version:** signing in by typing a code (so a machine

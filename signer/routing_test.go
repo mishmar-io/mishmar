@@ -205,13 +205,15 @@ func TestDrainTimeoutFinishesTheAnswerInFlight(t *testing.T) {
 
 // An order a person approved that waited for the signer arrives with its
 // original proposal, proposed long ago and not yet expired, and a venue
-// message built now: it is signed. When the engine took that answer, a
-// second request for the same client order id is refused while the first
-// message can still reach the venue (Binance: its timestamp plus
-// recvWindow), and signed once that has passed. When the first answer did
-// not reach the engine (the attempt went unanswered, 404), the retry under
-// a new request id is signed.
-func TestAWaitedOrderIsSignedOnceAtATime(t *testing.T) {
+// message built now: it is signed. A second request for the same proposal,
+// under a new request id, is refused while the first message can still
+// reach the venue (Binance: its timestamp plus recvWindow), and still once
+// that has passed, which the signer's memory before contract 0.21.0's fix
+// let through: one proposal, one order signature, for its whole life. That
+// holds when the first answer did not reach the engine (404) too: the share
+// left this machine all the same. The same request id again is a replay,
+// and past the proposal's deadline nothing is signed for it.
+func TestAWaitedOrderIsSignedOnce(t *testing.T) {
 	f := newFixture(t)
 	eng := &routingEngine{pubs: map[string]string{"key_a": f.key.PublicKeyB64()}, queue: map[string][]api.SignRequest{}, answers: make(chan routed, 8), gone: map[string]bool{}}
 	srv := httptest.NewServer(eng)
@@ -233,10 +235,10 @@ func TestAWaitedOrderIsSignedOnceAtATime(t *testing.T) {
 	waited := f.proposal(t, f.key, func(p *api.ProposalSubmit) {
 		p.ProposedAt, p.ExpiresAt = clock.Add(-20*time.Minute).UTC(), clock.Add(10*time.Minute).UTC()
 	})
-	attempt := func(id, cid string, at time.Time) (api.SignRequest, engineRound, string) {
-		msg := binanceOrder(waited, cid, map[string]string{"timestamp": strconv.FormatInt(at.UnixMilli(), 10), "recvWindow": "10000"})
+	attempt := func(p api.ProposalSubmit, id, cid string, at time.Time) (api.SignRequest, engineRound, string) {
+		msg := binanceOrder(p, cid, map[string]string{"timestamp": strconv.FormatInt(at.UnixMilli(), 10), "recvWindow": "10000"})
 		round, commit := f.engineRound(t)
-		r := orderRequest(waited, msg)
+		r := orderRequest(p, msg)
 		r.Id, r.SessionId, r.Engine, r.ClientOrderId, r.KeyId = id, id, commit, ptr(cid), ptr("key_a")
 		r.IssuedAt, r.ExpiresAt = clock, clock.Add(10*time.Second)
 		return r, round, msg
@@ -250,55 +252,59 @@ func TestAWaitedOrderIsSignedOnceAtATime(t *testing.T) {
 		}
 		return routed{}
 	}
+	refused := func(what, code string) {
+		t.Helper()
+		if a := answer().answer; a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, code+": ") {
+			t.Fatalf("%s: %+v, want a refusal %s", what, a, code)
+		}
+	}
 	// The first send: signed, and the engine takes it.
-	r1, round1, msg1 := attempt("sr_1", "msh-a-1", clock)
+	r1, round1, msg1 := attempt(waited, "sr_1", "msh-a-1", clock)
 	eng.hand("key_a", r1)
 	f.finish(t, "the waited order", answer().answer, round1, []byte(msg1))
 	// A second request for the same order while the first message is live: refused.
-	r2, _, _ := attempt("sr_2", "msh-a-1", clock.Add(time.Second))
+	r2, _, _ := attempt(waited, "sr_2", "msh-a-1", clock.Add(time.Second))
 	eng.hand("key_a", r2)
-	if a := answer().answer; a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseOrderSigned+": ") {
-		t.Fatalf("a second send while the first can reach the venue: %+v", a)
-	}
+	refused("a second send while the first can reach the venue", RefuseOrderSigned)
 	// Once the first message's window has closed at the venue (its
-	// recvWindow, plus the clock difference allowed), a new one is signed.
+	// recvWindow, plus the clock difference allowed), still refused, under
+	// the same client order id or another.
 	clockMu.Lock()
-	clock = clock.Add(10*time.Second + BinanceClockTolerance)
+	clock = clock.Add(10*time.Second + BinanceClockTolerance + time.Millisecond)
 	clockMu.Unlock()
-	r2b, _, _ := attempt("sr_2b", "msh-a-1", clock)
-	eng.hand("key_a", r2b)
-	if a := answer().answer; a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseOrderSigned+": ") {
-		t.Fatalf("at the very end of the first message's life: %+v", a)
-	}
-	clockMu.Lock()
-	clock = clock.Add(time.Millisecond)
-	clockMu.Unlock()
-	r3, round3, msg3 := attempt("sr_3", "msh-a-1", clock)
+	r3, _, _ := attempt(waited, "sr_3", "msh-a-1", clock)
 	eng.hand("key_a", r3)
-	f.finish(t, "after the window", answer().answer, round3, []byte(msg3))
+	refused("after the first message's window", RefuseOrderSigned)
+	r3b, _, _ := attempt(waited, "sr_3b", "msh-a-9", clock)
+	eng.hand("key_a", r3b)
+	refused("under another client order id", RefuseOrderSigned)
 
-	// An attempt the engine no longer takes (unanswered for it): the retry,
-	// a new request id for the same order, is signed.
-	r4, _, _ := attempt("sr_4", "msh-a-2", clock)
+	// An attempt the engine no longer takes (404): the share went all the
+	// same, so the engine's next try for that proposal is refused too.
+	other := f.proposal(t, f.key, func(p *api.ProposalSubmit) {
+		p.Nonce, p.ProposedAt, p.ExpiresAt = "n2", clock.Add(-time.Minute).UTC(), clock.Add(10*time.Minute).UTC()
+	})
+	r4, round4, msg4 := attempt(other, "sr_4", "msh-a-2", clock)
 	eng.mu.Lock()
 	eng.gone["sr_4"] = true
 	eng.mu.Unlock()
 	eng.hand("key_a", r4)
-	if a := answer().answer; a.Kind != api.SignerAnswerKindShare {
-		t.Fatalf("the unanswered attempt: %+v", a)
-	}
-	r5, round5, msg5 := attempt("sr_5", "msh-a-2", clock.Add(time.Second))
+	f.finish(t, "the attempt the engine no longer takes", answer().answer, round4, []byte(msg4))
+	r5, _, _ := attempt(other, "sr_5", "msh-a-2", clock.Add(time.Second))
 	eng.hand("key_a", r5)
-	f.finish(t, "the retry", answer().answer, round5, []byte(msg5))
+	refused("the engine's next try after a 404", RefuseOrderSigned)
 	// The same request id again stays a replay.
-	if a := s.Handle(context.Background(), r5); a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseReplay+": ") {
+	if a := s.Handle(context.Background(), r4); a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseReplay+": ") {
 		t.Fatalf("a request answered twice: %+v", a)
 	}
 	// Past the proposal's deadline nothing is signed for it.
 	clockMu.Lock()
 	clock = clock.Add(11 * time.Minute)
 	clockMu.Unlock()
-	r6, _, _ := attempt("sr_6", "msh-a-3", clock)
+	late := f.proposal(t, f.key, func(p *api.ProposalSubmit) {
+		p.Nonce, p.ProposedAt, p.ExpiresAt = "n3", clock.Add(-11*time.Minute).UTC(), clock.Add(-time.Minute).UTC()
+	})
+	r6, _, _ := attempt(late, "sr_6", "msh-a-3", clock)
 	if a := s.Handle(context.Background(), r6); a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseProposalExpired+": ") {
 		t.Fatalf("after the deadline: %+v", a)
 	}

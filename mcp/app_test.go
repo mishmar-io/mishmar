@@ -83,10 +83,13 @@ func TestTradingStatusSaysWhereThingsStand(t *testing.T) {
 			[]string{"This computer is not signed in to Mishmar for claude-code.", "nothing is kept before the person approves", "runs in the background on this computer (mishmar v0.5.0, pid 4242)", "not after the computer restarts"}},
 		{"not signed in, the last one declined", daemon.Status{App: "claude-code", State: daemon.SignedOut, SignIn: &daemon.SignIn{State: "denied"}, Daemon: bg},
 			[]string{"The last sign-in: " + SignInDenied}},
-		{"waiting for the person", daemon.Status{App: "claude-code", State: daemon.SigningIn, SignIn: &daemon.SignIn{State: "waiting", URL: "https://api.testnet.mishmar.io/oauth/authorize?x", Code: "AS3N-N9TM", ExpiresAt: time.Date(2026, 11, 13, 9, 10, 0, 0, time.UTC)}, Daemon: bg},
-			[]string{"Open this link in your browser to approve it: https://api.testnet.mishmar.io/oauth/authorize?x", "Check the page shows this code: AS3N-N9TM", "works until 09:10 UTC"}},
+		{"waiting for the person", daemon.Status{App: "claude-code", State: daemon.SigningIn, SignIn: &daemon.SignIn{State: "waiting", URL: "https://api.testnet.mishmar.io/oauth/authorize?x", Code: "AS3N-N9TM", Fingerprint: "AS3N-N9TM-CD3M-R0M5", ExpiresAt: time.Date(2026, 11, 13, 9, 10, 0, 0, time.UTC)}, Daemon: bg},
+			[]string{"Open this link in your browser to approve it: https://api.testnet.mishmar.io/oauth/authorize?x", "Check the page shows this code: AS3N-N9TM", "works until 09:10 UTC",
+				"you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code",
+				"\nThe key's full fingerprint, to compare all of it on the page: AS3N-N9TM-CD3M-R0M5"}},
 		{"signed in, reading", daemon.Status{App: "claude-code", State: daemon.SignedIn, Record: signedInRecord, Code: "AS3N-N9TM", Permission: "read", Signer: daemon.SignerState{Running: true}, Daemon: bg},
-			[]string{"Signed in to Mishmar for claude-code as agent Claude Code (agt_1) on account acc_1, from 'Ishai's MacBook Pro' with key code AS3N-N9TM, signed in 13 Nov 2026. The key stops working on 12 May 2027", StatusReading}},
+			[]string{"Signed in to Mishmar for claude-code as agent Claude Code (agt_1) on account acc_1, from 'Ishai's MacBook Pro' with key code AS3N-N9TM, signed in 13 Nov 2026. The key stops working on 12 May 2027",
+				"\nThe key's full fingerprint: AS3N-N9TM-CD3M-R0M5.\n", StatusReading}},
 		{"no trading key yet", daemon.Status{App: "claude-code", State: daemon.SignedIn, Record: signedInRecord, Code: "AS3N-N9TM", Permission: "trade", Signer: daemon.SignerState{Running: true}, Daemon: bg},
 			[]string{"No trading key yet: the person finishes the setup in the console: https://app.testnet.mishmar.io/agents/agt_1?setup=1"}},
 		{"the key being made", daemon.Status{App: "claude-code", State: daemon.SignedIn, Record: signedInRecord, Code: "AS3N-N9TM", Permission: "trade", VenueKeys: []daemon.VenueKeyState{making}, ConnectedAccount: account, Signer: daemon.SignerState{Running: true}, Daemon: bg},
@@ -146,11 +149,12 @@ func TestReadyGate(t *testing.T) {
 	until := time.Date(2026, 11, 13, 9, 10, 0, 0, time.UTC)
 	f = &fakeDaemon{
 		status: daemon.Status{State: daemon.SignedOut},
-		signIn: daemon.SignIn{State: "waiting", URL: "https://x/oauth/authorize?a", Code: "AS3N-N9TM", ExpiresAt: until, Started: true},
-		wait:   daemon.SignIn{State: "waiting", URL: "https://x/oauth/authorize?a", Code: "AS3N-N9TM", ExpiresAt: until},
+		signIn: daemon.SignIn{State: "waiting", URL: "https://x/oauth/authorize?a", Code: "AS3N-N9TM", Fingerprint: "AS3N-N9TM-CD3M-R0M5", ExpiresAt: until, Started: true},
+		wait:   daemon.SignIn{State: "waiting", URL: "https://x/oauth/authorize?a", Code: "AS3N-N9TM", Fingerprint: "AS3N-N9TM-CD3M-R0M5", ExpiresAt: until},
 	}
 	b := appBackendOver(f, signin.Remote{}, &opened).(Gate)
-	want := fmt.Sprintf(SignInOpened, "https://x/oauth/authorize?a", "AS3N-N9TM", "09:10 UTC")
+	want := fmt.Sprintf(SignInOpened, "https://x/oauth/authorize?a", "AS3N-N9TM", "09:10 UTC") +
+		"\nThe key's full fingerprint, to compare all of it on the page: AS3N-N9TM-CD3M-R0M5"
 	if text := b.Ready(context.Background()); text != want || len(opened) != 1 || opened[0] != "https://x/oauth/authorize?a" {
 		t.Fatalf("started: %s (opened %v)", text, opened)
 	}

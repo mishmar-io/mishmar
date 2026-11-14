@@ -50,6 +50,11 @@ type Signer struct {
 	// KeySyncInterval (DefaultKeySyncInterval). Empty, Run syncs nothing.
 	ConfigPath      string
 	KeySyncInterval time.Duration
+	// OrdersPath is the file that records each proposal the signer signed an
+	// order for, so it never signs a second order for one (orders.go). Empty,
+	// it is OrdersPathFor(ConfigPath) when ConfigPath is set, and otherwise
+	// the record is kept in this process's memory only.
+	OrdersPath string
 	// PermissionInterval is how often Run asks GET /agent/me again whether
 	// the agent reads or trades (DefaultPermissionInterval).
 	PermissionInterval time.Duration
@@ -60,7 +65,7 @@ type Signer struct {
 	DrainTimeout time.Duration
 
 	perm      *permissionState
-	signed    orderMemory
+	record    *orderRecord
 	key       *agentkey.Key
 	pub       string
 	mu        sync.Mutex
@@ -102,10 +107,13 @@ func (s *Signer) Policy() Policy {
 	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.venueKeys(), Now: s.now, Answered: s.answered.has, Rules: s.cachedHLRules}
 }
 
-// Handle answers one request: the checks, then the hook, then the agent's
-// half: the FROST round with its share, or for two-party ECDSA its last
-// message from a presigned slot. A request is answered once in a session;
-// the same id again is refused as a replay.
+// Handle answers one request: the checks, the record of the orders signed
+// already, then the hook, then the agent's half: the FROST round with its
+// share, or for two-party ECDSA its last message from a presigned slot. A
+// request is answered once in a session; the same id again is refused as a
+// replay. An order is signed once per proposal (orders.go): it is recorded
+// before Handle returns the share, and any later order for that proposal is
+// refused, after a restart too.
 func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnswer {
 	if req.Venue == api.VenueHyperliquid && req.Proposal != nil {
 		// The checks need the coin's rules; fetched here, read in Check.
@@ -123,6 +131,9 @@ func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnsw
 	var answer api.SignerAnswer
 	if refusal == nil {
 		answer, refusal = s.sign(ctx, req, message)
+	}
+	if refusal == nil {
+		refusal = s.recordSigned(req)
 	}
 	s.answered.add(req.Id)
 	if refusal != nil {
@@ -246,6 +257,7 @@ func (s *Signer) runChannel(ctx context.Context) error {
 	}
 	backoff := minBackoff
 	quick := true
+	s.logOrderRecord()
 	s.Logger.Info("signer: polling", "engine", s.Client.Engine, "keyId", s.Config.KeyID, "venueKeys", len(s.venueKeys()))
 	for {
 		w := wait
@@ -302,91 +314,19 @@ func (s *Signer) serve(ctx context.Context, req api.SignRequest) {
 		s.Logger.Warn("signer: request", append(attrs, "delivery", err.Error())...)
 		return
 	}
-	if answer.Kind == api.SignerAnswerKindShare {
-		s.rememberSigned(req)
-	}
 	s.Logger.Info("signer: request", attrs...)
 }
 
 // An order the engine sends late (a person approved it, and it waited for
 // this signer) arrives as a request carrying the original signed proposal,
 // however old its proposedAt, with a venue message built at that moment;
-// the checks take it while the proposal has not expired. When an attempt
-// goes unanswered the engine asks again under a new request id, for the
-// same order and client order id, and that is signed too. What keeps two
-// sends of one order from both being signed: once the engine has taken
-// this signer's answer for an order (orderMemory), another request for the
-// same client order id on the same connected account is refused
-// (RefuseOrderSigned) for as long as the message signed first can reach the
-// venue: on Binance until its timestamp plus recvWindow plus the clock
-// difference allowed (binanceLiveUntil, the bound checkBinanceTime holds
-// every message to), after which the venue refuses it; elsewhere
-// (Hyperliquid's nonces stay usable for days) until the proposal's
-// expiresAt, after which nothing is signed for it at all. An answer that did not reach the engine signed nothing it can send,
-// so it is not remembered and the retry is signed.
-type orderMemory struct {
-	mu    sync.Mutex
-	until map[string]time.Time
-}
-
-func orderMemoryKey(req api.SignRequest) (string, bool) {
-	if req.Purpose != api.SignRequestPurposeOrder || req.ClientOrderId == nil || *req.ClientOrderId == "" {
-		return "", false
-	}
-	return req.ConnectedAccountId + "/" + *req.ClientOrderId, true
-}
-
-// liveUntil is until when the request's venue message can reach the venue.
-func liveUntil(req api.SignRequest) time.Time {
-	var until time.Time
-	if req.Proposal != nil {
-		until = req.Proposal.ExpiresAt
-	}
-	if req.Venue == api.VenueBinance {
-		if raw, err := base64.StdEncoding.DecodeString(req.Message); err == nil {
-			if ts, window, err := binanceTimes(req.Purpose, raw); err == nil {
-				until = binanceLiveUntil(ts, window)
-			}
-		}
-	}
-	return until
-}
-
-// signedAlready refuses an order whose earlier message this signer signed
-// and the engine took, while that message can still reach the venue.
-func (s *Signer) signedAlready(req api.SignRequest) *Refusal {
-	k, ok := orderMemoryKey(req)
-	if !ok {
-		return nil
-	}
-	s.signed.mu.Lock()
-	until, seen := s.signed.until[k]
-	s.signed.mu.Unlock()
-	if !seen || s.now().After(until) {
-		return nil
-	}
-	return &Refusal{RefuseOrderSigned, fmt.Sprintf("client order id %s was signed already and the engine took the answer; that message can reach the venue until %s, so no second one is signed before then", *req.ClientOrderId, until.UTC().Format(time.RFC3339Nano))}
-}
-
-// rememberSigned records an order whose answer the engine took.
-func (s *Signer) rememberSigned(req api.SignRequest) {
-	k, ok := orderMemoryKey(req)
-	if !ok {
-		return
-	}
-	now := s.now()
-	s.signed.mu.Lock()
-	defer s.signed.mu.Unlock()
-	if s.signed.until == nil {
-		s.signed.until = map[string]time.Time{}
-	}
-	for key, until := range s.signed.until {
-		if now.After(until) {
-			delete(s.signed.until, key)
-		}
-	}
-	s.signed.until[k] = liveUntil(req)
-}
+// the checks take it while the proposal has not expired. It is signed once:
+// the record (orders.go) refuses every later order for the same proposal,
+// under any request id and whatever its timestamp, for the rest of the
+// proposal's life and across restarts. That includes the engine's next try
+// after an answer that did not reach it (a lost connection, a 404 for a
+// request that ended): the share left this machine, and nothing here can
+// tell an engine that dropped it from one that kept it.
 
 // answerContext is the context one answer runs under: ctx, or with a
 // DrainTimeout, one that outlives ctx by that long.

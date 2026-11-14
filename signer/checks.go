@@ -56,10 +56,15 @@ const (
 	// machine's now, within BinanceClockTolerance, or whose window at the
 	// venue reaches past the proposal's end (checkBinanceTime).
 	RefuseMessageTime = "message_time"
-	// RefuseOrderSigned is an order whose venue message this signer signed
-	// already, and the engine took the answer, while that message can still
-	// reach the venue (Signer.Handle).
+	// RefuseOrderSigned is an order for a proposal this signer signed an
+	// order for already, under another request id: one proposal, one order
+	// signature, for the proposal's whole life (orders.go).
 	RefuseOrderSigned = "order_already_signed"
+	// RefuseOrderRecord is an order refused because the signer's record of
+	// the orders it signed cannot be read or written (a corrupt file, a
+	// version it does not know, no room on the disk): no order is signed
+	// until it can be, so a lost record never lets a proposal be signed twice.
+	RefuseOrderRecord = "order_record_unavailable"
 )
 
 // Policy is what the signer refuses before it signs, from what it knows
@@ -309,13 +314,6 @@ func binanceTimes(purpose api.SignRequestPurpose, message []byte) (time.Time, ti
 	}
 	o, err := binance.DecodeOrder(message)
 	return o.Timestamp, time.Duration(o.RecvWindow) * time.Millisecond, err
-}
-
-// binanceLiveUntil is, by this machine's clock, the last moment a Binance
-// message with this timestamp and window can reach the venue: its window's
-// end, plus the clock difference allowed.
-func binanceLiveUntil(ts time.Time, window time.Duration) time.Time {
-	return ts.Add(window).Add(BinanceClockTolerance)
 }
 
 // checkBinanceTime is the signer's own bound on when a Binance order or

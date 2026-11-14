@@ -79,13 +79,16 @@ The browser comes back to `GET http://127.0.0.1:<port>/callback` with either
 `code`, `state` and `iss`, or `error`, `error_description`, `state` and `iss` (as
 `oauthDeny` already answers: `error=access_denied`).
 
+The client checks them in this order:
+
 - A parameter twice: refused, the flow goes on.
-- `state` not the flow's (compared in constant time): a 400 page, the flow goes on
-  waiting for its own answer.
-- `iss` missing or not exactly `{api}`: the flow fails (RFC 9207, a mix-up), nothing is
-  kept.
-- `error=access_denied`: the flow ends `denied`. Any other `error`: `failed`.
+- `state` first. Missing or not the flow's (compared in constant time): a 400 page, and
+  the flow goes on waiting for its own answer. Nothing else in such an answer is read, so
+  a page that does not know the state cannot end the flow.
 - Only the first answer with the right state is handled; another gets a 409 page.
+- `iss` only then, on that first answer: missing or not exactly `{api}`, the flow fails
+  (RFC 9207, a mix-up) and nothing is kept.
+- `error=access_denied`: the flow ends `denied`. Any other `error`: `failed`.
 - After the outcome, the listener closes. A flow nobody answers ends `expired` after 10
   minutes (the control plane's request lives 10 minutes).
 
@@ -169,9 +172,43 @@ page without one). The token step and the engine's check together have 60 second
 ## 7. What the console's approval page shows
 
 The code (the fingerprint's first two groups) the app's tool answer showed, and the whole
-fingerprint; the app and the machine name as the program's claims. It registers the key
-with `registerAgentKey {publicKey (base64 standard padded), scope: trade, label:
-machine_name, expiresAt: now + 180 days}` and sets a trading key aside with
+fingerprint (`XXXX-XXXX-XXXX-XXXX`, labelled "The key's full fingerprint"); the app and the
+machine name as the program's claims. The program prints the whole fingerprint too, on the
+line after the code in its sign-in text, in `get_trading_status` and in `mishmar daemon
+status`, so a careful person can compare all of it.
+
+What the code proves: the page in front of the person is for the key this program made. It
+catches the case where the person asked their own app to sign in and the page they are
+looking at is for some other request. What it does not prove is who started the request.
+Anyone can build an authorize link around a key they made, and whoever makes a key knows its
+code, so someone who starts a request and gets the person to open it can also tell them which
+code to expect, and the codes will match. The code is also short: 40 bits, chosen by whoever
+makes the key. That is enough against someone guessing while the person waits, but it is not
+a strong commitment against someone with time and hardware who already knows the code they
+need to match; the whole fingerprint is 80 bits.
+
+What protects against a request someone else started is where the answer goes. Approving
+sends the one-time code only to the loopback redirect (`127.0.0.1` or `[::1]`) on the
+person's own computer, and the token step needs that code, the PKCE verifier and a
+signature from the key (section 5). Someone elsewhere gets nothing unless the person also
+hands over the loopback address from their browser. Approving does register the key at the
+engine before the token step, but nothing can use it: its key id is never shown to whoever
+made the request, and the reaper revokes it a few minutes later.
+
+So the page, the program's sign-in text and the docs give the person the same advice:
+approve only if you asked the app on this computer to set up trading in the last few
+minutes; nobody from Mishmar will send you this link or a code.
+
+Approving needs a passkey or wallet proof bound to this request and this key's fingerprint,
+made in the last two minutes. A proof bound to a request stands for that request only: it
+does not also count as the general ten-minute proof for the session's other approvals and
+guarded changes. Approving onto an existing agent gives that agent the connected account
+chosen on the page, so the agent reads that account as well as trading on it. Removing the
+member who approved a computer, or demoting them below admin, ends that computer, and with
+it its key and its trading keys.
+
+Approving registers the key with `registerAgentKey {publicKey (base64 standard padded),
+scope: trade, label: machine_name, expiresAt: now + 180 days}` and sets a trading key aside with
 `createVenueKey {connectedAccountId, agentKeyId: <that key's id>}`. The key names its holder
 (`VenueKey.agentKeyId`) from creation, so only the computer's signer generates it: another
 of the agent's keys, a bot's say, gets 409 `conflict` with `details.venueKeyId`, and the

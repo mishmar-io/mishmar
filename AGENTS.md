@@ -83,7 +83,11 @@ signer/      the agent's signer as a library: config.go (the 0600 file, validati
              whether the agent reads or trades; a read agent's signer polls and syncs nothing, and its client
              sends only DataRead, the seven reads a hosted collector answers), checks.go (Policy.Check: the
              refusals in order, the Binance order, cancel and read checks), hook.go, signer.go (Run, Handle,
-             the FROST round), oneshot.go (Prepare and Propose: the venue request built here and the agent's
+             the FROST round), orders.go (the record of the proposals signed for: one order signature per
+             proposal, by its key and nonce, for its whole life and across restarts; <config>.signed.json
+             beside the config, 0600, written atomically under <file>.lock before the share leaves, in memory
+             without a ConfigPath; a file that does not read refuses every order; cancels and one-shot orders
+             are not recorded), oneshot.go (Prepare and Propose: the venue request built here and the agent's
              half signed against a pre-issued engine commitment, with the channel as the fallback; with two
              keys on a connected account, the one GET /agent/venue-keys reports active),
              local.go (the local API an SDK or `mishmar mcp` calls: Submit turns an intent into a signed

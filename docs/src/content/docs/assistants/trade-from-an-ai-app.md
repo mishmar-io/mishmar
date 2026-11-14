@@ -15,8 +15,9 @@ Trading needs Mishmar's signer on your computer. It holds your half of each trad
 
 - **This computer's key**, which signs every proposal. Your computer makes it; Mishmar receives only its public half when you approve the computer, and never anything secret.
 - **Your half of each trading key**, which Mishmar's signer on your computer makes together with Mishmar's half.
+- **A record of the orders Mishmar asked the signer to sign**, one entry per proposal, so it signs each proposal's order once, even after a restart. An entry goes once its proposal has ended. If the file is damaged, the signer signs no order until it is fixed, and says why.
 
-Both are files only you can read (mode 0600) in `~/.mishmar/apps/<app>`, a folder only you can open. Nothing is written before you approve the computer in the browser.
+They are files only you can read (mode 0600) in `~/.mishmar/apps/<app>`, a folder only you can open. Nothing is written before you approve the computer in the browser.
 
 ## What you need
 
@@ -70,19 +71,22 @@ On Mishmar's testnet, add `--env testnet` at the end of the arguments (`"--env",
 
 In every app, the new server can be used only after the app has restarted, or the conversation continues in a new session: tools added during a conversation never reach it.
 
+The command runs `mishmar@0.5` rather than one exact version, so a new 0.5 release reaches the signer on your computer, and on everyone else's, the next time npx starts it: fixes arrive without a step on your side, and a bad release would arrive the same way. Mishmar publishes the packages only from the release workflow in its public repository, through npm's and PyPI's trusted publishing, so there is no long-lived publishing token that someone could steal.
+
 ## 2. Ask the app to set up trading
 
 Say **set up trading with Mishmar**. The app calls one of Mishmar's tools, which starts Mishmar's signer on your computer, makes this computer's key and opens Mishmar in your browser. In the app you see something like:
 
 ```text
-This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: https://api.mishmar.io/oauth/authorize?…. Check the page shows this code: AS3N-N9TM. Approve only if it matches and you started this just now. Then ask me again. The link works until 09:40 UTC.
+This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: https://api.mishmar.io/oauth/authorize?…. Check the page shows this code: AS3N-N9TM. Approve only if it matches and you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until 09:40 UTC.
+The key's full fingerprint, to compare all of it on the page: AS3N-N9TM-CD3M-R0M5
 ```
 
 If no browser opened, open the link yourself. It works for ten minutes, and only in this computer's browser.
 
 ## 3. Approve this computer
 
-Mishmar's page shows the app's name and your computer's name, as the program gave them, and a code. **Approve only if the code is the one the app showed, and you started this just now.** A code that differs means the request did not come from your app: decline it.
+Mishmar's page shows the app's name and your computer's name, as the program gave them, a code, and the key's full fingerprint. **Approve only if the code is the one the app showed, and you asked the app on this computer to set up trading in the last few minutes.** Nobody from Mishmar will send you this link or a code, so decline a link that reached you any other way. A code that differs means the page is not for the key your app made: decline it. A code that matches shows only that the page is for that key, not who started the request, which is why the second condition matters. For a closer check, compare the whole fingerprint too; the app shows it on the line after the code.
 
 On the same page you choose the agent the app trades as (or a new one) and the connected account it trades on, and confirm with your passkey or wallet. Approving a computer for an app that already trades from another computer replaces that computer: its key stops working, and so do the trading keys it made.
 
@@ -99,7 +103,7 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 
 ## Check it worked
 
-- Ask the app for its Mishmar trading status. It answers `Ready to trade on …`, names the agent, this computer's key code and when the key expires, and says the signer runs in the background.
+- Ask the app for its Mishmar trading status. It answers `Ready to trade on …`, names the agent, this computer's key code and full fingerprint and when the key expires, and says the signer runs in the background.
 - In a terminal, `npx -y mishmar@0.5 daemon status` prints the background signer's version and each app's state.
 
 ## What you see when you trade
@@ -131,3 +135,7 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 **`Mishmar no longer takes this computer's key for claude-code (Key revoked)`**: the computer was disconnected in the console, or its key expired. Ask again to sign in with a new key.
 
 **`Mishmar's signer for this app is not running: another signer is running with …`**: a `mishmar signer run` was started by hand on the app's key file. Stop it; the background signer takes over.
+
+**An approved order ends `Not forwarded: the agent's signer refused: order_already_signed: …`**: the signer on your computer had signed this order once already, and its answer did not reach Mishmar (a dropped connection, say). It never signs a second order for one proposal, because it cannot tell whether the first one went out. Check the exchange, then ask the app to propose the order again if it is not there.
+
+**An order ends `… order_record_unavailable: the record of signed orders … cannot be read`**: the signer's record of the orders it signed (`agent.signed.json` in the app's folder) is damaged, so the signer signs no order until it is fixed; cancels still go. Stop the signer with `npx -y mishmar@0.5 daemon stop`, wait until a day has passed since the last order the app proposed (no proposal lives longer), move the file aside, and ask the app again.

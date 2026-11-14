@@ -282,11 +282,18 @@ func TestMCPAppEndToEnd(t *testing.T) {
 		status, _ = s.tool(mcp.StatusToolName, nil)
 		return strings.Contains(status, "waits at Binance")
 	})
-	code := w.cp.Requests()[0].Code
-	for _, want := range []string{"Signed in to Mishmar for claude-code as agent Claude Code", "key code " + code, "-----BEGIN PUBLIC KEY-----", "Main · USDⓈ-M Futures (ta_standin)", "runs in the background", "not after the computer restarts"} {
+	code, fingerprint := w.cp.Requests()[0].Code, w.cp.Requests()[0].Fingerprint
+	for _, want := range []string{"Signed in to Mishmar for claude-code as agent Claude Code", "key code " + code, "The key's full fingerprint: " + fingerprint + ".", "-----BEGIN PUBLIC KEY-----", "Main · USDⓈ-M Futures (ta_standin)", "runs in the background", "not after the computer restarts"} {
 		if !strings.Contains(status, want) {
 			t.Fatalf("status lacks %q:\n%s", want, status)
 		}
+	}
+	// `mishmar daemon status` shows the code and, on the line after, the
+	// whole fingerprint.
+	out, err := execute(context.Background(), t, strings.NewReader(""), 20*time.Second, "daemon", "status", "--home", w.home.Root)
+	if err != nil || !strings.Contains(out, "claude-code: signed in, agent Claude Code") || !strings.Contains(out, "key code "+code+", expires ") ||
+		!strings.Contains(out, "\n  the key's full fingerprint: "+fingerprint+"\n") {
+		t.Fatalf("daemon status: %v\n%s", err, out)
 	}
 	w.cp.Engine.Activate(w.cp.Engine.VenueKeys()[0].Id)
 	eventually(t, "ready", func() bool {

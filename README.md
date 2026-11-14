@@ -126,6 +126,17 @@ key and, for each request, refuses unless, in this order:
   proposal's order (asset, side, size, a limit price on the tick rules within
   1 % on the passive side, reduce-only, the cloid of the request's client
   order id) or the cancel of its target;
+- an `order` is for a proposal it has not signed an order for yet. It keeps
+  a record of the proposals it signed orders for, by the proposal's key and
+  nonce (which the agent signed, so the engine cannot change them), in
+  `<config>.signed.json` beside its config (0600, replaced atomically and
+  synced before the share leaves, kept until the proposal's `expiresAt`
+  plus a minute). Another request for one of them is
+  `order_already_signed`, whatever its timestamp and after a restart too; the
+  same request id again is still `request_already_answered`. A record that
+  cannot be read or written refuses every order
+  (`order_record_unavailable`) and never starts over empty. Cancels are
+  not recorded;
 - the hook, when the config names one, exits 0 (it gets the request's JSON
   on stdin and two seconds; its first line of output is the refusal reason).
 

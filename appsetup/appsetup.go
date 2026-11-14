@@ -234,10 +234,11 @@ func other(env string) string {
 		Windows
 }
 
-// AlreadyTrading is the text for an app that trades already: the computer's
-// name as it gave it, when it signed in, and its code (the first two groups
-// of its key's fingerprint).
-func AlreadyTrading(machine string, signedIn time.Time, code string) string {
-	return fmt.Sprintf("This app already trades through Mishmar from '%s' (signed in %s, code %s). Use the %s tools. Signing in on another computer replaces that one.",
-		machine, signedIn.UTC().Format("2 Jan 2006"), code, ServerName)
+// AlreadyTrading is the text for an app that trades already: when its
+// computer signed in, and its code (the first two groups of its key's
+// fingerprint). The computer's name is left out: it is whatever the program
+// on that computer sent, and this text goes into the AI app's context.
+func AlreadyTrading(signedIn time.Time, code string) string {
+	return fmt.Sprintf("This app already trades through Mishmar from a computer signed in on %s (code %s). Use the %s tools. Signing in on another computer replaces that one.",
+		signedIn.UTC().Format("2 Jan 2006"), code, ServerName)
 }

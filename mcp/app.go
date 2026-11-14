@@ -27,13 +27,15 @@ const AppTrading = `This server trades for the person from their own computer: M
 signer runs here and holds this computer's key and its half of each trading
 key; Mishmar never holds them. The first Mishmar tool you call signs this
 computer in: it opens Mishmar in the browser and answers with a code. Tell
-the person to approve only if the page shows the same code, then call the
-tool again. get_trading_status says where things stand (signed in or not,
-the trading key's step at the exchange, whether the signer runs) and starts
-nothing. A proposal from this app stands 15 minutes unless you set
-validForSeconds (at most 86400): that is how long the person has to approve
-it, and an approved order goes out once this computer's signer signs it,
-until then. The signer keeps running after the app closes, but not after
+the person to approve only if the page shows the same code and they asked
+you for this in the last few minutes (the code shows the page is for this
+computer's key, not who started it; nobody from Mishmar sends such a link),
+then call the tool again. get_trading_status says where things stand
+(signed in or not, the trading key's step at the exchange, whether the
+signer runs) and starts nothing. A proposal from this app stands 15
+minutes unless you set validForSeconds (at most 86400): that is how long
+the person has to approve it, and an approved order goes out once this
+computer's signer signs it, until then. The signer keeps running after the app closes, but not after
 the computer restarts; it starts again with the next Mishmar tool. Trading
 from a remote machine (over SSH, in a container or a cloud workspace) is not
 supported yet.`
@@ -51,10 +53,16 @@ const AppValidForDesc = "How long the proposal stands, at most 86400; default 90
 // The sign-in's words, which the model passes on.
 const (
 	// SignInOpened is the pending text when this server opened the browser:
-	// the link, then the code. Plan section 2.3.
-	SignInOpened = "This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you started this just now. Then ask me again. The link works until %s."
+	// the link, then the code. Plan section 2.3. A matching code shows the
+	// page is for the key this program made; it does not show who started the
+	// request, so the person is also asked whether they did, just now.
+	SignInOpened = "This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until %s."
 	// SignInLink is the same when no browser could be opened here.
-	SignInLink = "This computer is not signed in to Mishmar yet. Open this link in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you started this just now. Then ask me again. The link works until %s."
+	SignInLink = "This computer is not signed in to Mishmar yet. Open this link in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until %s."
+	// SignInFingerprint is the line after either: the key's whole
+	// fingerprint, which the page shows too, for a closer comparison than
+	// the code's.
+	SignInFingerprint = "The key's full fingerprint, to compare all of it on the page: %s"
 	// SignInDenied, SignInExpired and SignInFailed end a sign-in.
 	SignInDenied  = "The person declined this computer's sign-in to Mishmar, so nothing was set up. Ask them before trying again: the next Mishmar tool starts a new sign-in."
 	SignInExpired = "Nobody approved this computer's sign-in to Mishmar in time, so nothing was set up. The next Mishmar tool starts a new sign-in."
@@ -72,6 +80,7 @@ const (
 const (
 	StatusNotSignedIn = "This computer is not signed in to Mishmar for %s. The first Mishmar tool you use opens Mishmar in the browser to approve it; nothing is kept before the person approves."
 	StatusSignedIn    = "Signed in to Mishmar for %s as agent %s (%s) on account %s, from '%s' with key code %s, signed in %s. The key stops working on %s; signing in again then makes a new one."
+	StatusFingerprint = "The key's full fingerprint: %s."
 	StatusReading     = "The agent reads only, so it cannot propose orders: the person turns trading on for it in the console."
 	StatusNoKey       = "No trading key yet: the person finishes the setup in the console: %s"
 	StatusKeygen      = "Mishmar's signer on this computer is making the trading key on %s with Mishmar's; this takes a few seconds."
@@ -227,15 +236,19 @@ func signInText(now, started daemon.SignIn, opened bool) string {
 	case string(signin.Failed):
 		return fmt.Sprintf(SignInFailed, strings.TrimPrefix(now.Error, "signin: "))
 	}
-	link, code, until := started.URL, started.Code, started.ExpiresAt
+	link, code, fingerprint, until := started.URL, started.Code, started.Fingerprint, started.ExpiresAt
 	if now.URL != "" {
-		link, code, until = now.URL, now.Code, now.ExpiresAt
+		link, code, fingerprint, until = now.URL, now.Code, now.Fingerprint, now.ExpiresAt
 	}
 	format := SignInLink
 	if opened {
 		format = SignInOpened
 	}
-	return fmt.Sprintf(format, link, code, until.UTC().Format("15:04 UTC"))
+	text := fmt.Sprintf(format, link, code, until.UTC().Format("15:04 UTC"))
+	if fingerprint != "" {
+		text += "\n" + fmt.Sprintf(SignInFingerprint, fingerprint)
+	}
+	return text
 }
 
 // TradingStatus is the status tool's answer. It starts the background
@@ -306,6 +319,9 @@ func signedInLines(st daemon.Status) []string {
 	}
 	lines := []string{fmt.Sprintf(StatusSignedIn, st.App, r.AgentName, r.AgentID, r.AccountID, r.MachineName, st.Code,
 		r.SignedInAt.UTC().Format("2 Jan 2006"), r.KeyExpiresAt.UTC().Format("2 Jan 2006"))}
+	if r.Fingerprint != "" {
+		lines = append(lines, fmt.Sprintf(StatusFingerprint, r.Fingerprint))
+	}
 	if st.Permission == string(api.AgentPermissionRead) {
 		return append(lines, StatusReading)
 	}

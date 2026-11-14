@@ -286,15 +286,28 @@ func TestSignerEndToEnd(t *testing.T) {
 	if a := s.Handle(context.Background(), order); a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseReplay+": ") {
 		t.Fatalf("a re-handout was answered %+v", a)
 	}
+	// Another request for the same proposal is not signed either: one
+	// proposal, one order signature.
+	again := order
+	again.Id, again.SessionId, again.Attempt = "sr_again", "sr_again", 1
+	if a := s.Handle(context.Background(), again); a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseOrderSigned+": ") {
+		t.Fatalf("a second request for the proposal was answered %+v", a)
+	}
 	// A request whose engine commitment is missing is refused, not signed.
-	fresh := order
-	fresh.Id, fresh.Attempt, fresh.Engine = "sr_fresh", 1, nil
+	prop2 := f.proposal(t, f.key, func(p *api.ProposalSubmit) { live(p); p.Nonce = "n2" })
+	fresh := orderRequest(prop2, binanceOrder(prop2, "msh-ag1-abc124", nil))
+	fresh.Id, fresh.SessionId, fresh.Engine = "sr_fresh", "sr_fresh", nil
+	fresh.IssuedAt, fresh.ExpiresAt = time.Now(), time.Now().Add(10*time.Second)
+	fresh.ClientOrderId = ptr("msh-ag1-abc124")
 	if a := s.Handle(context.Background(), fresh); a.Kind != api.SignerAnswerKindRefusal || !strings.HasPrefix(a.Refusal.Reason, RefuseMalformed+": ") {
 		t.Fatalf("a request without a commitment was answered %+v", a)
 	}
 	// The hook runs after the checks and can refuse.
-	withHook := order
-	withHook.Id = "sr_hooked"
+	prop3 := f.proposal(t, f.key, func(p *api.ProposalSubmit) { live(p); p.Nonce = "n3" })
+	withHook := orderRequest(prop3, binanceOrder(prop3, "msh-ag1-abc123", nil))
+	_, withHook.Engine = f.engineRound(t)
+	withHook.Id, withHook.SessionId = "sr_hooked", "sr_hooked"
+	withHook.IssuedAt, withHook.ExpiresAt = time.Now(), time.Now().Add(10*time.Second)
 	s.Config.Hook = "echo closed; exit 1"
 	if a := s.Handle(context.Background(), withHook); a.Kind != api.SignerAnswerKindRefusal || a.Refusal.Reason != RefuseHook+": closed" {
 		t.Fatalf("with a refusing hook: %+v", a)

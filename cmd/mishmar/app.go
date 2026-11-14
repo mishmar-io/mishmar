@@ -289,6 +289,9 @@ func newDaemonCmd() *cobra.Command {
 				if st.Signer.Error != "" {
 					line += "; " + st.Signer.Error
 				}
+				if r := st.Record; r != nil && st.State == daemon.SignedIn && r.Fingerprint != "" {
+					line += "\n  the key's full fingerprint: " + r.Fingerprint
+				}
 				fmt.Fprintln(out, line)
 			}
 			return nil

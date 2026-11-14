@@ -104,7 +104,7 @@ func TestVectors(t *testing.T) {
 		Description:    "The setup text for trading from an AI app (appsetup.Text), per app and hosted environment: what the hosted MCP server's set_up_trading tool and the console show. Rendered from the appsetup package; a copy elsewhere is checked against this file. package is the npm package pin every text runs; flags the server's arguments after mcp. alreadyTrading is AlreadyTrading for the machine 'Ishai's MacBook Pro', signed in 13 Nov 2026, code AS3N-N9TM.",
 		Package:        Package,
 		ServerName:     ServerName,
-		AlreadyTrading: AlreadyTrading("Ishai's MacBook Pro", time.Date(2026, 11, 13, 9, 30, 0, 0, time.UTC), "AS3N-N9TM"),
+		AlreadyTrading: AlreadyTrading(time.Date(2026, 11, 13, 9, 30, 0, 0, time.UTC), "AS3N-N9TM"),
 	}
 	for _, app := range Apps {
 		for _, env := range []string{"prod", "testnet", "stage"} {
