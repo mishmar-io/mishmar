@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mishmar-io/mishmar/api"
+	"github.com/mishmar-io/mishmar/decision"
 	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
 	"github.com/mishmar-io/mishmar/signerapi"
@@ -62,7 +63,25 @@ func (h *harness) decision(p api.Proposal) *signerapi.Decision {
 }
 
 func (h *harness) signedDecision(v api.Verdict, p api.Proposal) *signerapi.Decision {
-	record, err := json.Marshal(map[string]any{"id": "dec_1", "verdict": v, "proposal": p})
+	return h.record(h.decisionOf(v, p))
+}
+
+// decisionOf is the decision the engine writes for the proposal, signed as
+// a decision is today (signing version 3).
+func (h *harness) decisionOf(v api.Verdict, p api.Proposal) api.Decision {
+	three := api.DecisionSigningVersionN3
+	return api.Decision{
+		Id: "dec_1", CreatedAt: h.now, AgentId: "agt_1", AgentName: "Trend follower", ConnectedAccountId: "ta_1",
+		Verdict: v, Proposal: p, Evaluations: []api.RuleEvaluation{}, ConfigRevision: 1, AgentSignature: "YWdlbnQ=",
+		State:          api.StateSnapshot{AsOf: h.now, DailyPnlUsd: "0", DrawdownPct: "0", GrossExposureUsd: "0", Leverage: "0", NetExposureUsd: "0"},
+		SigningVersion: &three,
+	}
+}
+
+// record is what the engine sends the service for d: the bytes it signed
+// (decision.SigningBytes) and its signature over them.
+func (h *harness) record(d api.Decision) *signerapi.Decision {
+	record, err := decision.SigningBytes(d)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -126,6 +145,35 @@ func TestDecisionsThatWaitedForAPerson(t *testing.T) {
 	}
 	if _, err := h.svc.decision(h.decision(p)); err != nil {
 		t.Fatalf("an allowed decision: %v", err)
+	}
+}
+
+// The service verifies the record as the bytes the engine signed and reads
+// only its id, verdict and proposal, which every signing version carries
+// under the same names: a version 3 record (no portfolioId) and a version 2
+// one (with it) pass alike, and a portfolioId added to a signed version 3
+// record breaks its signature.
+func TestDecisionRecordsOfEachSigningVersion(t *testing.T) {
+	h := newHarness(t)
+	p := api.Proposal{Kind: api.ProposalKindOrder, Venue: api.VenueHyperliquid, Symbol: "BTC", Size: "0.001", ClientOrderId: "msh-a"}
+	v3 := h.decisionOf(api.VerdictAllow, p)
+	v2 := v3
+	two, portfolio := api.DecisionSigningVersionN2, "pf_main"
+	v2.SigningVersion, v2.PortfolioId = &two, &portfolio
+	for name, d := range map[string]api.Decision{"version 3": v3, "version 2": v2} {
+		rec, err := h.svc.decision(h.record(d))
+		if err != nil || rec.Id != "dec_1" || rec.Proposal.ClientOrderId != "msh-a" {
+			t.Fatalf("%s: %+v %v", name, rec, err)
+		}
+	}
+	sent := h.record(v3)
+	raw := decode(t, sent.Record)
+	if strings.Contains(string(raw), "portfolioId") {
+		t.Fatalf("a version 3 record carries portfolioId: %s", raw)
+	}
+	sent.Record = b64([]byte(strings.Replace(string(raw), `"id":"dec_1",`, `"id":"dec_1","portfolioId":"pf_main",`, 1)))
+	if _, err := h.svc.decision(sent); err == nil || !strings.Contains(err.Error(), "does not verify") {
+		t.Fatalf("an edited record: %v", err)
 	}
 }
 

@@ -295,6 +295,7 @@ func (e CosignerCallbackSetupKind) Valid() bool {
 const (
 	DecisionSigningVersionN1 DecisionSigningVersion = 1
 	DecisionSigningVersionN2 DecisionSigningVersion = 2
+	DecisionSigningVersionN3 DecisionSigningVersion = 3
 )
 
 // Valid indicates whether the value is a known member of the DecisionSigningVersion enum.
@@ -303,6 +304,8 @@ func (e DecisionSigningVersion) Valid() bool {
 	case DecisionSigningVersionN1:
 		return true
 	case DecisionSigningVersionN2:
+		return true
+	case DecisionSigningVersionN3:
 		return true
 	default:
 		return false
@@ -648,24 +651,6 @@ func (e OrderCancellationBy) Valid() bool {
 	}
 }
 
-// Defines values for PortfolioStatus.
-const (
-	PortfolioStatusActive PortfolioStatus = "active"
-	PortfolioStatusKilled PortfolioStatus = "killed"
-)
-
-// Valid indicates whether the value is a known member of the PortfolioStatus enum.
-func (e PortfolioStatus) Valid() bool {
-	switch e {
-	case PortfolioStatusActive:
-		return true
-	case PortfolioStatusKilled:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for PositionBook.
 const (
 	PositionBookAgent      PositionBook = "agent"
@@ -881,7 +866,7 @@ const (
 	ScopeKindAccount          ScopeKind = "account"
 	ScopeKindAgent            ScopeKind = "agent"
 	ScopeKindConnectedAccount ScopeKind = "connected_account"
-	ScopeKindPortfolio        ScopeKind = "portfolio"
+	ScopeKindVenueConnection  ScopeKind = "venue_connection"
 )
 
 // Valid indicates whether the value is a known member of the ScopeKind enum.
@@ -893,7 +878,7 @@ func (e ScopeKind) Valid() bool {
 		return true
 	case ScopeKindConnectedAccount:
 		return true
-	case ScopeKindPortfolio:
+	case ScopeKindVenueConnection:
 		return true
 	default:
 		return false
@@ -1402,11 +1387,6 @@ type Account struct {
 	ConfigRevision int       `json:"configRevision"`
 	CreatedAt      time.Time `json:"createdAt"`
 
-	// DefaultPortfolioId The account's default portfolio: the one an agent created without a
-	// portfolio joins, and the one portfolio that cannot be deleted
-	// (setDefaultPortfolio moves it).
-	DefaultPortfolioId string `json:"defaultPortfolioId"`
-
 	// Entitlements What the account's tier includes (plan doc, Pricing). Billing writes it
 	// for hosted accounts and a self-hosted engine reads it from its signed
 	// licence; the API only reads it. Safety is never gated: every rule, the
@@ -1603,6 +1583,16 @@ type AccountValue struct {
 
 // Agent defines model for Agent.
 type Agent struct {
+	// CapitalUsd The capital allocated to the agent: what its own leverage (its
+	// gross exposure ÷ this) and drawdown are measured against. It is
+	// a number the person sets, not money moved anywhere, and not a cap
+	// on exposure; a gross_exposure rule is. Above 0: 0 or less is 422
+	// `validation`, at create and at update, and so is capital on a
+	// read agent, which places no orders. Absent when none is set,
+	// and then no leverage or drawdown rule may be scoped to the agent
+	// (createRule). Before contract 0.21.0 capital was a portfolio's.
+	CapitalUsd *Decimal `json:"capitalUsd,omitempty"`
+
 	// ConnectedAccountIds The connected accounts the agent was given: it may read each one
 	// whole. A trade agent trades on those where it holds an unrevoked
 	// venue key (`venueKeys`); getting a key on an account gives the
@@ -1621,8 +1611,7 @@ type Agent struct {
 	// (createVenueKey answers 409 `conflict`), and its proposals are refused
 	// (403 `forbidden`). trade: it may also hold trading keys and propose
 	// orders on the accounts it holds one on.
-	Permission  AgentPermission `json:"permission"`
-	PortfolioId string          `json:"portfolioId"`
+	Permission AgentPermission `json:"permission"`
 
 	// Signer Whether the agent's signer is reaching the engine. Absent when the engine does not track it (no signer channel).
 	Signer    *SignerPresence `json:"signer,omitempty"`
@@ -1635,6 +1624,9 @@ type Agent struct {
 
 // AgentCreate defines model for AgentCreate.
 type AgentCreate struct {
+	// CapitalUsd The capital allocated to the agent (Agent.capitalUsd). Absent for none.
+	CapitalUsd *Decimal `json:"capitalUsd,omitempty"`
+
 	// ConnectedAccountIds Connected accounts to give the agent from the start. Default none.
 	ConnectedAccountIds *[]string `json:"connectedAccountIds,omitempty"`
 	Description         *string   `json:"description,omitempty"`
@@ -1642,9 +1634,6 @@ type AgentCreate struct {
 
 	// Permission Required, with no default, so that whoever adds an agent says what it may do.
 	Permission AgentPermission `json:"permission"`
-
-	// PortfolioId Absent for the account's default portfolio (Account.defaultPortfolioId).
-	PortfolioId *string `json:"portfolioId,omitempty"`
 }
 
 // AgentIdentity Who an agent key belongs to, as `GET /agent/me` answers the key.
@@ -1652,7 +1641,12 @@ type AgentIdentity struct {
 	AccountId string `json:"accountId"`
 	AgentId   string `json:"agentId"`
 	AgentName string `json:"agentName"`
-	KeyId     string `json:"keyId"`
+
+	// CapitalUsd The capital allocated to the agent (Agent.capitalUsd): what its
+	// own leverage and drawdown rules are measured against. Absent
+	// when none is set.
+	CapitalUsd *Decimal `json:"capitalUsd,omitempty"`
+	KeyId      string   `json:"keyId"`
 
 	// Permission What the agent may do. A signer or MCP server started with the
 	// key reads it first: for a read agent it starts no signer channel
@@ -1660,8 +1654,7 @@ type AgentIdentity struct {
 	// connected-account data, which a hosted account's collector
 	// answers while the engine sleeps. An engine from before this field
 	// sends none; a client treats that as trade.
-	Permission  AgentPermission `json:"permission"`
-	PortfolioId string          `json:"portfolioId"`
+	Permission AgentPermission `json:"permission"`
 }
 
 // AgentKey defines model for AgentKey.
@@ -1724,14 +1717,23 @@ type AgentStatus string
 
 // AgentUpdate defines model for AgentUpdate.
 type AgentUpdate struct {
-	Description *string `json:"description,omitempty"`
-	Name        *string `json:"name,omitempty"`
+	// CapitalUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
+	// quantities are never JSON numbers. A string survives every language's
+	// float formatting unchanged, so the bytes an agent signs are the bytes the
+	// engine verifies, and sums of cents stay exact.
+	CapitalUsd  *Decimal `json:"capitalUsd,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Name        *string  `json:"name,omitempty"`
 
 	// Permission read to trade lets the agent get trading keys from then on; each
 	// still needs its own setup at the venue. trade to read is refused
 	// with 409 `conflict` while the agent holds an unrevoked trading key.
-	Permission  *AgentPermission `json:"permission,omitempty"`
-	PortfolioId *string          `json:"portfolioId,omitempty"`
+	Permission *AgentPermission `json:"permission,omitempty"`
+
+	// RemoveCapital True takes the allocated capital away; capitalUsd must then be absent.
+	// Refused while a leverage or drawdown rule of the agent's is
+	// measured against it (updateAgent).
+	RemoveCapital *bool `json:"removeCapital,omitempty"`
 }
 
 // Approval defines model for Approval.
@@ -1782,8 +1784,12 @@ type ApprovalEvaluation struct {
 	// not in it, so a drift that flips no rule keeps the revision. Send it with the
 	// approve (ApprovalDecide.revision); a different revision at that moment is
 	// 409 `evaluation_changed`.
-	Revision string        `json:"revision"`
-	State    StateSnapshot `json:"state"`
+	Revision string `json:"revision"`
+
+	// State The whole Mishmar account's state when the rules ran, before the
+	// proposal: every agent on every connected account. What a rule at a
+	// narrower scope measured is on its evaluation.
+	State StateSnapshot `json:"state"`
 
 	// Valuation What the order was valued at for this evaluation (the current mark; a market order's book is not read again).
 	Valuation *DecisionValuation `json:"valuation,omitempty"`
@@ -2117,19 +2123,28 @@ type Decision struct {
 	ConnectedAccountId string             `json:"connectedAccountId"`
 	CreatedAt          time.Time          `json:"createdAt"`
 
-	// EngineSignature The engine key's Ed25519 signature over the decision record as written
-	// (every field above plus `submission`, without `venueAck`, `approval`,
-	// `signing` and this field), base64. Present on every decision. See
-	// docs/ledger.md.
+	// EngineSignature The engine key's Ed25519 signature, base64, over the canonical JSON
+	// (keys sorted) of the decision record as written: id, createdAt,
+	// agentId, agentName, connectedAccountId, verdict, proposal, exit
+	// (when set), evaluations, state, configRevision, agentSignature and
+	// submission (when set); versions 1 and 2 also carry portfolioId
+	// (see signingVersion). Nothing else on a decision is covered.
+	// Present on every decision. `spec/vectors/decision-signing.json`
+	// pins the bytes for each version.
 	EngineSignature *string          `json:"engineSignature,omitempty"`
 	Evaluations     []RuleEvaluation `json:"evaluations"`
 
 	// Exit True when the engine judged the order an exit (see submitProposal):
 	// every rule without appliesToExits was waived. Absent otherwise.
-	Exit        *bool   `json:"exit,omitempty"`
-	Id          string  `json:"id"`
-	LatencyMs   float64 `json:"latencyMs"`
-	PortfolioId string  `json:"portfolioId"`
+	Exit      *bool   `json:"exit,omitempty"`
+	Id        string  `json:"id"`
+	LatencyMs float64 `json:"latencyMs"`
+
+	// PortfolioId Only on a decision with `signingVersion` 1 or 2: the portfolio the
+	// agent was in, which the engine's signature on those records
+	// covers, kept so a verifier can rebuild their bytes. Nothing else
+	// reads it; there are no portfolios since contract 0.21.0.
+	PortfolioId *string `json:"portfolioId,omitempty"`
 
 	// Proposal The proposal as the engine priced it. For a cancel, the order fields
 	// (side, size, price, orderType, reduceOnly) describe the order being
@@ -2145,13 +2160,20 @@ type Decision struct {
 	Signing *SigningStatus `json:"signing,omitempty"`
 
 	// SigningVersion Which shape the agent's and the engine's signatures on this
-	// decision cover. 2: this contract's, the account's id under
-	// `connectedAccountId`. 1: a decision from before contract 0.20.0,
-	// whose signed bytes carry the same id under `tradingAccountId`; the
-	// record is served under today's names, and a verifier rebuilds the
-	// bytes with the old name. Absent means 1.
+	// decision cover. 3: this contract's: the record the engine signs
+	// has no `portfolioId`; what the agent signs is as in 2. 2:
+	// contract 0.20.0's, the account's id under `connectedAccountId`,
+	// the engine's record carrying `portfolioId`. 1: a decision from
+	// before contract 0.20.0, whose signed bytes carry the account's id
+	// under `tradingAccountId`; the record is served under today's
+	// names, and a verifier rebuilds the bytes with the old name.
+	// Absent means 1.
 	SigningVersion *DecisionSigningVersion `json:"signingVersion,omitempty"`
-	State          StateSnapshot           `json:"state"`
+
+	// State The whole Mishmar account's state when the rules ran, before the
+	// proposal: every agent on every connected account. What a rule at a
+	// narrower scope measured is on its evaluation.
+	State StateSnapshot `json:"state"`
 
 	// Submission What the agent submitted that the priced proposal does not keep, so the
 	// agent's signature can be verified again from the ledger alone: the key,
@@ -2170,11 +2192,14 @@ type Decision struct {
 }
 
 // DecisionSigningVersion Which shape the agent's and the engine's signatures on this
-// decision cover. 2: this contract's, the account's id under
-// `connectedAccountId`. 1: a decision from before contract 0.20.0,
-// whose signed bytes carry the same id under `tradingAccountId`; the
-// record is served under today's names, and a verifier rebuilds the
-// bytes with the old name. Absent means 1.
+// decision cover. 3: this contract's: the record the engine signs
+// has no `portfolioId`; what the agent signs is as in 2. 2:
+// contract 0.20.0's, the account's id under `connectedAccountId`,
+// the engine's record carrying `portfolioId`. 1: a decision from
+// before contract 0.20.0, whose signed bytes carry the account's id
+// under `tradingAccountId`; the record is served under today's
+// names, and a verifier rebuilds the bytes with the old name.
+// Absent means 1.
 type DecisionSigningVersion int
 
 // DecisionPage defines model for DecisionPage.
@@ -2728,7 +2753,7 @@ type PnlDay struct {
 	// FundingUsd Funding received, negative when paid.
 	FundingUsd Decimal `json:"fundingUsd"`
 
-	// NetUsd The PnL, realized + unrealized + fees + funding. daily_loss and the portfolio and agent drawdowns read it.
+	// NetUsd The PnL, realized + unrealized + fees + funding. daily_loss and an agent's drawdown read it.
 	NetUsd Decimal `json:"netUsd"`
 
 	// RealizedNetUsd The realized PnL, realized + fees + funding, without the open positions' moves. daily_realized_loss reads it.
@@ -2786,9 +2811,6 @@ type PnlSummaryRow struct {
 	MtdNetUsd Decimal `json:"mtdNetUsd"`
 	Name      string  `json:"name"`
 
-	// ParentId The portfolio an agent belongs to. Lets the table nest rows.
-	ParentId *string `json:"parentId,omitempty"`
-
 	// RealizedUsd Month to date.
 	RealizedUsd Decimal `json:"realizedUsd"`
 	Scope       Scope   `json:"scope"`
@@ -2814,7 +2836,7 @@ type PnlTotals struct {
 	// FundingUsd Funding received, negative when paid.
 	FundingUsd Decimal `json:"fundingUsd"`
 
-	// NetUsd The PnL, realized + unrealized + fees + funding. daily_loss and the portfolio and agent drawdowns read it.
+	// NetUsd The PnL, realized + unrealized + fees + funding. daily_loss and an agent's drawdown read it.
 	NetUsd Decimal `json:"netUsd"`
 
 	// RealizedNetUsd The realized PnL, realized + fees + funding, without the open positions' moves. daily_realized_loss reads it.
@@ -2827,80 +2849,14 @@ type PnlTotals struct {
 	UnrealizedUsd Decimal `json:"unrealizedUsd"`
 }
 
-// Portfolio defines model for Portfolio.
-type Portfolio struct {
-	AgentCount int `json:"agentCount"`
-
-	// CapitalUsd The capital allocated to the portfolio: what leverage (gross exposure ÷
-	// capital) and drawdown are measured against, for the portfolio and for
-	// each of its agents. It is not a cap on exposure; a gross_exposure rule
-	// is. Absent when none is set, and then no leverage or drawdown rule may
-	// be scoped to the portfolio or its agents (createRule).
-	CapitalUsd *Decimal  `json:"capitalUsd,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-
-	// DayPnlUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
-	// quantities are never JSON numbers. A string survives every language's
-	// float formatting unchanged, so the bytes an agent signs are the bytes the
-	// engine verifies, and sums of cents stay exact.
-	DayPnlUsd   Decimal `json:"dayPnlUsd"`
-	Description *string `json:"description,omitempty"`
-
-	// GrossExposureUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
-	// quantities are never JSON numbers. A string survives every language's
-	// float formatting unchanged, so the bytes an agent signs are the bytes the
-	// engine verifies, and sums of cents stay exact.
-	GrossExposureUsd Decimal `json:"grossExposureUsd"`
-	Id               string  `json:"id"`
-
-	// IsDefault True for the account's default portfolio (Account.defaultPortfolioId), which cannot be deleted.
-	IsDefault bool   `json:"isDefault"`
-	Name      string `json:"name"`
-
-	// NetExposureUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
-	// quantities are never JSON numbers. A string survives every language's
-	// float formatting unchanged, so the bytes an agent signs are the bytes the
-	// engine verifies, and sums of cents stay exact.
-	NetExposureUsd Decimal         `json:"netExposureUsd"`
-	Status         PortfolioStatus `json:"status"`
-	UpdatedAt      time.Time       `json:"updatedAt"`
-}
-
-// PortfolioCreate defines model for PortfolioCreate.
-type PortfolioCreate struct {
-	// CapitalUsd The capital allocated to the portfolio (Portfolio.capitalUsd). Absent for none.
-	CapitalUsd  *Decimal `json:"capitalUsd,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	Name        string   `json:"name"`
-}
-
-// PortfolioStatus defines model for PortfolioStatus.
-type PortfolioStatus string
-
-// PortfolioUpdate defines model for PortfolioUpdate.
-type PortfolioUpdate struct {
-	// CapitalUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
-	// quantities are never JSON numbers. A string survives every language's
-	// float formatting unchanged, so the bytes an agent signs are the bytes the
-	// engine verifies, and sums of cents stay exact.
-	CapitalUsd  *Decimal `json:"capitalUsd,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	Name        *string  `json:"name,omitempty"`
-
-	// RemoveCapital True takes the allocated capital away; capitalUsd must then be absent.
-	// Refused while a leverage or drawdown rule is measured against it
-	// (updatePortfolio).
-	RemoveCapital *bool `json:"removeCapital,omitempty"`
-}
-
 // Position defines model for Position.
 type Position struct {
 	AgentId *string `json:"agentId,omitempty"`
 
 	// Book unassigned: a holding no agent owns, such as a manual trade on a shared
 	// connected account, an asset deposited in kind, or what a retired agent held;
-	// agentId and portfolioId are then absent. Account and connected account rules see
-	// the unassigned book; agent and portfolio rules do not. Absent means agent.
+	// agentId is then absent. Account, venue connection and connected account rules
+	// see the unassigned book; agent rules do not. Absent means agent.
 	Book               *PositionBook `json:"book,omitempty"`
 	ConnectedAccountId *string       `json:"connectedAccountId,omitempty"`
 
@@ -2928,7 +2884,6 @@ type Position struct {
 	// float formatting unchanged, so the bytes an agent signs are the bytes the
 	// engine verifies, and sums of cents stay exact.
 	NotionalUsd Decimal      `json:"notionalUsd"`
-	PortfolioId *string      `json:"portfolioId,omitempty"`
 	Side        PositionSide `json:"side"`
 
 	// Size A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
@@ -2948,8 +2903,8 @@ type Position struct {
 
 // PositionBook unassigned: a holding no agent owns, such as a manual trade on a shared
 // connected account, an asset deposited in kind, or what a retired agent held;
-// agentId and portfolioId are then absent. Account and connected account rules see
-// the unassigned book; agent and portfolio rules do not. Absent means agent.
+// agentId is then absent. Account, venue connection and connected account rules
+// see the unassigned book; agent rules do not. Absent means agent.
 type PositionBook string
 
 // PositionSide defines model for Position.Side.
@@ -3257,10 +3212,20 @@ type Rule struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and connected account scope, and
-	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
-	// portfolio and agent scope, where drawdown is measured against that capital too;
-	// a portfolio without capital cannot have such rules (createRule).
+	// leverage is gross exposure ÷ equity at account, venue connection and connected
+	// account scope, and gross exposure ÷ the agent's allocated capital
+	// (Agent.capitalUsd) at agent scope, where drawdown is measured against that
+	// capital too; an agent without capital cannot have such rules (createRule).
+	// The equity is the summed value of the accounts the scope covers that agents
+	// trade on, as their venues report it while trading: an account Mishmar only
+	// reads (Spot, for now) is not in it, at any scope, so on a Binance login it is
+	// the USDⓈ-M Futures account's value, not the login's total. When none of the
+	// covered accounts reports a value, a venue connection's and a connected
+	// account's rules fall back to the whole account's. drawdown at these scopes is
+	// the fall of that value from its own high-water mark, with money moved in or
+	// out taken off, so a transfer is never read as a loss: between two accounts in
+	// the sum it changes nothing, and to or from any other account it is capital
+	// leaving or arriving, which moves the mark with it.
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -3297,10 +3262,20 @@ type RuleCreate struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and connected account scope, and
-	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
-	// portfolio and agent scope, where drawdown is measured against that capital too;
-	// a portfolio without capital cannot have such rules (createRule).
+	// leverage is gross exposure ÷ equity at account, venue connection and connected
+	// account scope, and gross exposure ÷ the agent's allocated capital
+	// (Agent.capitalUsd) at agent scope, where drawdown is measured against that
+	// capital too; an agent without capital cannot have such rules (createRule).
+	// The equity is the summed value of the accounts the scope covers that agents
+	// trade on, as their venues report it while trading: an account Mishmar only
+	// reads (Spot, for now) is not in it, at any scope, so on a Binance login it is
+	// the USDⓈ-M Futures account's value, not the login's total. When none of the
+	// covered accounts reports a value, a venue connection's and a connected
+	// account's rules fall back to the whole account's. drawdown at these scopes is
+	// the fall of that value from its own high-water mark, with money moved in or
+	// out taken off, so a transfer is never read as a loss: between two accounts in
+	// the sum it changes nothing, and to or from any other account it is capital
+	// leaving or arriving, which moves the mark with it.
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -3329,10 +3304,20 @@ type RuleEvaluation struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and connected account scope, and
-	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
-	// portfolio and agent scope, where drawdown is measured against that capital too;
-	// a portfolio without capital cannot have such rules (createRule).
+	// leverage is gross exposure ÷ equity at account, venue connection and connected
+	// account scope, and gross exposure ÷ the agent's allocated capital
+	// (Agent.capitalUsd) at agent scope, where drawdown is measured against that
+	// capital too; an agent without capital cannot have such rules (createRule).
+	// The equity is the summed value of the accounts the scope covers that agents
+	// trade on, as their venues report it while trading: an account Mishmar only
+	// reads (Spot, for now) is not in it, at any scope, so on a Binance login it is
+	// the USDⓈ-M Futures account's value, not the login's total. When none of the
+	// covered accounts reports a value, a venue connection's and a connected
+	// account's rules fall back to the whole account's. drawdown at these scopes is
+	// the fall of that value from its own high-water mark, with money moved in or
+	// out taken off, so a transfer is never read as a loss: between two accounts in
+	// the sum it changes nothing, and to or from any other account it is capital
+	// leaving or arriving, which moves the mark with it.
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -3373,10 +3358,20 @@ type RuleEvaluation struct {
 // order_size, and the projected book every exposure metric reads, value an order at the
 // higher of its price and the market: a sell priced under the market fills at the market.
 // Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-// leverage is gross exposure ÷ equity at account and connected account scope, and
-// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
-// portfolio and agent scope, where drawdown is measured against that capital too;
-// a portfolio without capital cannot have such rules (createRule).
+// leverage is gross exposure ÷ equity at account, venue connection and connected
+// account scope, and gross exposure ÷ the agent's allocated capital
+// (Agent.capitalUsd) at agent scope, where drawdown is measured against that
+// capital too; an agent without capital cannot have such rules (createRule).
+// The equity is the summed value of the accounts the scope covers that agents
+// trade on, as their venues report it while trading: an account Mishmar only
+// reads (Spot, for now) is not in it, at any scope, so on a Binance login it is
+// the USDⓈ-M Futures account's value, not the login's total. When none of the
+// covered accounts reports a value, a venue connection's and a connected
+// account's rules fall back to the whole account's. drawdown at these scopes is
+// the fall of that value from its own high-water mark, with money moved in or
+// out taken off, so a transfer is never read as a loss: between two accounts in
+// the sum it changes nothing, and to or from any other account it is capital
+// leaving or arriving, which moves the mark with it.
 // net_exposure and concentration accept an `asset` to narrow to one name.
 // daily_loss is today's loss counting open positions at their marks
 // (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -3402,10 +3397,20 @@ type RuleUpdate struct {
 	// order_size, and the projected book every exposure metric reads, value an order at the
 	// higher of its price and the market: a sell priced under the market fills at the market.
 	// Proposal.notionalUsd stays size × price; the evaluation's observed value is what was judged.
-	// leverage is gross exposure ÷ equity at account and connected account scope, and
-	// gross exposure ÷ the portfolio's allocated capital (Portfolio.capitalUsd) at
-	// portfolio and agent scope, where drawdown is measured against that capital too;
-	// a portfolio without capital cannot have such rules (createRule).
+	// leverage is gross exposure ÷ equity at account, venue connection and connected
+	// account scope, and gross exposure ÷ the agent's allocated capital
+	// (Agent.capitalUsd) at agent scope, where drawdown is measured against that
+	// capital too; an agent without capital cannot have such rules (createRule).
+	// The equity is the summed value of the accounts the scope covers that agents
+	// trade on, as their venues report it while trading: an account Mishmar only
+	// reads (Spot, for now) is not in it, at any scope, so on a Binance login it is
+	// the USDⓈ-M Futures account's value, not the login's total. When none of the
+	// covered accounts reports a value, a venue connection's and a connected
+	// account's rules fall back to the whole account's. drawdown at these scopes is
+	// the fall of that value from its own high-water mark, with money moved in or
+	// out taken off, so a transfer is never read as a loss: between two accounts in
+	// the sum it changes nothing, and to or from any other account it is capital
+	// leaving or arriving, which moves the mark with it.
 	// net_exposure and concentration accept an `asset` to narrow to one name.
 	// daily_loss is today's loss counting open positions at their marks
 	// (PnlTotals.netUsd); daily_realized_loss counts only what was closed,
@@ -3427,11 +3432,33 @@ type RuleUpdate struct {
 
 // Scope defines model for Scope.
 type Scope struct {
-	Id   string    `json:"id"`
+	Id string `json:"id"`
+
+	// Kind What a rule covers, or a PnL series is of. The order here is of
+	// width, not of evaluation: every rule that covers an order is run, and
+	// the decision lists each with its scope. account: the
+	// whole Mishmar account, every agent on every connected account.
+	// venue_connection: one login at a venue and everything under it, its
+	// accounts and those of its sub-accounts' connections
+	// (`VenueConnection.parentId`); `id` is the connection's.
+	// connected_account: one account. agent: one agent's own book, on every
+	// account it trades. Before contract 0.21.0 there was also portfolio, a
+	// named group of agents; a limit over a group is now a rule on the
+	// connection or the account its agents trade on.
 	Kind ScopeKind `json:"kind"`
 }
 
-// ScopeKind defines model for ScopeKind.
+// ScopeKind What a rule covers, or a PnL series is of. The order here is of
+// width, not of evaluation: every rule that covers an order is run, and
+// the decision lists each with its scope. account: the
+// whole Mishmar account, every agent on every connected account.
+// venue_connection: one login at a venue and everything under it, its
+// accounts and those of its sub-accounts' connections
+// (`VenueConnection.parentId`); `id` is the connection's.
+// connected_account: one account. agent: one agent's own book, on every
+// account it trades. Before contract 0.21.0 there was also portfolio, a
+// named group of agents; a limit over a group is now a rule on the
+// connection or the account its agents trade on.
 type ScopeKind string
 
 // Side defines model for Side.
@@ -3626,7 +3653,9 @@ type StateImport struct {
 	Positions []PositionInput `json:"positions"`
 }
 
-// StateSnapshot defines model for StateSnapshot.
+// StateSnapshot The whole Mishmar account's state when the rules ran, before the
+// proposal: every agent on every connected account. What a rule at a
+// narrower scope measured is on its evaluation.
 type StateSnapshot struct {
 	AsOf time.Time `json:"asOf"`
 
@@ -4168,9 +4197,6 @@ type ConnectedAccountId = string
 // DiscrepancyId defines model for discrepancyId.
 type DiscrepancyId = string
 
-// PortfolioId defines model for portfolioId.
-type PortfolioId = string
-
 // RuleId defines model for ruleId.
 type RuleId = string
 
@@ -4252,8 +4278,9 @@ type AgentGetPnlParams struct {
 
 // ListAgentsParams defines parameters for ListAgents.
 type ListAgentsParams struct {
-	PortfolioId *string      `form:"portfolioId,omitempty" json:"portfolioId,omitempty"`
-	Status      *AgentStatus `form:"status,omitempty" json:"status,omitempty"`
+	// ConnectedAccountId Only agents given this connected account.
+	ConnectedAccountId *string      `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
+	Status             *AgentStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
 // ListApprovalsParams defines parameters for ListApprovals.
@@ -4302,7 +4329,6 @@ type ListConnectedAccountTransactionsParams struct {
 // ListDecisionsParams defines parameters for ListDecisions.
 type ListDecisionsParams struct {
 	AgentId            *string    `form:"agentId,omitempty" json:"agentId,omitempty"`
-	PortfolioId        *string    `form:"portfolioId,omitempty" json:"portfolioId,omitempty"`
 	ConnectedAccountId *string    `form:"connectedAccountId,omitempty" json:"connectedAccountId,omitempty"`
 	Verdict            *Verdict   `form:"verdict,omitempty" json:"verdict,omitempty"`
 	From               *time.Time `form:"from,omitempty" json:"from,omitempty"`
@@ -4407,12 +4433,6 @@ type ReassignPositionJSONRequestBody = PositionReassign
 
 // ResolveDiscrepancyJSONRequestBody defines body for ResolveDiscrepancy for application/json ContentType.
 type ResolveDiscrepancyJSONRequestBody = DiscrepancyResolve
-
-// CreatePortfolioJSONRequestBody defines body for CreatePortfolio for application/json ContentType.
-type CreatePortfolioJSONRequestBody = PortfolioCreate
-
-// UpdatePortfolioJSONRequestBody defines body for UpdatePortfolio for application/json ContentType.
-type UpdatePortfolioJSONRequestBody = PortfolioUpdate
 
 // ReplacePositionsJSONRequestBody defines body for ReplacePositions for application/json ContentType.
 type ReplacePositionsJSONRequestBody = StateImport

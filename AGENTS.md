@@ -13,6 +13,7 @@ go vet ./...                        # also `make lint` (vet + gofmt)
 make gen                            # regenerate api/types.gen.go from spec/openapi.yaml (oapi-codegen, models only)
 go build ./cmd/mishmar              # the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, read, mcp, version
 go test ./proposal -update          # regenerate spec/vectors/proposal-signing.json after changing its cases
+go test ./decision -update          # regenerate spec/vectors/decision-signing.json after changing its cases
 cd python && python -m pytest       # the Python SDK (needs `pip install -e .[test]`)
 cd typescript && npm test           # the TypeScript SDK on node:test (needs `npm install`; Node 22+ runs the .ts files directly)
 cd typescript && npm run typecheck
@@ -43,6 +44,14 @@ passes the vectors; the engine pins the same bytes in its own tests. Never
 hand-edit a vectors file: change the cases in `proposal_test.go` and
 regenerate.
 
+What the engine signs for a decision (`engineSignature`) is pinned the same
+way: `decision.SigningBytes` rebuilds the record from a served decision by
+its `signingVersion` (3: no `portfolioId`; 2: with it; 1: version 2's under
+the names from before contract 0.20.0) and refuses a version it does not
+know, and `spec/vectors/decision-signing.json` (`decision_test.go`, `go test
+./decision -update`) holds one case per version. Only Go verifies decisions;
+the SDKs do not.
+
 ## Layout
 
 ```
@@ -50,6 +59,7 @@ api/         the contract as Go types, generated (oapi-codegen.yaml, doc.go's go
 canon/       canonical JSON (Go's encoding/json rules, nulls dropped)
 agentkey/    the agent's Ed25519 key: msk_ secret, base64 signatures, agentAuth request signing
 proposal/    Submit (mirrors ProposalSubmit), Validate, SigningBytes, Sign, Verify, NewNonce
+decision/    the engine's signature on a decision: SigningBytes per signing version, Verify; refuses an unknown version
 frost/       two-party FROST over Ed25519 (RFC 9591): Keygen (FROST's DKG on bytemare/dkg, two rounds), Deal (the
              older dealer), Share, Party, Aggregate, PublicKeyPEM; one global lock
              because the library hashes through package-level state. The engine's Binance adapter and

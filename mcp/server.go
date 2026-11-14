@@ -185,7 +185,7 @@ func New(b Backend, version string, log *slog.Logger) *Server {
 
 // Instructions is what the server tells the model about itself.
 const Instructions = `Mishmar guards a trading agent: every order you propose is checked by the
-engine against the account's risk rules before anything reaches the venue,
+engine against the person's risk rules before anything reaches the venue,
 and signed by two parties, neither of which is you. A decision is one of
 allow (sent to the venue; the venue's acknowledgement is on it),
 require_approval (parked for a person; use wait_for_decision to follow it,
@@ -197,6 +197,8 @@ clientOrderId, which its decision carries. Read the connected account and
 its venue rules first when you do not know the symbols, tick sizes or
 minimums.
 
+` + ruleScopes + `
+
 The agent reads each connected account it was given whole
 (list_connected_accounts): balances, the venue's positions, transactions
 and value over time, whoever acted on the account. A transaction's origin
@@ -207,6 +209,17 @@ answers that it is not open, without calling Mishmar, and the account reads
 are what it is for.
 
 ` + accountModel
+
+// ruleScopes is what the server tells the model about where rules sit
+// (contract 0.21.0: ScopeKind) and what leverage and drawdown measure.
+const ruleScopes = `Rules sit on the whole Mishmar account, on a venue connection (a login at
+the venue and every account under it, its sub-accounts' included), on a
+connected account, and on this agent alone. An order must pass every rule
+that covers it, and each evaluation on a decision names its rule's scope
+(scope.kind: account, venue_connection, connected_account or agent).
+Leverage and drawdown on this agent are measured against the capital the
+person allocated to it; anywhere else, against the value of the accounts
+the rule covers.`
 
 // accountModel is what the server tells the model about connected accounts
 // and their connections. The hosted MCP server's instructions carry it word
@@ -448,7 +461,7 @@ func (s *Server) toolTable() []tool {
 		{
 			name:        "propose_order",
 			title:       "Propose an order",
-			description: "Propose an order on a connected account. The engine checks it against the account's rules and, when allowed, signs and sends it to the venue; the decision says what happened. A limit order needs a price; a market order is priced at the engine's mark. Sizes and prices are decimal strings.",
+			description: "Propose an order on a connected account. The engine checks it against every rule that covers it (on the Mishmar account, the account's venue connection, the connected account and this agent) and, when allowed, signs and sends it to the venue; the decision says what happened. A limit order needs a price; a market order is priced at the engine's mark. Sizes and prices are decimal strings.",
 			schema: schema(map[string]any{
 				"connectedAccountId": prop("string", "The connected account (ta_…)."),
 				"symbol":             prop("string", "The venue's symbol: BTC on Hyperliquid, BTCUSDT on Binance."),
@@ -709,7 +722,7 @@ func (s *Server) toolTable() []tool {
 			title:       "Who this agent is",
 			readOnly:    true,
 			dataRead:    true,
-			description: "Who this agent is: its id and name, the Mishmar account and portfolio it belongs to, and the id of the key it signs with.",
+			description: "Who this agent is: its id and name, the Mishmar account it belongs to, whether it reads or trades (permission), the capital its own leverage and drawdown rules are measured against (capitalUsd, absent when none is set), and the id of the key it signs with.",
 			schema:      schema(map[string]any{}),
 			run: func(ctx context.Context, _ json.RawMessage) (string, error) {
 				out, err := s.backend.Me(ctx)

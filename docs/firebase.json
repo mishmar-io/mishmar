@@ -24,6 +24,16 @@
         "source": "/binance/add-a-trading-account.md",
         "destination": "/binance/connect-an-account.md",
         "type": 301
+      },
+      {
+        "regex": "^/start/portfolios/?$",
+        "destination": "/start/where-rules-apply/",
+        "type": 301
+      },
+      {
+        "source": "/start/portfolios.md",
+        "destination": "/start/where-rules-apply.md",
+        "type": 301
       }
     ],
     "headers": [

@@ -59,7 +59,8 @@ A page that moves keeps its old address working. Add the old path to `redirects`
 `astro.config.mjs`, and to `redirects` in `firebase.json` twice, for the page and for its `.md`
 copy, as a 301. Hosting answers a redirect before any file, so the meta-refresh page Astro writes
 at the old path only serves `npm run dev` and `preview`. The two account pages moved this way on
-12 Nov 2026 (`add-a-trading-account` became `connect-an-account`).
+12 Nov 2026 (`add-a-trading-account` became `connect-an-account`), and `start/portfolios` became
+`start/where-rules-apply` on 13 Nov 2026, when portfolios were removed.
 
 ## Visit counts
 

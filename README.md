@@ -21,11 +21,12 @@ on the Releases page.
 
 ```
 spec/openapi.yaml     the API contract, the single source of truth for every client and the engine
-spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth)
+spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth), the engine's signature on a decision
 api/                  the contract as Go types (generated; `make gen`)
 canon/                canonical JSON: the bytes an agent signs
 agentkey/             the agent's Ed25519 identity key: parse the secret, sign, verify, sign requests
 proposal/             build, validate and sign a proposal for POST /v1/proposals
+decision/             verify the engine's signature on a decision, per signing version, from the decision as served
 frost/                two-party FROST over Ed25519: the split key behind a Binance connectedAccount
 ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
 signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
@@ -77,7 +78,12 @@ by default.
    the signer checks that it is the order it proposed before it signs.
 
 The exact bytes signed are specified in `proposal` and `agentkey` and pinned
-in `spec/vectors/`.
+in `spec/vectors/`. The engine signs each decision as it writes it
+(`engineSignature`); `decision.Verify` checks one with the engine's public
+key (`GET /v1/ledger/head`), rebuilding the record its `signingVersion`
+names: 3 since contract 0.21.0, without `portfolioId`; 2 with it; 1 under
+the names from before 0.20.0. A version it does not know is refused.
+`spec/vectors/decision-signing.json` pins the three.
 
 ## The signer
 
@@ -195,8 +201,9 @@ mishmar signer run
 # agent, issue its key, make a venue key per connected account by two-party
 # key generation with the engine's signer (FROST for Binance, ECDSA for
 # Hyperliquid; no machine ever holds the whole key), write the config. It
-# prints what to register or approve at the venue. The agent joins the
-# account's default portfolio unless --portfolio pf_… names another.
+# prints what to register or approve at the venue. --capital 5000 allocates
+# the agent capital: a leverage or drawdown rule on the agent is measured
+# against it, and is refused while the agent has none.
 mishmar add-agent --engine http://localhost:8080/v1 --token "$MISHMAR_OPERATOR_TOKEN" \
   --name momentum-1 --connected-account ta_…
 

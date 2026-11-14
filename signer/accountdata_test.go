@@ -79,7 +79,7 @@ func (d *dataEngine) handler() http.Handler {
 		var out any
 		switch {
 		case path == "/agent/me":
-			out = api.AgentIdentity{AgentId: "agt_1", AgentName: agentName, AccountId: "acc_1", KeyId: d.keyID, PortfolioId: "pf_1"}
+			out = api.AgentIdentity{AgentId: "agt_1", AgentName: agentName, AccountId: "acc_1", KeyId: d.keyID}
 		case path == "/agent/connected-accounts":
 			out = []api.ConnectedAccount{{Id: "ta_1", Name: "Perps", Type: api.ConnectedAccountTypeDerivatives, VenueRef: "perps", Venue: api.VenueHyperliquid, Status: api.ConnectedAccountStatusActive,
 				VenueConnectionId: "hl_main", Connection: api.VenueConnectionRef{Id: "hl_main", Name: "Main", Kind: api.VenueConnectionKindHyperliquid, AccountCount: 2, VenueAccount: api.VenueAccount{Role: api.VenueAccountRoleMain}}}}

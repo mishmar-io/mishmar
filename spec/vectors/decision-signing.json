@@ -1,0 +1,292 @@
+{
+  "description": "Ed25519 over the record the engine signs for a decision (Decision.engineSignature). For each case: rebuild the record from `decision` as its signingVersion says (3: id, createdAt, agentId, agentName, connectedAccountId, verdict, proposal, exit, evaluations, state, configRevision, agentSignature, submission; 2: the same with portfolioId; 1 or absent: version 2's with connectedAccountId, connectedAccountIds and maxConnectedAccounts under their old names tradingAccountId, tradingAccountIds and maxTradingAccounts and the value connected_account as trading_account, at every depth), canonicalise it (times to UTC with Z, keys sorted, no whitespace, nulls dropped, evaluations [] when there are none) and it must equal `signingBytes`; `decision.engineSignature` must verify over it under `publicKey`, and signing it with `secret` gives exactly that signature. Any other signingVersion must be refused.",
+  "secret": "msk_vector_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "cases": [
+    {
+      "name": "version 3: an allowed limit order; the record has no portfolioId",
+      "decision": {
+        "agentId": "agt_1",
+        "agentName": "Trend follower",
+        "agentSignature": "YWdlbnQ=",
+        "configRevision": 12,
+        "connectedAccountId": "ta_hl",
+        "createdAt": "2026-11-13T10:00:00.25Z",
+        "engineSignature": "boP8oUplV6uL+RT6FmL6FNMHwrdndmEB2+A8mWvIom4Ie95CJPRuIywX/x0o39mZ+PLNPGyqFtOsJy9ZI3l3Dg==",
+        "evaluations": [
+          {
+            "metric": "order_size",
+            "observed": "15",
+            "outcome": "block",
+            "passed": true,
+            "ruleId": "rl_1",
+            "ruleName": "Max order size",
+            "scope": {
+              "id": "agt_1",
+              "kind": "agent"
+            },
+            "threshold": "150",
+            "unit": "usd"
+          },
+          {
+            "metric": "gross_exposure",
+            "observed": "35",
+            "outcome": "block",
+            "passed": true,
+            "ruleId": "rl_2",
+            "ruleName": "Account gross exposure",
+            "scope": {
+              "id": "ta_hl",
+              "kind": "connected_account"
+            },
+            "threshold": "100",
+            "unit": "usd"
+          }
+        ],
+        "id": "dec_1",
+        "latencyMs": 2.1,
+        "proposal": {
+          "clientOrderId": "msh-a1b2c3-k3j9xq",
+          "expiresAt": "2026-11-13T10:01:00Z",
+          "kind": "order",
+          "notionalUsd": "15",
+          "orderType": "limit",
+          "price": "50000",
+          "reduceOnly": false,
+          "side": "buy",
+          "size": "0.0003",
+          "symbol": "BTC",
+          "venue": "hyperliquid"
+        },
+        "reason": "every rule passed",
+        "signingVersion": 3,
+        "state": {
+          "asOf": "2026-11-13T10:00:00Z",
+          "dailyPnlUsd": "-1.5",
+          "drawdownPct": "0",
+          "grossExposureUsd": "20",
+          "leverage": "0.04",
+          "netExposureUsd": "20"
+        },
+        "submission": {
+          "keyId": "key_a",
+          "nonce": "n1",
+          "price": "50000",
+          "proposedAt": "2026-11-13T10:00:00Z"
+        },
+        "venueAck": {
+          "orderId": "64462809897",
+          "receivedAt": "2026-11-13T10:00:01Z",
+          "status": "resting"
+        },
+        "verdict": "allow"
+      },
+      "signingBytes": "{\"agentId\":\"agt_1\",\"agentName\":\"Trend follower\",\"agentSignature\":\"YWdlbnQ=\",\"configRevision\":12,\"connectedAccountId\":\"ta_hl\",\"createdAt\":\"2026-11-13T10:00:00.25Z\",\"evaluations\":[{\"metric\":\"order_size\",\"observed\":\"15\",\"outcome\":\"block\",\"passed\":true,\"ruleId\":\"rl_1\",\"ruleName\":\"Max order size\",\"scope\":{\"id\":\"agt_1\",\"kind\":\"agent\"},\"threshold\":\"150\",\"unit\":\"usd\"},{\"metric\":\"gross_exposure\",\"observed\":\"35\",\"outcome\":\"block\",\"passed\":true,\"ruleId\":\"rl_2\",\"ruleName\":\"Account gross exposure\",\"scope\":{\"id\":\"ta_hl\",\"kind\":\"connected_account\"},\"threshold\":\"100\",\"unit\":\"usd\"}],\"id\":\"dec_1\",\"proposal\":{\"clientOrderId\":\"msh-a1b2c3-k3j9xq\",\"expiresAt\":\"2026-11-13T10:01:00Z\",\"kind\":\"order\",\"notionalUsd\":\"15\",\"orderType\":\"limit\",\"price\":\"50000\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.0003\",\"symbol\":\"BTC\",\"venue\":\"hyperliquid\"},\"state\":{\"asOf\":\"2026-11-13T10:00:00Z\",\"dailyPnlUsd\":\"-1.5\",\"drawdownPct\":\"0\",\"grossExposureUsd\":\"20\",\"leverage\":\"0.04\",\"netExposureUsd\":\"20\"},\"submission\":{\"keyId\":\"key_a\",\"nonce\":\"n1\",\"price\":\"50000\",\"proposedAt\":\"2026-11-13T10:00:00Z\"},\"verdict\":\"allow\"}"
+    },
+    {
+      "name": "version 2: the same decision, signed with the portfolio the agent was in",
+      "decision": {
+        "agentId": "agt_1",
+        "agentName": "Trend follower",
+        "agentSignature": "YWdlbnQ=",
+        "configRevision": 12,
+        "connectedAccountId": "ta_hl",
+        "createdAt": "2026-11-13T10:00:00.25Z",
+        "engineSignature": "QByVLfPi6ldtOjj7GIGTmxd2cRbKz2i++cPNafq41e4ZKYLY6Ce6BI8HUD/utLAPeluOaq/9+3oStn0gUUE2Bg==",
+        "evaluations": [
+          {
+            "metric": "order_size",
+            "observed": "15",
+            "outcome": "block",
+            "passed": true,
+            "ruleId": "rl_1",
+            "ruleName": "Max order size",
+            "scope": {
+              "id": "agt_1",
+              "kind": "agent"
+            },
+            "threshold": "150",
+            "unit": "usd"
+          },
+          {
+            "metric": "gross_exposure",
+            "observed": "35",
+            "outcome": "block",
+            "passed": true,
+            "ruleId": "rl_2",
+            "ruleName": "Account gross exposure",
+            "scope": {
+              "id": "ta_hl",
+              "kind": "connected_account"
+            },
+            "threshold": "100",
+            "unit": "usd"
+          }
+        ],
+        "id": "dec_1",
+        "latencyMs": 2.1,
+        "portfolioId": "pf_main",
+        "proposal": {
+          "clientOrderId": "msh-a1b2c3-k3j9xq",
+          "expiresAt": "2026-11-13T10:01:00Z",
+          "kind": "order",
+          "notionalUsd": "15",
+          "orderType": "limit",
+          "price": "50000",
+          "reduceOnly": false,
+          "side": "buy",
+          "size": "0.0003",
+          "symbol": "BTC",
+          "venue": "hyperliquid"
+        },
+        "reason": "every rule passed",
+        "signingVersion": 2,
+        "state": {
+          "asOf": "2026-11-13T10:00:00Z",
+          "dailyPnlUsd": "-1.5",
+          "drawdownPct": "0",
+          "grossExposureUsd": "20",
+          "leverage": "0.04",
+          "netExposureUsd": "20"
+        },
+        "submission": {
+          "keyId": "key_a",
+          "nonce": "n1",
+          "price": "50000",
+          "proposedAt": "2026-11-13T10:00:00Z"
+        },
+        "venueAck": {
+          "orderId": "64462809897",
+          "receivedAt": "2026-11-13T10:00:01Z",
+          "status": "resting"
+        },
+        "verdict": "allow"
+      },
+      "signingBytes": "{\"agentId\":\"agt_1\",\"agentName\":\"Trend follower\",\"agentSignature\":\"YWdlbnQ=\",\"configRevision\":12,\"connectedAccountId\":\"ta_hl\",\"createdAt\":\"2026-11-13T10:00:00.25Z\",\"evaluations\":[{\"metric\":\"order_size\",\"observed\":\"15\",\"outcome\":\"block\",\"passed\":true,\"ruleId\":\"rl_1\",\"ruleName\":\"Max order size\",\"scope\":{\"id\":\"agt_1\",\"kind\":\"agent\"},\"threshold\":\"150\",\"unit\":\"usd\"},{\"metric\":\"gross_exposure\",\"observed\":\"35\",\"outcome\":\"block\",\"passed\":true,\"ruleId\":\"rl_2\",\"ruleName\":\"Account gross exposure\",\"scope\":{\"id\":\"ta_hl\",\"kind\":\"connected_account\"},\"threshold\":\"100\",\"unit\":\"usd\"}],\"id\":\"dec_1\",\"portfolioId\":\"pf_main\",\"proposal\":{\"clientOrderId\":\"msh-a1b2c3-k3j9xq\",\"expiresAt\":\"2026-11-13T10:01:00Z\",\"kind\":\"order\",\"notionalUsd\":\"15\",\"orderType\":\"limit\",\"price\":\"50000\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.0003\",\"symbol\":\"BTC\",\"venue\":\"hyperliquid\"},\"state\":{\"asOf\":\"2026-11-13T10:00:00Z\",\"dailyPnlUsd\":\"-1.5\",\"drawdownPct\":\"0\",\"grossExposureUsd\":\"20\",\"leverage\":\"0.04\",\"netExposureUsd\":\"20\"},\"submission\":{\"keyId\":\"key_a\",\"nonce\":\"n1\",\"price\":\"50000\",\"proposedAt\":\"2026-11-13T10:00:00Z\"},\"verdict\":\"allow\"}"
+    },
+    {
+      "name": "version 1 (signingVersion absent): the same, signed before contract 0.20.0 under the old names (tradingAccountId, trading_account)",
+      "decision": {
+        "agentId": "agt_1",
+        "agentName": "Trend follower",
+        "agentSignature": "YWdlbnQ=",
+        "configRevision": 12,
+        "connectedAccountId": "ta_hl",
+        "createdAt": "2026-11-13T10:00:00.25Z",
+        "engineSignature": "AaH3zgn1IFdkOGKuINhKflXL+ZWagF7RvgCllORLdk7B7+rUJyTAoV0hTbowc3NoKqxDmTc6LCB0P+H0S2iCAA==",
+        "evaluations": [
+          {
+            "metric": "order_size",
+            "observed": "15",
+            "outcome": "block",
+            "passed": true,
+            "ruleId": "rl_1",
+            "ruleName": "Max order size",
+            "scope": {
+              "id": "agt_1",
+              "kind": "agent"
+            },
+            "threshold": "150",
+            "unit": "usd"
+          },
+          {
+            "metric": "gross_exposure",
+            "observed": "35",
+            "outcome": "block",
+            "passed": true,
+            "ruleId": "rl_2",
+            "ruleName": "Account gross exposure",
+            "scope": {
+              "id": "ta_hl",
+              "kind": "connected_account"
+            },
+            "threshold": "100",
+            "unit": "usd"
+          }
+        ],
+        "id": "dec_1",
+        "latencyMs": 2.1,
+        "portfolioId": "pf_main",
+        "proposal": {
+          "clientOrderId": "msh-a1b2c3-k3j9xq",
+          "expiresAt": "2026-11-13T10:01:00Z",
+          "kind": "order",
+          "notionalUsd": "15",
+          "orderType": "limit",
+          "price": "50000",
+          "reduceOnly": false,
+          "side": "buy",
+          "size": "0.0003",
+          "symbol": "BTC",
+          "venue": "hyperliquid"
+        },
+        "reason": "every rule passed",
+        "state": {
+          "asOf": "2026-11-13T10:00:00Z",
+          "dailyPnlUsd": "-1.5",
+          "drawdownPct": "0",
+          "grossExposureUsd": "20",
+          "leverage": "0.04",
+          "netExposureUsd": "20"
+        },
+        "submission": {
+          "keyId": "key_a",
+          "nonce": "n1",
+          "price": "50000",
+          "proposedAt": "2026-11-13T10:00:00Z"
+        },
+        "venueAck": {
+          "orderId": "64462809897",
+          "receivedAt": "2026-11-13T10:00:01Z",
+          "status": "resting"
+        },
+        "verdict": "allow"
+      },
+      "signingBytes": "{\"agentId\":\"agt_1\",\"agentName\":\"Trend follower\",\"agentSignature\":\"YWdlbnQ=\",\"configRevision\":12,\"createdAt\":\"2026-11-13T10:00:00.25Z\",\"evaluations\":[{\"metric\":\"order_size\",\"observed\":\"15\",\"outcome\":\"block\",\"passed\":true,\"ruleId\":\"rl_1\",\"ruleName\":\"Max order size\",\"scope\":{\"id\":\"agt_1\",\"kind\":\"agent\"},\"threshold\":\"150\",\"unit\":\"usd\"},{\"metric\":\"gross_exposure\",\"observed\":\"35\",\"outcome\":\"block\",\"passed\":true,\"ruleId\":\"rl_2\",\"ruleName\":\"Account gross exposure\",\"scope\":{\"id\":\"ta_hl\",\"kind\":\"trading_account\"},\"threshold\":\"100\",\"unit\":\"usd\"}],\"id\":\"dec_1\",\"portfolioId\":\"pf_main\",\"proposal\":{\"clientOrderId\":\"msh-a1b2c3-k3j9xq\",\"expiresAt\":\"2026-11-13T10:01:00Z\",\"kind\":\"order\",\"notionalUsd\":\"15\",\"orderType\":\"limit\",\"price\":\"50000\",\"reduceOnly\":false,\"side\":\"buy\",\"size\":\"0.0003\",\"symbol\":\"BTC\",\"venue\":\"hyperliquid\"},\"state\":{\"asOf\":\"2026-11-13T10:00:00Z\",\"dailyPnlUsd\":\"-1.5\",\"drawdownPct\":\"0\",\"grossExposureUsd\":\"20\",\"leverage\":\"0.04\",\"netExposureUsd\":\"20\"},\"submission\":{\"keyId\":\"key_a\",\"nonce\":\"n1\",\"price\":\"50000\",\"proposedAt\":\"2026-11-13T10:00:00Z\"},\"tradingAccountId\":\"ta_hl\",\"verdict\":\"allow\"}"
+    },
+    {
+      "name": "version 3: a reduce-only market exit on Binance, no rule evaluated (evaluations signed as []), exit signed",
+      "decision": {
+        "agentId": "agt_1",
+        "agentName": "Reversion",
+        "agentSignature": "YWdlbnQy",
+        "configRevision": 3,
+        "connectedAccountId": "ta_bn",
+        "createdAt": "2026-11-13T10:00:01Z",
+        "engineSignature": "H+6SLcsnOZTGK7rzBb90yluAQ7fIqaAljETzZ2+4QLIVarQ+PRFYurol9O5CISPI/uykg0ze8bEg703182vuDQ==",
+        "evaluations": null,
+        "exit": true,
+        "id": "dec_2",
+        "latencyMs": 1.4,
+        "proposal": {
+          "clientOrderId": "msh-d4e5f6-p2q8rw",
+          "expiresAt": "2026-11-13T10:01:00Z",
+          "kind": "order",
+          "notionalUsd": "400.12",
+          "orderType": "market",
+          "reduceOnly": true,
+          "side": "sell",
+          "size": "0.004",
+          "symbol": "BTCUSDT",
+          "venue": "binance"
+        },
+        "signingVersion": 3,
+        "state": {
+          "asOf": "2026-11-13T10:00:00Z",
+          "dailyPnlUsd": "0",
+          "drawdownPct": "0",
+          "grossExposureUsd": "400",
+          "leverage": "0.2",
+          "netExposureUsd": "400"
+        },
+        "submission": {
+          "keyId": "key_b",
+          "nonce": "n2",
+          "proposedAt": "2026-11-13T10:00:00Z"
+        },
+        "verdict": "allow"
+      },
+      "signingBytes": "{\"agentId\":\"agt_1\",\"agentName\":\"Reversion\",\"agentSignature\":\"YWdlbnQy\",\"configRevision\":3,\"connectedAccountId\":\"ta_bn\",\"createdAt\":\"2026-11-13T10:00:01Z\",\"evaluations\":[],\"exit\":true,\"id\":\"dec_2\",\"proposal\":{\"clientOrderId\":\"msh-d4e5f6-p2q8rw\",\"expiresAt\":\"2026-11-13T10:01:00Z\",\"kind\":\"order\",\"notionalUsd\":\"400.12\",\"orderType\":\"market\",\"reduceOnly\":true,\"side\":\"sell\",\"size\":\"0.004\",\"symbol\":\"BTCUSDT\",\"venue\":\"binance\"},\"state\":{\"asOf\":\"2026-11-13T10:00:00Z\",\"dailyPnlUsd\":\"0\",\"drawdownPct\":\"0\",\"grossExposureUsd\":\"400\",\"leverage\":\"0.2\",\"netExposureUsd\":\"400\"},\"submission\":{\"keyId\":\"key_b\",\"nonce\":\"n2\",\"proposedAt\":\"2026-11-13T10:00:00Z\"},\"verdict\":\"allow\"}"
+    }
+  ]
+}

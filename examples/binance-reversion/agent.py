@@ -5,15 +5,19 @@ Python SDK runs the signer as a child of this process; with --connect it
 attaches to one that already runs (`mishmar signer run --local unix:…`), so
 the same signer can also answer the console's key verification. It walks a
 fixed sequence of orders chosen against these rules, set up in the console
-on the agent and on its portfolio:
+on the agent (given $2,000 of allocated capital, which its leverage rule is
+measured against) and on the connected account it trades on:
 
-  agent      Reversion max order        order > $600         block
-  agent      Reversion order review     order > $250         require_approval
-  agent      Reversion agent gross      gross > $750         block
-  portfolio  Reversion ETH review       ETH net > $100       require_approval
-  portfolio  Reversion portfolio gross  gross > $600         block
-  portfolio  Reversion daily loss       daily loss > $100    block
-  portfolio  Reversion leverage         leverage > 1         block   (budget $2000)
+  agent              Reversion max order      order > $600         block
+  agent              Reversion order review   order > $250         require_approval
+  agent              Reversion agent gross    gross > $750         block
+  agent              Reversion leverage       leverage > 1         block
+  connected account  Reversion ETH review     ETH net > $100       require_approval
+  connected account  Reversion account gross  gross > $600         block
+  connected account  Reversion daily loss     daily loss > $100    block
+
+The account's rules see every position on the account, and the bot predicts
+them from its own, so run it on a demo account nothing else trades on.
 
 Each step states the verdict it expects and the rules that must fail, and the
 run ends with a pass/fail table, the agent's positions and its PnL. A step
@@ -202,7 +206,7 @@ def show(d: dict[str, Any], took: float | None) -> None:
     for e in d.get("evaluations", []):
         mark = "waived" if e.get("waived") else ("ok" if e["passed"] else "FAILED")
         print(
-            f"     [{e['scope']['kind']:9}] {e['ruleName']:26} {e['metric']:15} "
+            f"     [{e['scope']['kind']:17}] {e['ruleName']:26} {e['metric']:15} "
             f"{e['observed']:>10} vs {e['threshold']:>6} {e['unit']:5} -> {mark}"
             + (f" ({e['outcome']})" if not e["passed"] and not e.get("waived") else "")
         )
@@ -303,7 +307,7 @@ def steps(sequence: str = "full") -> list[Step]:
 
     def gross_after(a: Agent, usd: int) -> Decimal:
         g = a.gross()
-        print(f"   (agent gross now ${g:.2f}; about ${g + usd:.2f} after this order)")
+        print(f"   (gross now ${g:.2f}; about ${g + usd:.2f} after this order)")
         return g + usd
 
     def big_order(a: Agent) -> tuple[str, list[str]]:
@@ -312,12 +316,12 @@ def steps(sequence: str = "full") -> list[Step]:
         if after > 750:
             failing.append("Reversion agent gross")
         if after > 600:
-            failing.append("Reversion portfolio gross")
+            failing.append("Reversion account gross")
         return "block", failing
 
-    def portfolio_cap(a: Agent) -> tuple[str, list[str]]:
+    def account_cap(a: Agent) -> tuple[str, list[str]]:
         return (
-            ("block", ["Reversion portfolio gross"])
+            ("block", ["Reversion account gross"])
             if gross_after(a, 240) > 600
             else ("allow", [])
         )
@@ -342,7 +346,7 @@ def steps(sequence: str = "full") -> list[Step]:
         after=flat("BTCUSDT"),
     )
     if sequence == "cap":
-        # The portfolio's gross cap alone: two orders under the review threshold
+        # The account's gross cap alone: two orders under the review threshold
         # build about $400, so a third under it crosses $600 and nothing else.
         return [
             Step(
@@ -358,10 +362,10 @@ def steps(sequence: str = "full") -> list[Step]:
                 after=filled,
             ),
             Step(
-                "c3. $240 market buy BTCUSDT (portfolio gross cap)",
+                "c3. $240 market buy BTCUSDT (account gross cap)",
                 "block",
                 lambda a: a.market("BTCUSDT", "buy", "240"),
-                failing=["Reversion portfolio gross"],
+                failing=["Reversion account gross"],
             ),
             exit_step,
         ]
@@ -375,7 +379,7 @@ def steps(sequence: str = "full") -> list[Step]:
             after=filled,
         ),
         Step(
-            "4. $150 market buy ETHUSDT (portfolio ETH review)",
+            "4. $150 market buy ETHUSDT (account ETH review)",
             "require_approval",
             lambda a: a.market("ETHUSDT", "buy", "150", valid_for=1200),
             failing=["Reversion ETH review"],
@@ -395,10 +399,10 @@ def steps(sequence: str = "full") -> list[Step]:
             after=filled,
         ),
         Step(
-            "7. $240 market buy BTCUSDT (portfolio gross cap)",
+            "7. $240 market buy BTCUSDT (account gross cap)",
             "block",
             lambda a: a.market("BTCUSDT", "buy", "240"),
-            expect_fn=portfolio_cap,
+            expect_fn=account_cap,
             after=filled_if_allowed,
         ),
         exit_step,
@@ -431,7 +435,7 @@ def main() -> int:
         "--sequence",
         choices=["full", "cap"],
         default="full",
-        help="cap: only the portfolio's gross cap, with no approval to wait for",
+        help="cap: only the account's gross cap, with no approval to wait for",
     )
     args = ap.parse_args()
 

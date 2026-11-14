@@ -10,20 +10,26 @@ example's.
 
 ## The rules
 
-Add these in the console before the run, on the agent and on its portfolio.
-The bot checks the decisions against these names, so keep them as they are.
-The portfolio needs allocated capital for the leverage rule; the test used
-$2,000.
+Add these in the console before the run: four on the agent, its own limits,
+and three on the connected account it trades on, which hold for anything
+that trades there. The bot checks the decisions against these names, so keep
+them as they are. Give the agent $2,000 of allocated capital first: its
+leverage rule is measured against that, and Mishmar refuses to turn the rule
+on while the agent has none.
 
 | Scope | Name | Condition | Outcome |
 |---|---|---|---|
 | agent | Reversion max order | order > $600 | block |
 | agent | Reversion order review | order > $250 | require approval |
 | agent | Reversion agent gross | gross > $750 | block |
-| portfolio | Reversion ETH review | ETH net > $100 | require approval |
-| portfolio | Reversion portfolio gross | gross > $600 | block |
-| portfolio | Reversion daily loss | daily loss > $100 | block |
-| portfolio | Reversion leverage | leverage > 1 | block |
+| agent | Reversion leverage | leverage > 1 | block |
+| connected account | Reversion ETH review | ETH net > $100 | require approval |
+| connected account | Reversion account gross | gross > $600 | block |
+| connected account | Reversion daily loss | daily loss > $100 | block |
+
+The account's rules see every position on the account, whoever opened it,
+and the bot predicts their verdicts from its own positions: run it on a demo
+account that nothing else trades on during the run.
 
 ## The steps
 
@@ -33,11 +39,11 @@ $2,000.
 4. A $150 market buy of ETHUSDT parks for a person (ETH review).
 5. A $700 market buy of BTCUSDT is blocked (max order, order review, and the gross rules it would cross).
 6. A $300 market buy of BTCUSDT parks for a person (order review) and fills once approved.
-7. A $240 market buy of BTCUSDT is blocked by the portfolio's gross cap, or allowed if the gross is still under it.
+7. A $240 market buy of BTCUSDT is blocked by the account's gross cap, or allowed if the gross is still under it.
 8. A reduce-only market sell of the whole BTCUSDT position fills and the account is flat.
 
 `--sequence cap` runs a shorter walk with no approval to wait for: two $200
-buys under the review threshold, a $240 buy that crosses the portfolio's
+buys under the review threshold, a $240 buy that crosses the account's
 gross cap, and the exit.
 
 ## Run it
@@ -84,13 +90,13 @@ what the signer and the venue said, and PASS or FAIL:
    intent: order buy 0.001 BTCUSDT market
    dec_…: ALLOW
    notional $110.40 at -; cloid msh-…; engine 4.1 ms; round trip 530 ms
-     [agent    ] Reversion max order        order_size          110.40 vs    600 usd   -> ok
-     [agent    ] Reversion order review     order_size          110.40 vs    250 usd   -> ok
-     [agent    ] Reversion agent gross      gross_exposure      110.40 vs    750 usd   -> ok
-     [portfolio] Reversion ETH review       net_exposure             0 vs    100 usd   -> ok
-     [portfolio] Reversion portfolio gross  gross_exposure      110.40 vs    600 usd   -> ok
-     [portfolio] Reversion daily loss       daily_loss               0 vs    100 usd   -> ok
-     [portfolio] Reversion leverage         leverage              0.06 vs      1 ratio -> ok
+     [agent            ] Reversion max order        order_size          110.40 vs    600 usd   -> ok
+     [agent            ] Reversion order review     order_size          110.40 vs    250 usd   -> ok
+     [agent            ] Reversion agent gross      gross_exposure      110.40 vs    750 usd   -> ok
+     [agent            ] Reversion leverage         leverage              0.06 vs      1 ratio -> ok
+     [connected_account] Reversion ETH review       net_exposure             0 vs    100 usd   -> ok
+     [connected_account] Reversion account gross    gross_exposure      110.40 vs    600 usd   -> ok
+     [connected_account] Reversion daily loss       daily_loss               0 vs    100 usd   -> ok
    signer: signed
    venue: {"status": "filled", "orderId": …}
    PASS

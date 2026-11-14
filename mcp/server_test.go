@@ -85,7 +85,8 @@ func (f *fakeBackend) Permission(context.Context) (api.AgentPermission, error) {
 	return f.perm, nil
 }
 func (f *fakeBackend) Me(context.Context) (api.AgentIdentity, error) {
-	return api.AgentIdentity{AgentId: "agt_1", AgentName: "Reader", AccountId: "acc_1", KeyId: "key_1", PortfolioId: "pf_1"}, nil
+	capital := "5000"
+	return api.AgentIdentity{AgentId: "agt_1", AgentName: "Reader", AccountId: "acc_1", KeyId: "key_1", CapitalUsd: &capital}, nil
 }
 func (f *fakeBackend) ConnectedAccounts(context.Context) ([]api.ConnectedAccount, error) {
 	f.record("accounts")
@@ -328,5 +329,33 @@ func TestWaitForDecisionFollowsAnApproval(t *testing.T) {
 	res = s.call("tools/call", map[string]any{"name": "get_connected_account", "arguments": map[string]any{"connectedAccountId": "ta_9"}})
 	if txt, isErr := text(t, res); isErr || !strings.Contains(txt, `"id":"ta_9"`) {
 		t.Fatalf("get_connected_account: %v %q", isErr, txt)
+	}
+}
+
+// Contract 0.21.0 has no portfolios: the rules sit on the account, a venue
+// connection, a connected account or the agent, and an agent's leverage and
+// drawdown are measured against its own capital. Nothing the model reads
+// speaks of a portfolio.
+func TestTheRulesScopesWithoutPortfolios(t *testing.T) {
+	s := start(t, &fakeBackend{})
+	res := s.call("initialize", map[string]any{"protocolVersion": ProtocolVersion})
+	instructions := strings.Join(strings.Fields(res["result"].(map[string]any)["instructions"].(string)), " ")
+	for _, want := range []string{"the whole Mishmar account", "on a venue connection", "on this agent alone", "scope.kind: account, venue_connection, connected_account or agent", "the capital the person allocated to it"} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("the instructions do not say %q:\n%s", want, instructions)
+		}
+	}
+	texts := []string{instructions}
+	for _, tl := range s.call("tools/list", nil)["result"].(map[string]any)["tools"].([]any) {
+		m := tl.(map[string]any)
+		texts = append(texts, m["name"].(string)+": "+m["description"].(string))
+	}
+	if !strings.Contains(strings.Join(texts, "\n"), "get_identity: Who this agent is: its id and name, the Mishmar account it belongs to, whether it reads or trades (permission), the capital its own leverage and drawdown rules are measured against (capitalUsd") {
+		t.Fatal("get_identity does not say the identity carries the agent's capital")
+	}
+	for _, text := range texts {
+		if strings.Contains(strings.ToLower(text), "portfolio") {
+			t.Fatalf("still speaks of portfolios: %s", text)
+		}
 	}
 }

@@ -22,6 +22,8 @@ export default defineConfig({
     // Contract 0.20.0 (12 Nov 2026): trading accounts became connected accounts.
     '/hyperliquid/add-a-trading-account': '/hyperliquid/connect-an-account/',
     '/binance/add-a-trading-account': '/binance/connect-an-account/',
+    // Contract 0.21.0 (13 Nov 2026): portfolios are gone; their page became where rules apply.
+    '/start/portfolios': '/start/where-rules-apply/',
   },
   integrations: [
     starlight({

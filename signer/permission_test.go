@@ -73,10 +73,10 @@ func (m *meEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 const (
-	readMe  = `{"agentId":"agt_1","agentName":"Reader","accountId":"acc_1","keyId":"key_1","portfolioId":"pf_1","permission":"read"}`
-	tradeMe = `{"agentId":"agt_1","agentName":"Reader","accountId":"acc_1","keyId":"key_1","portfolioId":"pf_1","permission":"trade"}`
+	readMe  = `{"agentId":"agt_1","agentName":"Reader","accountId":"acc_1","keyId":"key_1","permission":"read"}`
+	tradeMe = `{"agentId":"agt_1","agentName":"Reader","accountId":"acc_1","keyId":"key_1","permission":"trade"}`
 	// An engine from before AgentIdentity.permission.
-	olderMe = `{"agentId":"agt_1","agentName":"Reader","accountId":"acc_1","keyId":"key_1","portfolioId":"pf_1"}`
+	olderMe = `{"agentId":"agt_1","agentName":"Reader","accountId":"acc_1","keyId":"key_1"}`
 )
 
 // running starts Run for a signer on eng, with the key sync on and every

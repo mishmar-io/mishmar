@@ -27,10 +27,9 @@ In the console, open **Agents** and click **Add agent**.
 - **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Read only**. Nothing is picked until you choose.
 - **Reads**: tick each connected account the agent may read (the only one there is is ticked for you), or click **Connect an account** to connect one without leaving the dialog. It reads each account whole: balances, positions, value and every transaction, who placed each one included.
-- **Portfolio**: where the agent is listed. Rules and capital matter only to an agent that trades. The account's default portfolio is preselected.
 - **Description** (optional): what it reads them for.
 
-![Step 1 of 2, Add agent: the name Desk assistant, Read only chosen under What it is for, two connected accounts ticked under Reads with Connect an account below them, the default portfolio, and a description](/screens/start/add-a-read-agent/add-agent.png)
+![Step 1 of 2, Add agent: the name Desk assistant, Read only chosen under What it is for, two connected accounts ticked under Reads with Connect an account below them, and a description](/screens/start/add-a-read-agent/add-agent.png)
 
 Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes.
 
@@ -64,7 +63,7 @@ These are the tools a read agent uses:
 
 | Tool | What it reads |
 | --- | --- |
-| `get_identity` | Who the agent is: its id and name, its Mishmar account and portfolio, the id of its key. |
+| `get_identity` | Who the agent is: its id and name, its Mishmar account, whether it reads or trades, its capital when it has some, the id of its key. |
 | `list_connected_accounts` | The connected accounts it was given, each with its name at the venue (`Spot`, `Perps`, `USDⓈ-M Futures`, or `Main` on a login with one account), its value in USD (and any asset with no price, in `unpricedAssets`), its status, and its connection: the venue login that holds it, which login it is there and how current its data is. |
 | `get_connected_account` | One of them, with its connection's setup and no secret. |
 | `get_account_balances` | The account's balances, each with its value in USD and the price used, and the account's value; now, or at a past moment (`at`). An asset with no price is named in `unpricedAssets` instead of being counted. |

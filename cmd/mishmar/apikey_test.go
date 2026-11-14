@@ -40,7 +40,7 @@ func apiKeyEngine(t *testing.T, keyID, publicKey string) *httptest.Server {
 		}
 	}
 	mux.HandleFunc("GET /v1/agent/me", auth(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(api.AgentIdentity{AgentId: "agt_trend", AgentName: "Trend follower", AccountId: "acc_main", KeyId: keyID, PortfolioId: "pf_main"})
+		_ = json.NewEncoder(w).Encode(api.AgentIdentity{AgentId: "agt_trend", AgentName: "Trend follower", AccountId: "acc_main", KeyId: keyID})
 	}))
 	mux.HandleFunc("GET /v1/agent/venue-keys", auth(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode([]api.VenueKey{})

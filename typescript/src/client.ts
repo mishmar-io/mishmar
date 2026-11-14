@@ -232,7 +232,7 @@ export class Client {
   // venue login that holds it. The accounts' values add up to the login's only
   // when the agent was given all `connection.accountCount` of them.
 
-  /** Who the key belongs to: the agent, its account and portfolio, and the key id. The engine answers only a key it knows, so this is the read that proves one. */
+  /** Who the key belongs to: the agent, its Mishmar account, whether it reads or trades, and the key id. The engine answers only a key it knows, so this is the read that proves one. */
   async me(): Promise<AgentIdentity> {
     return (await this.#agentCall("GET", "/agent/me")) as AgentIdentity;
   }

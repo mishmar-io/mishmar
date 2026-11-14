@@ -28,7 +28,7 @@ Then you add **agents** and give each the connected accounts it may use. You cho
 
 - [How a trading key is split](/concepts/how-a-trading-key-is-split/): why neither your agent nor Mishmar can trade alone, and what each side checks before it signs.
 - [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/): what it reads, how often, for how long, and who can read it.
-- [Portfolios](/start/portfolios/): groups of agents that share limits and allocated capital.
+- [Where rules apply](/start/where-rules-apply/): on the whole account, a connection, a connected account or one agent, and the capital an agent's leverage and drawdown rules are measured against.
 
 ## Stuck?
 

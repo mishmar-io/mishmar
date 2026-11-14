@@ -44,7 +44,7 @@ func (k *keyEngine) set(keys ...api.VenueKey) {
 func (k *keyEngine) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/agent/me", k.auth(func(w http.ResponseWriter, r *http.Request, _ []byte) {
-		writeJSON(w, http.StatusOK, api.AgentIdentity{AgentId: "agt_1", AgentName: "Reversion", AccountId: "acc_main", KeyId: k.keyID, PortfolioId: "pf_1"})
+		writeJSON(w, http.StatusOK, api.AgentIdentity{AgentId: "agt_1", AgentName: "Reversion", AccountId: "acc_main", KeyId: k.keyID})
 	}))
 	mux.HandleFunc("GET /v1/agent/venue-keys", k.auth(func(w http.ResponseWriter, r *http.Request, _ []byte) {
 		k.mu.Lock()

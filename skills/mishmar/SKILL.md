@@ -33,7 +33,7 @@ Every page in one file: https://docs.mishmar.io/llms-full.txt. Bots to copy from
 1. Install the CLI: https://docs.mishmar.io/start/install-the-cli/
 2. Add a connected account: https://docs.mishmar.io/hyperliquid/add-a-connected-account/ or https://docs.mishmar.io/binance/add-a-connected-account/
 3. Add an agent and make its split trading key: https://docs.mishmar.io/hyperliquid/add-an-agent/ or https://docs.mishmar.io/binance/add-an-agent/. The signer config lands in `~/.mishmar/agent.json`.
-4. Set rules in the console before the bot trades. A first set: order size over a threshold held for approval, a larger one blocked, gross exposure, daily loss and leverage blocked. https://docs.mishmar.io/questions/how-do-i-limit-what-my-trading-bot-can-do/
+4. Set rules in the console before the bot trades. A first set: order size over a threshold held for approval, a larger one blocked, gross exposure, daily loss and leverage blocked. A rule sits on the whole account, a venue connection, a connected account or one agent; leverage and drawdown on an agent are measured against the capital set on that agent, which they need. https://docs.mishmar.io/questions/how-do-i-limit-what-my-trading-bot-can-do/ and https://docs.mishmar.io/start/where-rules-apply/
 5. Run the bot through `Signer`, or give a model the tools with `mishmar mcp`.
 
 ## A model as the agent

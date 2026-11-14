@@ -32,10 +32,10 @@ In the console, open **Agents** and click **Add agent**. The dialog has four ste
 - **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Trade**. Nothing is picked until you choose.
 - **Trades on**: the connected account the agent gets its trading key on. Pick your Binance account if you connected it already (the only one there is is picked for you), or click **Connect an account**, which opens [the same steps as connecting one](/binance/connect-an-account/) without leaving the dialog, read-only key included, and picks the account when it is done.
-- **Portfolio**: the portfolio's rules apply to the agent, alongside its own, and its capital to the agent's leverage and drawdown rules. The account's default portfolio is preselected.
+- **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside the account's and the connected account's.
 - **Description** (optional): what it trades and how.
 
-![Step 1 of 4, Add agent: the name Reversion, Trade chosen under What it is for, Trades on set to the Binance account with Connect an account beside it, the default portfolio, and a description](/screens/binance/add-an-agent/add-agent.png)
+![Step 1 of 4, Add agent: the name Reversion, Trade chosen under What it is for, Trades on set to the Binance account with Connect an account beside it, Capital left empty, and a description](/screens/binance/add-an-agent/add-agent.png)
 
 Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes. Mishmar creates the agent, issues its Mishmar API key, gives it the account and sets a trading key aside on it, all at once. The agent reads the account it trades on too: [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) says what it can read.
 

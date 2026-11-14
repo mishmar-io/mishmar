@@ -21,7 +21,7 @@ Treat the model the way you would treat a contractor you have never met: give it
 2. **Limits the model cannot change.** Order size, exposure, leverage, concentration, drawdown and daily loss, set in the console and enforced by Mishmar before an order is signed. The model's tool calls cannot reach them. [How do I limit what my trading bot can do?](/questions/how-do-i-limit-what-my-trading-bot-can-do/) lists them.
 3. **A person on large orders.** A rule that holds any order over a threshold for your approval. The model can wait for the decision or move on. Approval takes a passkey, so an injected "approve it" goes nowhere.
 4. **A record.** Every proposal, with the model's reasoning if your agent includes it, and every decision, signed and chained. When the model does something odd you can see what it asked for and what was allowed.
-5. **A stop button that is not a tool.** Stop all trading from the console, on the account, a portfolio or the one agent, and Mishmar's half of the key signs nothing more but cancels. Pause instead, and only orders that close a position pass.
+5. **A stop button that is not a tool.** Stop all trading from the console, on the whole account, the connected account it trades on or the one agent, and Mishmar's half of the key signs nothing more but cancels. Pause instead, and only orders that close a position pass.
 
 A rule set to start with, for a model trading a small account:
 

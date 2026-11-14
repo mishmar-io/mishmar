@@ -528,7 +528,7 @@ class Signer:
     # Client's, signed with the agent's key there.
 
     def me(self) -> AgentIdentity:
-        """Who the agent's key belongs to: the agent, its account and portfolio."""
+        """Who the agent's key belongs to: the agent, its Mishmar account, whether it reads or trades, and the key id."""
         return self._request("GET", "/me")
 
     def connected_accounts(self) -> list[ConnectedAccount]:
