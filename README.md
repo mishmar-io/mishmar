@@ -21,7 +21,8 @@ on the Releases page.
 
 ```
 spec/openapi.yaml     the API contract, the single source of truth for every client and the engine
-spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth), the engine's signature on a decision
+spec/vectors/         cross-language test vectors: proposal signing, agent request signing (agentAuth), the engine's signature on a decision,
+                      an agent key's fingerprint, the trade sign-in's machine proof, the app setup text
 api/                  the contract as Go types (generated; `make gen`)
 canon/                canonical JSON: the bytes an agent signs
 agentkey/             the agent's Ed25519 identity key: parse the secret, sign, verify, sign requests
@@ -29,8 +30,10 @@ proposal/             build, validate and sign a proposal for POST /v1/proposals
 decision/             verify the engine's signature on a decision, per signing version, from the decision as served
 frost/                two-party FROST over Ed25519: the split key behind a Binance connectedAccount
 ecdsa2p/              two-party ECDSA over secp256k1: the split key behind a Hyperliquid API wallet (keygen, presigning, signing)
-signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop
-cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run, propose, read, mcp
+signer/               the agent's signer: config, engine client, the checks, the signing rounds (FROST and two-party ECDSA), the poll loop;
+                      signin/ (an AI app's trade sign-in) and daemon/ (the background signer behind `mishmar mcp --app`)
+appsetup/             the setup text an AI app is given for trading through Mishmar from the person's computer
+cmd/mishmar/          the CLI: keygen, add-agent, signer init|add-key|keygen|run|daemon, propose, read, mcp, daemon status|stop
 mcp/                  the MCP server behind `mishmar mcp`: the signer's tools for a language model, over stdio
 python/               the Python SDK (`mishmar` on PyPI)
 typescript/           the TypeScript SDK (`mishmar` on npm); no runtime dependencies
@@ -123,6 +126,17 @@ key and, for each request, refuses unless, in this order:
   proposal's order (asset, side, size, a limit price on the tick rules within
   1 % on the passive side, reduce-only, the cloid of the request's client
   order id) or the cancel of its target;
+- an `order` is for a proposal it has not signed an order for yet. It keeps
+  a record of the proposals it signed orders for, by the proposal's key and
+  nonce (which the agent signed, so the engine cannot change them), in
+  `<config>.signed.json` beside its config (0600, replaced atomically and
+  synced before the share leaves, kept until the proposal's `expiresAt`
+  plus a minute). Another request for one of them is
+  `order_already_signed`, whatever its timestamp and after a restart too; the
+  same request id again is still `request_already_answered`. A record that
+  cannot be read or written refuses every order
+  (`order_record_unavailable`) and never starts over empty. Cancels are
+  not recorded;
 - the hook, when the config names one, exits 0 (it gets the request's JSON
   on stdin and two seconds; its first line of output is the refusal reason).
 

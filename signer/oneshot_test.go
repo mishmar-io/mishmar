@@ -39,6 +39,7 @@ type oneShotEngine struct {
 	sigs     []oneShotSig
 	plain    int
 	conflict bool // answer the next one-shot proposal 409, as after a restart
+	holder   bool // answer every proposal 409 naming the trading key: another key holds it
 	refused  int  // one-shot proposals answered 409
 	instance string
 	keys     []api.VenueKey // what GET /agent/venue-keys answers
@@ -141,6 +142,16 @@ func (e *oneShotEngine) handler() http.Handler {
 		}
 		if !proposal.Verify(e.pub, submitOf(in)) {
 			writeJSON(w, http.StatusUnauthorized, api.Error{Code: "unauthorized", Message: "Invalid signature"})
+			return
+		}
+		e.mu.Lock()
+		holder := e.holder
+		if holder {
+			e.refused++
+		}
+		e.mu.Unlock()
+		if holder {
+			writeJSON(w, http.StatusConflict, api.Error{Code: "conflict", Message: "another of the agent's keys holds this trading key", Details: &map[string]any{"venueKeyId": "vk_1"}})
 			return
 		}
 		m := in.VenueMessage
@@ -443,5 +454,22 @@ func TestOneShotDuringAReplacement(t *testing.T) {
 	s, eng = newOneShot(t, nil)
 	if _, err := s.Propose(context.Background(), limitProposal()); err != nil || eng.keyReads != 0 {
 		t.Fatalf("one key: %v, %d reads", err, eng.keyReads)
+	}
+}
+
+// A proposal refused because another of the agent's keys holds the trading
+// key (409 conflict with details.venueKeyId, contract 0.21.0) is not sent
+// again through the channel, which would be refused the same way; the
+// refusal comes back with its details.
+func TestOneShotDoesNotRetryAnotherHoldersConflict(t *testing.T) {
+	s, eng := newOneShot(t, nil)
+	eng.holder = true
+	_, err := s.Propose(context.Background(), limitProposal())
+	var e *Error
+	if !errors.As(err, &e) || e.Status != 409 || e.Details["venueKeyId"] != "vk_1" {
+		t.Fatalf("err %v", err)
+	}
+	if _, plain, refused := eng.counts(); refused != 1 || plain != 0 {
+		t.Fatalf("%d refused, %d plain: sent again", refused, plain)
 	}
 }

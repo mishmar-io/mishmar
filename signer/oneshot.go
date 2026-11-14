@@ -58,8 +58,11 @@ type oneShotState struct {
 	instance    string
 	refilling   map[string]bool
 	// active is the venue keys the engine reported active, when there was a
-	// choice to make (activeKeys).
+	// choice to make (activeKeys); others the ones whose agentKeyId names
+	// another of the agent's keys (contract 0.21.0), whose commitments and
+	// presigning are that key's.
 	active        map[string]bool
+	others        map[string]bool
 	activeFetched time.Time
 }
 
@@ -290,6 +293,11 @@ func (s *Signer) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 	}
 	d, err := s.Client.Propose(ctx, p)
 	var e *Error
+	if errors.As(err, &e) && e.Status == http.StatusConflict && e.Details["venueKeyId"] != nil {
+		// Another of the agent's keys holds the trading key (contract
+		// 0.21.0): the channel would be refused the same way.
+		return d, err
+	}
 	if errors.As(err, &e) && (e.Status == http.StatusConflict || e.Status == http.StatusNotImplemented) {
 		if e.Status == http.StatusConflict {
 			s.forgetCommitments(p.VenueMessage.VenueKeyId)
@@ -317,6 +325,23 @@ func (s *Signer) venueKeyOn(ctx context.Context, connectedAccountID string) (str
 			ids = append(ids, id)
 		}
 	}
+	if len(ids) > 0 {
+		// A key the engine said another of the agent's keys holds
+		// (VenueKey.agentKeyId, as the last key sync or choice read it) is
+		// not this signer's to sign with: no commitments or presigning for
+		// it, and the proposal goes as is.
+		others := s.otherKeys()
+		mine := ids[:0]
+		for _, id := range ids {
+			if !others[id] {
+				mine = append(mine, id)
+			}
+		}
+		if len(mine) == 0 {
+			return "", VenueKey{}, noOneShot("the trading key on %s belongs to another of the agent's keys", connectedAccountID)
+		}
+		ids = mine
+	}
 	switch len(ids) {
 	case 0:
 		return "", VenueKey{}, noOneShot("no venue key on %s in the config", connectedAccountID)
@@ -336,11 +361,42 @@ func (s *Signer) venueKeyOn(ctx context.Context, connectedAccountID string) (str
 // activeKeys is the set of this agent's venue keys the engine reports active,
 // read at most once per keysTTL. A failed read keeps the last answer.
 func (s *Signer) activeKeys(ctx context.Context) map[string]bool {
+	active, _ := s.activeAndOthers(ctx)
+	return active
+}
+
+// otherKeys is the venue keys the engine last said another of the agent's
+// keys holds; nothing is asked for it.
+func (s *Signer) otherKeys() map[string]bool {
+	st := s.oneShot()
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.others
+}
+
+// noteOthers records, from a list of the agent's venue keys, the ones whose
+// agentKeyId names another of its keys than this signer's.
+func (s *Signer) noteOthers(keys []api.VenueKey) {
+	others := map[string]bool{}
+	for _, k := range keys {
+		if k.AgentKeyId != nil && *k.AgentKeyId != "" && *k.AgentKeyId != s.Config.KeyID {
+			others[k.Id] = true
+		}
+	}
+	st := s.oneShot()
+	st.mu.Lock()
+	st.others = others
+	st.mu.Unlock()
+}
+
+// activeAndOthers is activeKeys, and the venue keys whose agentKeyId names
+// another of the agent's keys than this signer's.
+func (s *Signer) activeAndOthers(ctx context.Context) (map[string]bool, map[string]bool) {
 	st := s.oneShot()
 	st.mu.Lock()
 	if st.active != nil && s.now().Sub(st.activeFetched) < keysTTL {
 		defer st.mu.Unlock()
-		return st.active
+		return st.active, st.others
 	}
 	st.mu.Unlock()
 	keys, err := s.Client.VenueKeys(ctx)
@@ -348,16 +404,19 @@ func (s *Signer) activeKeys(ctx context.Context) map[string]bool {
 	defer st.mu.Unlock()
 	if err != nil {
 		s.Logger.Warn("signer: reading the agent's venue keys failed", "err", err)
-		return st.active
+		return st.active, st.others
 	}
-	st.active = map[string]bool{}
+	st.active, st.others = map[string]bool{}, map[string]bool{}
 	for _, k := range keys {
 		if k.Status == api.VenueKeyStatusActive {
 			st.active[k.Id] = true
 		}
+		if k.AgentKeyId != nil && *k.AgentKeyId != "" && *k.AgentKeyId != s.Config.KeyID {
+			st.others[k.Id] = true
+		}
 	}
 	st.activeFetched = s.now()
-	return st.active
+	return st.active, st.others
 }
 
 // symbolRules returns a symbol's rules on a connected account, from the engine

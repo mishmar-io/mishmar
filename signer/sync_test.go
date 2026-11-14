@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -246,6 +247,55 @@ func TestSyncKeysLeavesKeysItCannotGenerate(t *testing.T) {
 	}
 	if len(s.warned) != 2 {
 		t.Fatalf("warned %v, want one warning per key", s.warned)
+	}
+}
+
+// A trading key another of the agent's keys holds (VenueKey.agentKeyId,
+// contract 0.21.0: a bot's issued key and a computer's registered key on one
+// agent) is that key's signer's to generate and sign with: this signer runs
+// no key generation for it, even while it waits for one, and holds nothing.
+// One that names this signer's key, or none, it generates as before.
+func TestSyncKeysLeavesAnotherKeysTradingKeys(t *testing.T) {
+	s, eng, _ := syncSigner(t)
+	theirs := pendingKey("vk_theirs")
+	theirs.AgentKeyId = ptr("key_main_other0000000")
+	mine := pendingKey("vk_mine")
+	mine.ConnectedAccountId = "ta_bn2"
+	mine.AgentKeyId = ptr(s.Config.KeyID)
+	eng.set(theirs, mine)
+	made, err := s.SyncKeys(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(made) != 1 || made[0].VenueKeyID != "vk_mine" || eng.keygens != 2 {
+		t.Fatalf("made %+v with %d keygen rounds, want vk_mine alone", made, eng.keygens)
+	}
+	if _, held := s.venueKeys()["vk_theirs"]; held {
+		t.Fatal("holds another key's trading key")
+	}
+	if made, err := s.SyncKeys(context.Background()); err != nil || len(made) != 0 || eng.keygens != 2 {
+		t.Fatalf("second sync: %v %v, %d keygen rounds", made, err, eng.keygens)
+	}
+	// A share this config holds of a key the engine says another key holds
+	// is not signed with one-shot: no commitments, no presigning for it.
+	agentShare, _, err := frost.Deal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(agentShare)
+	s.setVenueKeys(map[string]VenueKey{"vk_mine": s.venueKeys()["vk_mine"], "vk_copied": {ConnectedAccountID: "ta_x", Venue: "binance", Scheme: SchemeFrostEd25519, Share: raw}}, nil)
+	copied := pendingKey("vk_copied")
+	copied.ConnectedAccountId, copied.AgentKeyId, copied.Keygen = "ta_x", ptr("key_main_other0000000"), nil
+	eng.set(theirs, mine, copied)
+	if _, err := s.SyncKeys(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var no *NoOneShot
+	if _, _, err := s.venueKeyOn(context.Background(), "ta_x"); !errors.As(err, &no) || !strings.Contains(err.Error(), "another of the agent's keys") {
+		t.Fatalf("one-shot on another key's trading key: %v", err)
+	}
+	if id, _, err := s.venueKeyOn(context.Background(), "ta_bn2"); err != nil || id != "vk_mine" {
+		t.Fatalf("one-shot on its own: %s %v", id, err)
 	}
 }
 

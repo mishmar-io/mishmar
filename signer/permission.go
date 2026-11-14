@@ -122,16 +122,24 @@ func (s *Signer) setPermission(p api.AgentPermission) {
 	}
 }
 
-// permissionOf is what an answer of GET /agent/me says the agent may do: an
-// engine from before the field sends none, which is trade (its agents all
-// were); a value this signer does not know is taken as read, which calls
-// the least.
+// permissionOf is what an answer of GET /agent/me says the signer's key may
+// do: trade only when the agent trades and so does the key. An engine from
+// before the agent's permission sends none, which is trade (its agents all
+// were); one from before 0.21.0 sends no key scope (keyScope), and the
+// agent's permission alone decides. A key of scope read, on any agent,
+// reads only: its signer polls nothing and syncs no keys, as a read
+// agent's, since the engine refuses it the signer channel (403 key_scope).
+// A value this signer does not know is taken as read, which calls the least.
 func permissionOf(me api.AgentIdentity) api.AgentPermission {
 	switch me.Permission {
 	case "", api.AgentPermissionTrade:
-		return api.AgentPermissionTrade
+	default:
+		return api.AgentPermissionRead
 	}
-	return api.AgentPermissionRead
+	if me.KeyScope != nil && *me.KeyScope != api.AgentKeyScopeTrade {
+		return api.AgentPermissionRead
+	}
+	return api.AgentPermissionTrade
 }
 
 // learnPermission asks GET /agent/me until it answers, or ctx ends, and
@@ -147,7 +155,7 @@ func (s *Signer) learnPermission(ctx context.Context) (perm api.AgentPermission,
 		case err == nil:
 			perm = permissionOf(me)
 			s.setPermission(perm)
-			return perm, me.Permission != ""
+			return perm, me.Permission != "" || me.KeyScope != nil
 		case errors.As(err, &refused) && refused.Status == http.StatusNotFound:
 			// An engine from before 0.19.0 has no GET /agent/me: trade, as before.
 			s.setPermission(api.AgentPermissionTrade)
@@ -174,7 +182,7 @@ func (s *Signer) learnPermission(ctx context.Context) (perm api.AgentPermission,
 // was known.
 func (s *Signer) recheckPermission(ctx context.Context, cur api.AgentPermission) api.AgentPermission {
 	me, err := s.Client.Me(ctx)
-	if err != nil || me.Permission == "" {
+	if err != nil || (me.Permission == "" && me.KeyScope == nil) {
 		if err != nil && ctx.Err() == nil {
 			s.Logger.Debug("signer: asking again whether the agent reads or trades failed; keeping what was known", "err", err, "permission", cur)
 		}

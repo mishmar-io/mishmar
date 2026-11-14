@@ -410,7 +410,11 @@ func writeLocalError(w http.ResponseWriter, err error) {
 	case errors.As(err, &le):
 		writeLocal(w, le.Status, api.Error{Code: le.Code, Message: le.Message})
 	case errors.As(err, &ee):
-		writeLocal(w, ee.Status, api.Error{Code: ee.Code, Message: ee.Message})
+		out := api.Error{Code: ee.Code, Message: ee.Message}
+		if ee.Details != nil {
+			out.Details = &ee.Details
+		}
+		writeLocal(w, ee.Status, out)
 	case errors.As(err, &ref):
 		writeLocal(w, http.StatusUnprocessableEntity, api.Error{Code: "refused", Message: ref.Reason()})
 	case errors.Is(err, context.DeadlineExceeded):

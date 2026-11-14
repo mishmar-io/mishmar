@@ -50,11 +50,22 @@ type Signer struct {
 	// KeySyncInterval (DefaultKeySyncInterval). Empty, Run syncs nothing.
 	ConfigPath      string
 	KeySyncInterval time.Duration
+	// OrdersPath is the file that records each proposal the signer signed an
+	// order for, so it never signs a second order for one (orders.go). Empty,
+	// it is OrdersPathFor(ConfigPath) when ConfigPath is set, and otherwise
+	// the record is kept in this process's memory only.
+	OrdersPath string
 	// PermissionInterval is how often Run asks GET /agent/me again whether
 	// the agent reads or trades (DefaultPermissionInterval).
 	PermissionInterval time.Duration
+	// DrainTimeout, when set, lets the answers in flight when Run's context
+	// ends finish for up to this long (the background signer's clean stop:
+	// it stops polling, then finishes what it holds). Zero ends them with
+	// the context, as before.
+	DrainTimeout time.Duration
 
 	perm      *permissionState
+	record    *orderRecord
 	key       *agentkey.Key
 	pub       string
 	mu        sync.Mutex
@@ -96,10 +107,13 @@ func (s *Signer) Policy() Policy {
 	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.venueKeys(), Now: s.now, Answered: s.answered.has, Rules: s.cachedHLRules}
 }
 
-// Handle answers one request: the checks, then the hook, then the agent's
-// half: the FROST round with its share, or for two-party ECDSA its last
-// message from a presigned slot. A request is answered once in a session;
-// the same id again is refused as a replay.
+// Handle answers one request: the checks, the record of the orders signed
+// already, then the hook, then the agent's half: the FROST round with its
+// share, or for two-party ECDSA its last message from a presigned slot. A
+// request is answered once in a session; the same id again is refused as a
+// replay. An order is signed once per proposal (orders.go): it is recorded
+// before Handle returns the share, and any later order for that proposal is
+// refused, after a restart too.
 func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnswer {
 	if req.Venue == api.VenueHyperliquid && req.Proposal != nil {
 		// The checks need the coin's rules; fetched here, read in Check.
@@ -108,12 +122,18 @@ func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnsw
 		}
 	}
 	message, refusal := s.Policy().Check(req)
+	if refusal == nil {
+		refusal = s.signedAlready(req)
+	}
 	if refusal == nil && s.Config.Hook != "" {
 		refusal = RunHook(ctx, s.Config.Hook, req, s.hookTimeout())
 	}
 	var answer api.SignerAnswer
 	if refusal == nil {
 		answer, refusal = s.sign(ctx, req, message)
+	}
+	if refusal == nil {
+		refusal = s.recordSigned(req)
 	}
 	s.answered.add(req.Id)
 	if refusal != nil {
@@ -237,6 +257,7 @@ func (s *Signer) runChannel(ctx context.Context) error {
 	}
 	backoff := minBackoff
 	quick := true
+	s.logOrderRecord()
 	s.Logger.Info("signer: polling", "engine", s.Client.Engine, "keyId", s.Config.KeyID, "venueKeys", len(s.venueKeys()))
 	for {
 		w := wait
@@ -270,7 +291,9 @@ func (s *Signer) runChannel(ctx context.Context) error {
 			go func(req api.SignRequest) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				s.serve(ctx, req)
+				actx, done := s.answerContext(ctx)
+				defer done()
+				s.serve(actx, req)
 			}(req)
 		}
 	}
@@ -292,6 +315,42 @@ func (s *Signer) serve(ctx context.Context, req api.SignRequest) {
 		return
 	}
 	s.Logger.Info("signer: request", attrs...)
+}
+
+// An order the engine sends late (a person approved it, and it waited for
+// this signer) arrives as a request carrying the original signed proposal,
+// however old its proposedAt, with a venue message built at that moment;
+// the checks take it while the proposal has not expired. It is signed once:
+// the record (orders.go) refuses every later order for the same proposal,
+// under any request id and whatever its timestamp, for the rest of the
+// proposal's life and across restarts. That includes the engine's next try
+// after an answer that did not reach it (a lost connection, a 404 for a
+// request that ended): the share left this machine, and nothing here can
+// tell an engine that dropped it from one that kept it.
+
+// answerContext is the context one answer runs under: ctx, or with a
+// DrainTimeout, one that outlives ctx by that long.
+func (s *Signer) answerContext(ctx context.Context) (context.Context, func()) {
+	if s.DrainTimeout <= 0 {
+		return ctx, func() {}
+	}
+	actx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	var timer *time.Timer
+	var mu sync.Mutex
+	stop := context.AfterFunc(ctx, func() {
+		mu.Lock()
+		timer = time.AfterFunc(s.DrainTimeout, cancel)
+		mu.Unlock()
+	})
+	return actx, func() {
+		stop()
+		mu.Lock()
+		if timer != nil {
+			timer.Stop()
+		}
+		mu.Unlock()
+		cancel()
+	}
 }
 
 func (s *Signer) now() time.Time {

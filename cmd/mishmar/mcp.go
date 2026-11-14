@@ -14,7 +14,7 @@ import (
 )
 
 func newMCPCmd() *cobra.Command {
-	var config, level string
+	var config, level, app, env, apiFlag string
 	cmd := &cobra.Command{
 		Use:     "mcp",
 		GroupID: groupAgent,
@@ -43,9 +43,33 @@ the same config, and it keeps the agent's trading keys in line with the
 engine's (generating the ones the console adds). With no config at the path
 yet, the agent's API key in MISHMAR_API_KEY (the client's env block) sets
 the agent up; without that too, it still starts and lists its tools, and
-every call says where the config was looked for.`,
+every call says where the config was looked for.
+
+With --app <name> it is an AI app's server for trading from this computer
+(Claude Code, Cursor, VS Code, Claude Desktop): it holds no key and needs no
+config. The first tool that needs Mishmar signs this computer in: it opens
+Mishmar in the browser for the person to approve, with a code to compare,
+and Mishmar registers a key this computer made, by its public half. The
+key and the app's half of each trading key stay on this computer
+(~/.mishmar/apps/<name>), with a background signer ("mishmar signer daemon")
+that this server starts on first use, so an order the person approves goes
+out after the app has closed. The background signer does not survive a
+restart of the computer; the next tool starts it again. On Windows the
+signer runs inside this server instead, and approvals need the app open. A
+machine reached over SSH, a container or a cloud workspace cannot sign in
+yet. get_trading_status says where things stand.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if app != "" {
+				log, err := newLogger(level)
+				if err != nil {
+					return err
+				}
+				return runApp(cmd, app, env, apiFlag, cmd.Flags().Changed("env"), config, log)
+			}
+			if cmd.Flags().Changed("env") || apiFlag != "" {
+				return errors.New("--env and --api go with --app; a bot's agent names its engine in its API key")
+			}
 			path, err := configPath(config)
 			if err != nil {
 				return err
@@ -97,5 +121,8 @@ every call says where the config was looked for.`,
 	}
 	configFlag(cmd, &config)
 	cmd.Flags().StringVar(&level, "log-level", "info", "debug | info | warn | error (stderr)")
+	cmd.Flags().StringVar(&app, "app", "", "trade from this computer for this AI app (claude-code, cursor, vscode, claude-desktop): sign in in the browser, keys kept here")
+	cmd.Flags().StringVar(&env, "env", "prod", "with --app: the hosted Mishmar, prod, testnet or stage")
+	cmd.Flags().StringVar(&apiFlag, "api", "", "with --app: the hosting API's base URL instead of --env's (development)")
 	return cmd
 }

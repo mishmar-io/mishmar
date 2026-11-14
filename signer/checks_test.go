@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -79,9 +80,10 @@ func market(p *api.ProposalSubmit) {
 // proposal, the way its Binance client does (url.Values.Encode), with
 // overrides and drops applied after.
 func binanceOrder(p api.ProposalSubmit, clientOrderID string, override map[string]string, drop ...string) string {
+	// Built when the proposal was made, as the engine does for a fresh order.
 	v := url.Values{
 		"symbol": {strings.ToUpper(p.Symbol)}, "side": {strings.ToUpper(string(p.Side))}, "quantity": {p.Size},
-		"newOrderRespType": {"RESULT"}, "newClientOrderId": {clientOrderID}, "timestamp": {"1761480000000"}, "recvWindow": {"5000"},
+		"newOrderRespType": {"RESULT"}, "newClientOrderId": {clientOrderID}, "timestamp": {strconv.FormatInt(p.ProposedAt.UnixMilli(), 10)}, "recvWindow": {"5000"},
 	}
 	if p.OrderType == api.ProposalSubmitOrderTypeMarket {
 		v.Set("type", "MARKET")
@@ -103,6 +105,9 @@ func binanceOrder(p api.ProposalSubmit, clientOrderID string, override map[strin
 }
 
 func b64(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+// ms is a time as a Binance timestamp: milliseconds since the epoch.
+func ms(t time.Time) string { return strconv.FormatInt(t.UnixMilli(), 10) }
 
 // orderRequest is the request the engine makes for the proposal, with the
 // message given.
@@ -140,7 +145,7 @@ func cancelRequest(p api.ProposalSubmit, message string) api.SignRequest {
 	return r
 }
 
-const cancelMessage = "origClientOrderId=msh-ag1-abc123&recvWindow=5000&symbol=BTCUSDT&timestamp=1761480000000"
+var cancelMessage = "origClientOrderId=msh-ag1-abc123&recvWindow=5000&symbol=BTCUSDT&timestamp=" + strconv.FormatInt(now.UnixMilli(), 10)
 
 func TestPolicyCheck(t *testing.T) {
 	f := newFixture(t)
@@ -189,6 +194,52 @@ func TestPolicyCheck(t *testing.T) {
 			r.Message = "not base64!"
 			return r
 		}(), RefuseMalformed},
+		{"addressed to this signer's key", func() api.SignRequest {
+			r := orderRequest(limit, binanceOrder(limit, cid, nil))
+			r.KeyId = ptr("key_a")
+			return r
+		}(), ""},
+		{"addressed to another key of the agent (0.21.0 SignRequest.keyId)", func() api.SignRequest {
+			r := orderRequest(limit, binanceOrder(limit, cid, nil))
+			r.KeyId = ptr("key_b")
+			return r
+		}(), RefuseOtherKey},
+		{"a verify addressed to another key", func() api.SignRequest {
+			r := verifyRequest(readMessage)
+			r.KeyId = ptr("key_b")
+			return r
+		}(), RefuseOtherKey},
+		{"a verify addressed to this key", func() api.SignRequest {
+			r := verifyRequest(readMessage)
+			r.KeyId = ptr("key_a")
+			return r
+		}(), ""},
+		{"an empty keyId is an older engine's: any key", func() api.SignRequest {
+			r := orderRequest(limit, binanceOrder(limit, cid, nil))
+			r.KeyId = ptr("")
+			return r
+		}(), ""},
+		{"a Binance timestamp within the clock tolerance", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"timestamp": ms(now.Add(59 * time.Second))})), ""},
+		{"a Binance message from the future", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"timestamp": ms(now.Add(61 * time.Second))})), RefuseMessageTime},
+		{"a stale Binance message", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"timestamp": ms(now.Add(-61 * time.Second))})), RefuseMessageTime},
+		{"a Binance message good past the proposal's end", func() api.SignRequest {
+			short := f.proposal(t, f.key, func(p *api.ProposalSubmit) { p.ExpiresAt = now.Add(5 * time.Second) })
+			return orderRequest(short, binanceOrder(short, cid, map[string]string{"timestamp": ms(now.Add(30 * time.Second)), "recvWindow": "60000"}))
+		}(), RefuseMessageTime},
+		{"a recvWindow over Binance's limit", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"recvWindow": "60001"})), RefuseMessageTime},
+		{"a waited order: proposed twenty minutes ago, its message built now", func() api.SignRequest {
+			waited := f.proposal(t, f.key, func(p *api.ProposalSubmit) {
+				p.ProposedAt, p.ExpiresAt = now.Add(-20*time.Minute), now.Add(10*time.Minute)
+			})
+			return orderRequest(waited, binanceOrder(waited, cid, map[string]string{"timestamp": ms(now), "recvWindow": "10000"}))
+		}(), ""},
+		{"a waited order whose message was built when it was proposed", func() api.SignRequest {
+			waited := f.proposal(t, f.key, func(p *api.ProposalSubmit) {
+				p.ProposedAt, p.ExpiresAt = now.Add(-20*time.Minute), now.Add(10*time.Minute)
+			})
+			return orderRequest(waited, binanceOrder(waited, cid, nil))
+		}(), RefuseMessageTime},
+		{"a stale cancel", cancelRequest(pull, strings.Replace(cancelMessage, ms(now), ms(now.Add(-2*time.Minute)), 1)), RefuseMessageTime},
 		{"foreign proposal", func() api.SignRequest {
 			p := f.proposal(t, f.other, func(p *api.ProposalSubmit) { p.KeyId = "key_b" })
 			return orderRequest(p, binanceOrder(p, cid, nil))

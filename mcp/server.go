@@ -167,6 +167,9 @@ type Server struct {
 	version string
 	log     *slog.Logger
 	tools   []tool
+	// app is an app's server (`mcp --app`): its backend reports the
+	// trading status and signs this computer in before a tool runs.
+	app bool
 
 	wmu sync.Mutex
 	w   io.Writer
@@ -179,8 +182,33 @@ func New(b Backend, version string, log *slog.Logger) *Server {
 		log = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{backend: b, version: version, log: log}
+	_, s.app = b.(StatusReporter)
 	s.tools = s.toolTable()
+	if s.app {
+		s.tools = append(s.tools, s.statusTool())
+	}
 	return s
+}
+
+// instructions is what the server tells the model: an app's server adds
+// how trading from this computer goes.
+func (s *Server) instructions() string {
+	if s.app {
+		return Instructions + "\n\n" + AppTrading
+	}
+	return Instructions
+}
+
+// statusTool is an app's get_trading_status: it starts nothing and runs
+// before this computer is signed in.
+func (s *Server) statusTool() tool {
+	return tool{
+		name: StatusToolName, title: StatusToolTitle, description: StatusToolDesc, readOnly: true, dataRead: true, noGate: true,
+		schema: schema(map[string]any{}),
+		run: func(ctx context.Context, _ json.RawMessage) (string, error) {
+			return s.backend.(StatusReporter).TradingStatus(ctx)
+		},
+	}
 }
 
 // Instructions is what the server tells the model about itself.
@@ -359,7 +387,7 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 			"protocolVersion": version,
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      map[string]any{"name": "mishmar", "version": s.version},
-			"instructions":    Instructions,
+			"instructions":    s.instructions(),
 		}, nil
 	case "notifications/initialized", "notifications/cancelled", "notifications/roots/list_changed":
 		return nil, nil
@@ -385,6 +413,12 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 			}
 			if u, ok := s.backend.(unconfigured); ok {
 				return toolResult("Error: "+u.err().Error(), true), nil // before the arguments: the config is what is missing
+			}
+			if g, ok := s.backend.(Gate); ok && !t.noGate {
+				// An app's server signs this computer in first.
+				if text := g.Ready(ctx); text != "" {
+					return toolResult(text, true), nil
+				}
 			}
 			if !t.dataRead {
 				if refusal := s.readAgentRefusal(ctx, t.name); refusal != "" {
@@ -423,7 +457,9 @@ type tool struct {
 	// (signer.DataRead), the one thing a read agent does; every other tool
 	// answers a read agent here, without calling the engine.
 	dataRead bool
-	run      func(ctx context.Context, args json.RawMessage) (string, error)
+	// noGate tools run before an app's computer is signed in (the status).
+	noGate bool
+	run    func(ctx context.Context, args json.RawMessage) (string, error)
 }
 
 // annotations are the MCP tool hints a client uses to decide which calls to
@@ -471,7 +507,7 @@ func (s *Server) toolTable() []tool {
 				"price":              prop("string", "Limit price as a decimal string; not for a market order."),
 				"reduceOnly":         prop("boolean", "The order may only reduce the position (an exit)."),
 				"leverage":           prop("string", "Leverage as a decimal string, where the venue takes it per order."),
-				"validForSeconds":    prop("integer", "How long the proposal stands, at most 86400; default 60. An order parked for a person past it expires."),
+				"validForSeconds":    prop("integer", s.validForDesc()),
 			}, "connectedAccountId", "symbol", "side", "size"),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
 				in, err := decode[signer.ProposeRequest](args)
@@ -858,6 +894,15 @@ func (s *Server) toolTable() []tool {
 	}
 }
 
+// validForDesc is propose_order's validForSeconds: an app's proposal lives
+// 15 minutes unless the model says.
+func (s *Server) validForDesc() string {
+	if s.app {
+		return AppValidForDesc
+	}
+	return "How long the proposal stands, at most 86400; default 60. An order parked for a person past it expires."
+}
+
 // The account reads' descriptions, which the hosted MCP server's tools carry
 // word for word (mishmar-hosted internal/mcpserver/tools.go): change them
 // together. get_account_positions and get_account_equity add a sentence here
@@ -930,14 +975,30 @@ func parseTime(name, v string) (time.Time, error) {
 
 // refusedTrade is the engine's refusal of a proposal with what the agent can
 // still do: on the proposal path a 403 forbidden is a read agent's, which
-// proposes nothing.
+// proposes nothing; 403 key_scope a key that reads only (contract 0.21.0);
+// 409 conflict naming a trading key, one another of the agent's keys holds.
 func refusedTrade(err error) error {
 	var e *signer.Error
-	if errors.As(err, &e) && e.Status == http.StatusForbidden {
+	switch {
+	case errors.As(err, &e) && e.Status == http.StatusForbidden && e.Code == KeyScopeCode:
+		return fmt.Errorf("%w. "+KeyScopeRefusal, err)
+	case errors.As(err, &e) && e.Status == http.StatusForbidden:
 		return fmt.Errorf("%w. Only a trade agent proposes orders; this one reads the connected accounts it was given: %s", err, readTools)
+	case errors.As(err, &e) && e.Status == http.StatusConflict && e.Details["venueKeyId"] != nil:
+		return fmt.Errorf("%w. "+OtherHolderRefusal, err)
 	}
 	return err
 }
+
+// The new refusals' words (contract 0.21.0).
+const (
+	KeyScopeCode       = "key_scope"
+	KeyScopeRefusal    = "This key reads only, so it proposes nothing: a key of scope trade on a trade agent proposes, and the account reads still work."
+	OtherHolderRefusal = "Another of this agent's keys (another computer, or a bot) holds the trading key on this account, and only it proposes there."
+	// SignerWaiting is a decision a person approved that waits for the
+	// signer holding the trading key's share.
+	SignerWaiting = " Approved; the order waits for the signer that holds the trading key until %s and goes out when it is reachable, if the rules still allow it then."
+)
 
 // Resolved says whether a decision no longer waits for a person.
 func Resolved(d api.Decision) bool {
@@ -983,7 +1044,9 @@ func describeDecision(d api.Decision) (string, error) {
 			fmt.Fprint(&b, " Parked for a person's approval: call wait_for_decision with this id, or carry on.")
 		}
 	}
-	if d.Signing != nil && d.Signing.Status != api.SigningStatusStatusSigned && d.Verdict == api.VerdictAllow {
+	if d.Signing != nil && d.Signing.Status == api.SigningStatusStatusWaiting && d.Signing.WaitUntil != nil {
+		fmt.Fprintf(&b, SignerWaiting, d.Signing.WaitUntil.UTC().Format(time.RFC3339))
+	} else if d.Signing != nil && d.Signing.Status != api.SigningStatusStatusSigned && d.Verdict == api.VerdictAllow {
 		fmt.Fprintf(&b, " Signing: %s", d.Signing.Status)
 		if d.Signing.Detail != nil && *d.Signing.Detail != "" {
 			fmt.Fprintf(&b, " (%s)", *d.Signing.Detail)

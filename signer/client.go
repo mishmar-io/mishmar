@@ -76,12 +76,13 @@ func NewClient(engine, keyID string, key *agentkey.Key) *Client {
 }
 
 // Error is the engine's answer when it refused a call: the HTTP status and
-// the code and message of its Error body (code "http_error" when the body
-// was not one).
+// the code, message and details of its Error body (code "http_error" when
+// the body was not one).
 type Error struct {
 	Status  int
 	Code    string
 	Message string
+	Details map[string]any
 }
 
 func (e *Error) Error() string {
@@ -369,6 +370,9 @@ func errorOf(status int, data []byte) *Error {
 	var body api.Error
 	if json.Unmarshal(data, &body) == nil && body.Code != "" {
 		e.Code, e.Message = body.Code, body.Message
+		if body.Details != nil {
+			e.Details = *body.Details
+		}
 	} else if e.Message == "" {
 		e.Message = http.StatusText(status)
 	}
@@ -406,6 +410,10 @@ func (c *Client) now() time.Time {
 
 // submitOf is the contract's ProposalSubmit as the proposal package signs
 // and verifies it, field for field.
+// SubmitOf is a proposal as the contract carries it, in the form the
+// proposal package signs and verifies.
+func SubmitOf(p api.ProposalSubmit) proposal.Submit { return submitOf(p) }
+
 func submitOf(p api.ProposalSubmit) proposal.Submit {
 	s := proposal.Submit{
 		KeyID: p.KeyId, Kind: proposal.Kind(p.Kind), Leverage: p.Leverage, Nonce: p.Nonce,

@@ -77,7 +77,7 @@ Each signer checks the order for itself, so neither has to trust the other.
 - that order as proposed, read from the bytes the venue will verify, not from a summary: the same market and side, a size no larger, a limit price within 1% of the proposal's and never on the wrong side of it, reduce-only if the proposal said so;
 - or a cancel of the agent's own order.
 
-It answers each request once. Anything else it refuses, and the reason shows on the decision in the console. You can add a check of your own: a program the signer runs before every signature, which can refuse it.
+It answers each request once, and when Mishmar asks it for an order, it signs one for each proposal once: it keeps a record of the proposals it signed orders for, in a file beside its config, and refuses another request for one of them at any time before the proposal's deadline, even after a restart. That way a fault at Mishmar cannot get it to sign one proposal's order over and over. Cancels it signs as often as asked. Anything else it refuses, and the reason shows on the decision in the console. You can add a check of your own: a program the signer runs before every signature, which can refuse it.
 
 **Mishmar's signer** signs only an order or a cancel that it decoded itself and that matches a decision Mishmar's engine signed: one your rules allowed or you approved. The engine itself holds no signing secret. Mishmar's halves are kept in a separate signer service.
 

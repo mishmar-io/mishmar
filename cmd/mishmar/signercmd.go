@@ -37,7 +37,7 @@ each one against the order the agent proposed, and answers with its share
 of the signature or a refusal. Its config is ~/.mishmar/agent.json (or
 MISHMAR_AGENT_CONFIG), written by "mishmar add-agent" or by hand.`,
 	}
-	cmd.AddCommand(newSignerInitCmd(), newSignerAddKeyCmd(), newSignerKeygenCmd(), newSignerRunCmd(), newSignerWrapKeyCmd(), newSignerServeCmd())
+	cmd.AddCommand(newSignerInitCmd(), newSignerAddKeyCmd(), newSignerKeygenCmd(), newSignerRunCmd(), newSignerWrapKeyCmd(), newSignerServeCmd(), newSignerDaemonCmd())
 	return cmd
 }
 

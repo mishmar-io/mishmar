@@ -1,0 +1,98 @@
+{
+  "description": "The trade sign-in's proof of possession (key_proof at POST /oauth/token): Ed25519 with the machine's key over the canonical JSON of {code, issuer, kind, publicKey, signedAt}: code the lower-case hex SHA-256 of the authorization code's bytes (never the code itself), issuer the hosting API's base URL exactly as the callback's iss carried it, kind \"mishmar-machine-proof\", publicKey the key base64 standard padded (the key the authorize request named, as AgentKey.publicKey writes it), signedAt RFC 3339 UTC with the fraction trimmed, sent as key_signed_at. The signature is base64 standard padded. For each case the bytes must equal signingBytes and the signature with secret must equal signature. The control plane takes a proof within 60 seconds of signedAt either way, and refuses each case under refused with the reason given (its own words may differ; the refusal may not).",
+  "secret": "msk_vector_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "seed": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "fingerprint": "AS3N-N9TM-CD3M-R0M5",
+  "cases": [
+    {
+      "name": "prod",
+      "code": "mac_Q2xhdWRlIENvZGUgb24gYSBNYWNCb29r",
+      "codeSha256": "bd28f307bdb5345a9261bca6bc3d4236ace458ca36de8ab9f8163f533f0b857e",
+      "issuer": "https://api.mishmar.io",
+      "signedAt": "2026-11-13T12:00:00Z",
+      "signingBytes": "{\"code\":\"bd28f307bdb5345a9261bca6bc3d4236ace458ca36de8ab9f8163f533f0b857e\",\"issuer\":\"https://api.mishmar.io\",\"kind\":\"mishmar-machine-proof\",\"publicKey\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"signedAt\":\"2026-11-13T12:00:00Z\"}",
+      "signature": "kFURWEKOVoCbMX3iZJXzq1PyW3ZDUwykNhJsRNxbElJikgyzcsRojoCkyjGUpBxknnIwuXYjZIawVVupY35FAA=="
+    },
+    {
+      "name": "testnet, a fraction of a second, a non-UTC clock",
+      "code": "mac_dGVzdG5ldCBjb2Rl",
+      "codeSha256": "ef178c36937d59a26d626689b07db7dda03add3839490b8c9550216085d4d7c2",
+      "issuer": "https://api.testnet.mishmar.io",
+      "signedAt": "2026-11-13T12:00:00.25Z",
+      "signingBytes": "{\"code\":\"ef178c36937d59a26d626689b07db7dda03add3839490b8c9550216085d4d7c2\",\"issuer\":\"https://api.testnet.mishmar.io\",\"kind\":\"mishmar-machine-proof\",\"publicKey\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"signedAt\":\"2026-11-13T12:00:00.25Z\"}",
+      "signature": "joq7GVew6Zg3P6FiJwQTtSOP+L9xm1eNQDWnRVZWSaYhrDrgp/sTJ7IY87rgtMrkQ+OP7H83ZvElfn+SwiO9Cw=="
+    },
+    {
+      "name": "a local control plane on a port",
+      "code": "mac_bG9jYWw",
+      "codeSha256": "6c0d54bf7df9b3137964b9829b65ec38329eadf3bf6394cff1a5d4d73c03837c",
+      "issuer": "http://localhost:8090",
+      "signedAt": "2026-11-13T12:00:01Z",
+      "signingBytes": "{\"code\":\"6c0d54bf7df9b3137964b9829b65ec38329eadf3bf6394cff1a5d4d73c03837c\",\"issuer\":\"http://localhost:8090\",\"kind\":\"mishmar-machine-proof\",\"publicKey\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"signedAt\":\"2026-11-13T12:00:01Z\"}",
+      "signature": "nQF+7k3Wfl550EBU4HXz9KyXBtiSlsVzcTMD/99TwWjz6mrhsrpadH1VCyzG4D3nLd9v39DA6kNfy7NJ0NQjCg=="
+    }
+  ],
+  "refused": [
+    {
+      "name": "another code",
+      "code": "mac_another",
+      "issuer": "https://api.mishmar.io",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "signedAt": "2026-11-13T12:00:00Z",
+      "signature": "kFURWEKOVoCbMX3iZJXzq1PyW3ZDUwykNhJsRNxbElJikgyzcsRojoCkyjGUpBxknnIwuXYjZIawVVupY35FAA==",
+      "now": "2026-11-13T12:00:00Z",
+      "why": "key_proof is not the key's signature over this code"
+    },
+    {
+      "name": "another issuer",
+      "code": "mac_Q2xhdWRlIENvZGUgb24gYSBNYWNCb29r",
+      "issuer": "https://api.testnet.mishmar.io",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "signedAt": "2026-11-13T12:00:00Z",
+      "signature": "kFURWEKOVoCbMX3iZJXzq1PyW3ZDUwykNhJsRNxbElJikgyzcsRojoCkyjGUpBxknnIwuXYjZIawVVupY35FAA==",
+      "now": "2026-11-13T12:00:00Z",
+      "why": "key_proof is not the key's signature over this code"
+    },
+    {
+      "name": "signed by another key than the one on the authorize request",
+      "code": "mac_Q2xhdWRlIENvZGUgb24gYSBNYWNCb29r",
+      "issuer": "https://api.mishmar.io",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "signedAt": "2026-11-13T12:00:00Z",
+      "signature": "uh9tDbT5K9gCM7+ecgsA2pBJ1c85mtDDbvraG26xPyAgUH2NJBvOfnM5YS78kUc/lRXewSiLLmr2kJ3R0cDQAQ==",
+      "now": "2026-11-13T12:00:00Z",
+      "why": "key_proof is not the key's signature over this code"
+    },
+    {
+      "name": "another time than the one signed",
+      "code": "mac_Q2xhdWRlIENvZGUgb24gYSBNYWNCb29r",
+      "issuer": "https://api.mishmar.io",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "signedAt": "2026-11-13T12:00:01Z",
+      "signature": "kFURWEKOVoCbMX3iZJXzq1PyW3ZDUwykNhJsRNxbElJikgyzcsRojoCkyjGUpBxknnIwuXYjZIawVVupY35FAA==",
+      "now": "2026-11-13T12:00:00Z",
+      "why": "key_proof is not the key's signature over this code"
+    },
+    {
+      "name": "signed 61 seconds before now",
+      "code": "mac_Q2xhdWRlIENvZGUgb24gYSBNYWNCb29r",
+      "issuer": "https://api.mishmar.io",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "signedAt": "2026-11-13T12:00:00Z",
+      "signature": "kFURWEKOVoCbMX3iZJXzq1PyW3ZDUwykNhJsRNxbElJikgyzcsRojoCkyjGUpBxknnIwuXYjZIawVVupY35FAA==",
+      "now": "2026-11-13T12:01:01Z",
+      "why": "key_signed_at is more than 60 seconds from now"
+    },
+    {
+      "name": "signed 61 seconds after now",
+      "code": "mac_Q2xhdWRlIENvZGUgb24gYSBNYWNCb29r",
+      "issuer": "https://api.mishmar.io",
+      "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+      "signedAt": "2026-11-13T12:00:00Z",
+      "signature": "kFURWEKOVoCbMX3iZJXzq1PyW3ZDUwykNhJsRNxbElJikgyzcsRojoCkyjGUpBxknnIwuXYjZIawVVupY35FAA==",
+      "now": "2026-11-13T11:58:59Z",
+      "why": "key_signed_at is more than 60 seconds from now"
+    }
+  ]
+}
