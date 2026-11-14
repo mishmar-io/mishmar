@@ -49,4 +49,4 @@ There are two ways to hold something the order needs. A proxy can hold the whole
 - [Is there an MCP server for trading on Hyperliquid or Binance with limits?](/questions/is-there-an-mcp-server-for-trading-on-hyperliquid-or-binance-with-limits/): the same layer for a language-model agent.
 - [Is it safe to give a trading bot my exchange API key?](/questions/is-it-safe-to-give-a-trading-bot-my-exchange-api-key/)
 
-Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one connected account.
+Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one venue connection.

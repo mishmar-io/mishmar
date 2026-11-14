@@ -204,7 +204,27 @@ says who placed it, and origin.own is true on this agent's own trades. The
 account's owner sees every read in its access log. An agent given accounts
 only to read (a read agent) does nothing else: for it every other tool
 answers that it is not open, without calling Mishmar, and the account reads
-are what it is for.`
+are what it is for.
+
+` + accountModel
+
+// accountModel is what the server tells the model about connected accounts
+// and their connections. The hosted MCP server's instructions carry it word
+// for word (mishmar-hosted internal/mcpserver/tools.go): change them together.
+const accountModel = `A connected account is one pool of money at a venue, with its own balances,
+positions, transactions and value (equityUsd): a Binance login has a Spot
+and a USDⓈ-M Futures account, a Hyperliquid address has Perps and Spot. Its
+connection is the venue login that holds it (connection: the person's name
+for it, venueAccount, which login it is, and accountCount, how many
+accounts the login has), and every balance, position and transaction
+belongs to exactly one account. The accounts' values add up to the login's
+only when you see all accountCount of them with that connection.id; when
+you see fewer, call the sum the accounts you can see. A move between two
+accounts of one connection shows on both, a transfer_out on one and a
+transfer_in on the other, each naming the other in
+counterpartConnectedAccountId: it moves each account's value by the amount
+and the connection's by nothing, so never count it as a deposit or a
+withdrawal.`
 
 // ---- JSON-RPC ----
 
@@ -629,7 +649,7 @@ func (s *Server) toolTable() []tool {
 			title:       "List connected accounts",
 			readOnly:    true,
 			dataRead:    true,
-			description: "The connected accounts this agent was given, each with its venue, status, whether any agent trades on it (traded) and how current each kind of its data is (sync). This agent reads each one whole, other agents' and the owner's activity included; the account reads take one of these ids.",
+			description: descListAccounts,
 			schema:      schema(map[string]any{}),
 			run: func(ctx context.Context, _ json.RawMessage) (string, error) {
 				out, err := s.backend.ConnectedAccounts(ctx)
@@ -644,7 +664,7 @@ func (s *Server) toolTable() []tool {
 			title:       "Get a connected account",
 			readOnly:    true,
 			dataRead:    true,
-			description: "One connected account this agent was given: its venue, kind, status, how current its data is, and its setup, without any secret.",
+			description: descGetAccount,
 			schema:      schema(map[string]any{"connectedAccountId": prop("string", "The connected account (ta_…).")}, "connectedAccountId"),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
 				in, err := decode[struct {
@@ -704,24 +724,17 @@ func (s *Server) toolTable() []tool {
 			title:       "Get account balances",
 			readOnly:    true,
 			dataRead:    true,
-			description: "A connected account's balances at the venue, spot and margin, each asset with its value in USD, and the account's whole value (equityUsd), now or at a past moment. source says whether the venue was read at that moment (observed).",
+			description: descBalances,
 			schema: schema(map[string]any{
 				"connectedAccountId": prop("string", "The connected account (ta_…), from list_connected_accounts."),
 				"at":                 prop("string", "The moment, RFC 3339 (2026-11-12T09:30:00Z) or a date; now when left out."),
 			}, "connectedAccountId"),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
-				in, err := decode[struct {
-					ConnectedAccountID string `json:"connectedAccountId"`
-					At                 string `json:"at"`
-				}](args)
+				id, at, err := snapshotArgs(args)
 				if err != nil {
 					return "", err
 				}
-				at, err := parseTime("at", in.At)
-				if err != nil {
-					return "", err
-				}
-				out, err := s.backend.AccountBalances(ctx, in.ConnectedAccountID, at)
+				out, err := s.backend.AccountBalances(ctx, id, at)
 				if err != nil {
 					return "", err
 				}
@@ -733,24 +746,17 @@ func (s *Server) toolTable() []tool {
 			title:       "Get account positions",
 			readOnly:    true,
 			dataRead:    true,
-			description: "The venue's own net position per symbol on a connected account, whoever placed the orders behind it (this agent, another agent or the owner), now or at a past moment. list_positions is only this agent's own book.",
+			description: descPositions + " list_positions is only this agent's own book.",
 			schema: schema(map[string]any{
 				"connectedAccountId": prop("string", "The connected account (ta_…), from list_connected_accounts."),
 				"at":                 prop("string", "The moment, RFC 3339 (2026-11-12T09:30:00Z) or a date; now when left out."),
 			}, "connectedAccountId"),
 			run: func(ctx context.Context, args json.RawMessage) (string, error) {
-				in, err := decode[struct {
-					ConnectedAccountID string `json:"connectedAccountId"`
-					At                 string `json:"at"`
-				}](args)
+				id, at, err := snapshotArgs(args)
 				if err != nil {
 					return "", err
 				}
-				at, err := parseTime("at", in.At)
-				if err != nil {
-					return "", err
-				}
-				out, err := s.backend.AccountPositions(ctx, in.ConnectedAccountID, at)
+				out, err := s.backend.AccountPositions(ctx, id, at)
 				if err != nil {
 					return "", err
 				}
@@ -762,12 +768,12 @@ func (s *Server) toolTable() []tool {
 			title:       "List account transactions",
 			readOnly:    true,
 			dataRead:    true,
-			description: "Trades, transfers, funding, fees and liquidations on a connected account as the venue reports them, newest first. A trade's origin says who placed it: origin.own is true on this agent's own, kind agent (with agentName) is another agent through Mishmar, kind outside is the owner by hand, another program or the venue. Pass nextCursor back as cursor for the page after.",
+			description: descTransactions,
 			schema: schema(map[string]any{
 				"connectedAccountId": prop("string", "The connected account (ta_…), from list_connected_accounts."),
 				"from":               prop("string", "Oldest moment, RFC 3339 or a date."),
 				"to":                 prop("string", "Newest moment, RFC 3339 or a date."),
-				"kind":               map[string]any{"type": "string", "enum": []string{"trade", "transfer_in", "transfer_out", "funding", "fee", "liquidation", "rebate", "other"}, "description": "Only this kind."},
+				"kind":               map[string]any{"type": "string", "enum": transactionKinds, "description": "Only this kind."},
 				"limit":              prop("integer", "How many, 1 to 500; default 50."),
 				"cursor":             prop("string", "The nextCursor of the page before."),
 			}, "connectedAccountId"),
@@ -805,7 +811,7 @@ func (s *Server) toolTable() []tool {
 			title:       "Get account value over time",
 			readOnly:    true,
 			dataRead:    true,
-			description: "A connected account's value in USD over time, oldest point first. Without a resolution the engine picks one that gives a few hundred points over the range, never finer than the plan allows.",
+			description: descEquity + " Without a resolution the engine picks one that gives a few hundred points over the range, never finer than the plan allows.",
 			schema: schema(map[string]any{
 				"connectedAccountId": prop("string", "The connected account (ta_…), from list_connected_accounts."),
 				"from":               prop("string", "Start, RFC 3339 or a date."),
@@ -837,6 +843,39 @@ func (s *Server) toolTable() []tool {
 			},
 		},
 	}
+}
+
+// The account reads' descriptions, which the hosted MCP server's tools carry
+// word for word (mishmar-hosted internal/mcpserver/tools.go): change them
+// together. get_account_positions and get_account_equity add a sentence here
+// about what only this server has (list_positions, the engine).
+const (
+	descListAccounts = "The connected accounts this agent was given. Each is one pool of money at a venue: its id (what the other account reads take), its name at the venue (Spot, Perps, USDⓈ-M Futures), its type, its value in USD (equityUsd; an asset with no price is named in unpricedAssets and not counted), its status, whether any agent trades on it (traded) and whether it can be traded at all (tradable), and its connection: the venue login that holds it, with the person's name for it, which login it is (venueAccount: main or subaccount, and a short label), how many accounts the login has (connection.accountCount) and how current its data is (connection.sync). Accounts with the same connection.id are one login's; their values add up to the login's only when you see accountCount of them, otherwise say the total is of the accounts you can see. Name an account to a person as venue · connection name · account name · venueAccount.label (Binance · Carry · USDⓈ-M Futures · UID …7868), leaving the account name out when accountCount is 1. This agent reads each one whole, other agents' and the owner's activity included."
+	descGetAccount   = "One connected account this agent was given: its name at the venue, type, value in USD (equityUsd, with unpricedAssets not counted), status, whether it is traded and tradable, and its connection, the venue login that holds it (its name, venueAccount, how many accounts the login has in accountCount, how current its data is in sync, and its setup, without any secret)."
+	descBalances     = "A connected account's balances, now or at a past moment: every asset the account holds, each with its value in USD (usdValue, at priceUsd), and the account's value (equityUsd: its balances at their prices plus its positions' unrealised PnL). An asset with no price has no usdValue and is named in unpricedAssets, so it is not in equityUsd. Another account of the same connection is read on its own. source says whether the venue was read at that moment (observed)."
+	descPositions    = "The venue's own net position per market (a symbol with its market kind) on a connected account, whoever placed the orders behind it (this agent, another agent or the owner), now or at a past moment. market says the kind (perp, future, …), since one symbol can name several markets; an asset held outright is a balance, not a position."
+	descTransactions = "Trades, transfers, funding, fees and liquidations on a connected account as the venue reports them, newest first, with the market kind beside a symbol. transfer_in and transfer_out cross the account's edge. When the other side is another connected account (another account of the same connection, or a connected sub-account's), counterpartConnectedAccountId names it and the same move is on that account too with the opposite kind; a move within one connection is no money in or out of it. Without counterpartConnectedAccountId the other side is outside Mishmar: a deposit, a withdrawal, or an account not connected here. A trade's origin says who placed it: origin.own is true on this agent's own, kind agent (with agentName) is another agent through Mishmar, kind outside is the owner by hand, another program or the venue. Pass nextCursor back as cursor for the page after."
+	descEquity       = "A connected account's value in USD over time, oldest point first: each point's equityUsd is that account's balances at their prices plus its positions' unrealised PnL, no other account's. Accounts of one connection add up to the login's value only when you have all connection.accountCount of them."
+)
+
+// transactionKinds are the contract's AccountTransactionKind.
+var transactionKinds = []string{"trade", "transfer_in", "transfer_out", "funding", "fee", "liquidation", "rebate", "other"}
+
+// snapshotArgs are a balances or positions read's arguments: the account and
+// a moment, now when left out.
+func snapshotArgs(args json.RawMessage) (string, time.Time, error) {
+	in, err := decode[struct {
+		ConnectedAccountID string `json:"connectedAccountId"`
+		At                 string `json:"at"`
+	}](args)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	at, err := parseTime("at", in.At)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return in.ConnectedAccountID, at, nil
 }
 
 // PermissionWait bounds how long a tool other than the account reads waits

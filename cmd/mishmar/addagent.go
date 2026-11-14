@@ -96,12 +96,19 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if connectedAccount.Kind == api.ConnectedAccountKindCosignerCallback {
-			return fmt.Errorf("connected account %s (%s) is a custodian's callback: it takes no venue keys, any agent may use it; leave it out", id, connectedAccount.Name)
+		if connectedAccount.Connection.Kind == api.VenueConnectionKindCosignerCallback {
+			return fmt.Errorf("connected account %s (%s) is a custodian's callback: it takes no venue keys, any agent may use it; leave it out", id, accountLine(connectedAccount))
+		}
+		if connectedAccount.Tradable != nil && !*connectedAccount.Tradable {
+			why := "Mishmar reads it but gives no trading key there"
+			if r := deref(connectedAccount.UntradableReason); r != "" {
+				why = r
+			}
+			return fmt.Errorf("connected account %s (%s) cannot be traded: %s; leave it out (an agent can still be given it to read)", id, accountLine(connectedAccount), why)
 		}
 		scheme, ok := signer.SchemeForVenue(string(connectedAccount.Venue))
 		if !ok {
-			return fmt.Errorf("connected account %s (%s) is on %s, whose keys (%s) are not supported by this signer yet", id, connectedAccount.Name, connectedAccount.Venue, venueKeyType(connectedAccount.Venue))
+			return fmt.Errorf("connected account %s (%s) is on %s, whose keys (%s) are not supported by this signer yet", id, accountLine(connectedAccount), connectedAccount.Venue, venueKeyType(connectedAccount.Venue))
 		}
 		plan = append(plan, plannedKey{connectedAccount: connectedAccount, scheme: scheme})
 	}
@@ -161,7 +168,7 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 		if vk.PublicKey != nil {
 			public = *vk.PublicKey
 		}
-		fmt.Fprintf(out, "venue key %s on connected account %s (%s, %s): %s\n", vk.Id, p.connectedAccount.Id, p.connectedAccount.Venue, p.scheme, vk.Status)
+		fmt.Fprintf(out, "venue key %s on connected account %s (%s, %s): %s\n", vk.Id, p.connectedAccount.Id, accountLine(p.connectedAccount), p.scheme, vk.Status)
 		fmt.Fprint(out, nextStep(p.connectedAccount, vk, public))
 	}
 	fmt.Fprintf(out, "\nStart the signer with: mishmar signer run --config %s\n", path)
@@ -170,23 +177,23 @@ func addAgent(ctx context.Context, o addAgentOptions, out io.Writer) error {
 
 // networkOf is the Hyperliquid network a connected account trades on.
 func networkOf(connectedAccount api.ConnectedAccount) (string, error) {
-	if connectedAccount.Kind != api.ConnectedAccountKindHyperliquid {
+	if connectedAccount.Connection.Kind != api.VenueConnectionKindHyperliquid {
 		return "", nil
 	}
-	s, err := connectedAccount.Setup.AsHyperliquidSetup()
+	s, err := connectedAccount.Connection.Setup.AsHyperliquidSetup()
 	if err != nil {
-		return "", fmt.Errorf("connected account %s: setup: %w", connectedAccount.Id, err)
+		return "", fmt.Errorf("connected account %s: its connection's setup: %w", connectedAccount.Id, err)
 	}
 	return string(s.Network), nil
 }
 
 // nextStep says what the venue needs for the key.
 func nextStep(connectedAccount api.ConnectedAccount, vk api.VenueKey, public string) string {
-	switch connectedAccount.Kind {
-	case api.ConnectedAccountKindHyperliquid:
+	switch connectedAccount.Connection.Kind {
+	case api.VenueConnectionKindHyperliquid:
 		return fmt.Sprintf("  approve the API wallet %s from the master wallet in the console (venue key → approval), then verify the key.\n", public)
 	default:
-		s := fmt.Sprintf("  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the connected account, if it shows one):\n", connectedAccount.Venue)
+		s := fmt.Sprintf("  register this public key at %s as the agent's trading key (trading only, no withdrawals, IP-restricted to the address the console shows for the account's connection, if it shows one):\n", connectedAccount.Venue)
 		s += indent(public)
 		s += "  then enter the key id the venue issued in the console (the agent's Keys tab, Register key id) and verify the key with the signer running.\n"
 		return s

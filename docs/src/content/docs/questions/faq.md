@@ -19,7 +19,7 @@ head:
       {"@type":"Question","name":"Can an agent read my exchange account without being able to trade?","acceptedAnswer":{"@type":"Answer","text":"Yes. Connect the account with read access (a Hyperliquid address, a Binance read-only API key), then add a read agent and give it the account. It reads balances, positions, transactions and value over time with its Mishmar API key alone, holds no trading key, and Mishmar refuses its orders. Every read it makes shows on the account's Access tab."}},
       {"@type":"Question","name":"Which languages are supported?","acceptedAnswer":{"@type":"Answer","text":"Python (mishmar on PyPI), TypeScript (mishmar on npm), Go (the packages in the public repo), a CLI, and any MCP client. The SDKs run the signer as a child process, so the bot's own process holds no key."}},
       {"@type":"Question","name":"Is Mishmar open source?","acceptedAnswer":{"@type":"Answer","text":"The client side is: the API contract, the signer, both signing schemes, the CLI, the MCP server and the SDKs, under Apache-2.0 at github.com/mishmar-io/mishmar. The engine that enforces the rules is a separate, private repo."}},
-      {"@type":"Question","name":"What does Mishmar cost?","acceptedAnswer":{"@type":"Answer","text":"Free, no card: one agent and one connected account, with real money or on testnet. Pro ($99 a month: 3 agents, 3 connected accounts, 5 people, always on) is coming soon; Team and Enterprise are by agreement. The plans are at mishmar.io/pricing."}},
+      {"@type":"Question","name":"What does Mishmar cost?","acceptedAnswer":{"@type":"Answer","text":"Free, no card: one agent and one venue connection, with real money or on testnet. Pro ($99 a month: 3 agents, 3 venue connections, 5 people, always on) is coming soon; Team and Enterprise are by agreement. The plans are at mishmar.io/pricing."}},
       {"@type":"Question","name":"Has Mishmar been audited?","acceptedAnswer":{"@type":"Answer","text":"The two-party ECDSA comes from Coinbase's cb-mpc, which has had independent security reviews. Mishmar's change to it, presigning so that an order needs one round trip, has not been audited yet; the note for its reviewer is public."}},
       {"@type":"Question","name":"How are decisions recorded?","acceptedAnswer":{"@type":"Answer","text":"Every decision, allowed, held or blocked, is signed and chained to the one before it as it is written, and the ledger can be exported and verified."}},
       {"@type":"Question","name":"Does the exchange see anything different?","acceptedAnswer":{"@type":"Answer","text":"No. The exchange sees an ordinary API wallet or API key and ordinary signatures. The split is invisible to it."}}
@@ -64,7 +64,7 @@ The client side is: the API contract, the signer, both signing schemes, the CLI,
 
 ## What does Mishmar cost?
 
-Free, no card: one agent and one connected account, with real money or on testnet. Pro ($99 a month: 3 agents, 3 connected accounts, 5 people, always on) is coming soon; Team and Enterprise are by agreement. The plans are at mishmar.io/pricing.
+Free, no card: one agent and one venue connection, with real money or on testnet. Pro ($99 a month: 3 agents, 3 venue connections, 5 people, always on) is coming soon; Team and Enterprise are by agreement. The plans are at mishmar.io/pricing.
 
 ## Has Mishmar been audited?
 

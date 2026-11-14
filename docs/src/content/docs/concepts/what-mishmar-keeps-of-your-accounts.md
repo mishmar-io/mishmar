@@ -12,10 +12,12 @@ Once you connect an account ([on Hyperliquid](/hyperliquid/connect-an-account/) 
 
 | Kind | What it is | On the account's page |
 | --- | --- | --- |
-| Balances | every asset the account holds at the venue, spot and margin, valued in USD | **Balances** |
-| Positions | the venue's own net position in each market, whoever placed the orders behind it: size, entry, mark, notional, unrealised PnL, leverage | **Positions**, under **At the venue** |
-| Value | the account's whole value in USD over time: its balances plus the unrealised PnL of its positions. Deposits and withdrawals move it too | **Value** |
-| Transactions | trades, deposits, withdrawals, funding, fees, liquidations and rebates, as the venue reports them | **Transactions** |
+| Balances | every asset the account holds, valued in USD at the price shown | **Balances** |
+| Positions | the venue's own net position in each market (a symbol with its market kind), whoever placed the orders behind it: size, entry, mark, notional, unrealised PnL, leverage | **Positions**, under **At the venue** |
+| Value | the account's value in USD over time: its balances plus the unrealised PnL of its positions. Deposits, withdrawals and transfers to or from another account move it | **Value** |
+| Transactions | trades, deposits, withdrawals, transfers to and from other accounts, funding, fees, liquidations and rebates, as the venue reports them | **Transactions** |
+
+A connected account is one pool of money at a venue, and the venue login that holds it is its **connection**. Connecting a login brings in each of its accounts: a Binance login has a **Spot** and a **USDⓈ-M Futures** account, a Hyperliquid address has **Perps** and **Spot**. Every balance, position and transaction belongs to one account, and a connection's value is the sum of its accounts'. A move between two accounts of one connection shows on both, out of one and into the other, each naming the other: it moves each account's value by the amount and the connection's by nothing. An asset Mishmar has no price for is listed with its amount and no value, and named, rather than counted as nothing. A sub-account at the venue is a connection of its own: a main login's value does not include its sub-accounts'. Agents trade on Hyperliquid Perps and Binance USDⓈ-M Futures. Hyperliquid Spot, Binance Spot and both accounts of a Hyperliquid sub-account are read like any other, but agents can't trade on them yet, and each says why.
 
 ![A Hyperliquid account's Balances tab: each asset with its wallet, amount, value in USD and share, as of the last read, and the account's whole value under them](/screens/concepts/what-mishmar-keeps-of-your-accounts/balances.png)
 

@@ -26,14 +26,18 @@ export type {
   Balance,
   BalanceSnapshot,
   ConnectedAccount,
+  ConnectedAccountType,
   EquityPoint,
   EquityQuery,
   EquityResolution,
   EquitySeries,
+  MarketKind,
   SnapshotSource,
   SyncState,
   TransactionOrigin,
   TransactionQuery,
+  VenueAccount,
+  VenueConnectionRef,
   When,
 } from "./data.ts";
 export { fromWire, isDecimal, rfc3339, sign, signingBytes, toWire, validate } from "./proposal.ts";

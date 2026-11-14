@@ -40,7 +40,7 @@ A limit has a scope, and every rule in scope runs on every order:
 - **The account**: everything you run.
 - **A portfolio**: a group of agents that share limits and [allocated capital](/start/portfolios/). Drawdown and leverage on a portfolio are measured against its capital.
 - **An agent**: one bot or model, across every connected account it trades on.
-- **A connected account**: one account at one exchange, whatever trades on it.
+- **A connected account**: one pool of money at one exchange (a Binance login's USDⓈ-M Futures account, say), whatever trades on it.
 
 So a portfolio can cap the total, each agent inside it its own share, and a single connected account the leverage the exchange account can bear.
 

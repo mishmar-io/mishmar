@@ -46,4 +46,4 @@ Whichever you choose, check it does these:
 - **Has a person in the loop for the large ones,** and a kill switch the bot does not control. [How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) has both, with code.
 - **Keeps a record you can check.** In Mishmar every decision, allowed, held or blocked, is signed and chained to the one before it, and the ledger exports and verifies.
 
-Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one connected account.
+Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one venue connection.

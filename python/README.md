@@ -53,19 +53,29 @@ tunes it.
 
 An agent reads each connected account it was given whole: balances, the
 venue's positions, transactions and value over time, whoever acted on the
-account. Every read is signed with the agent's key and shows in the
-account's access log. The agent's API key alone is enough: it names the
-engine and the key id (`MISHMAR_ENGINE`, or `engine_url=`, for a
-self-hosted engine), so a read agent, which has no signer, needs nothing
-else.
+account. A connected account is one pool of money at a venue: a Binance
+login has a Spot and a USDⓈ-M Futures account, a Hyperliquid address has
+Perps and Spot. Each names its `connection`, the venue login that holds it
+(the person's name for it, `venueAccount`, which login it is, `sync`, how
+current its data is, and `accountCount`, how many accounts the login has).
+The accounts' values add up to the login's only when the agent was given
+all `accountCount` of them; otherwise the sum is of the accounts it can
+see. A move between two accounts of one connection is a `transfer_out` on
+one and a `transfer_in` on the other, each naming the other in
+`counterpartConnectedAccountId`. Every read is signed with the
+agent's key and shows in the account's access log. The agent's API key
+alone is enough: it names the engine and the key id (`MISHMAR_ENGINE`, or
+`engine_url=`, for a self-hosted engine), so a read agent, which has no
+signer, needs nothing else.
 
 ```python
 from mishmar import Client
 
 client = Client.from_api_key()                    # $MISHMAR_API_KEY
 for account in client.connected_accounts():
+    login = account["connection"]                  # the venue login that holds it
+    print(account["venue"], login["name"], account["name"], account.get("equityUsd"))
     snap = client.account_balances(account["id"])  # at=… for a past moment
-    print(account["name"], snap.get("equityUsd"))
 
 page = client.account_transactions("ta_…", since="2026-11-01T00:00:00Z", kind="trade", limit=200)
 for t in page["items"]:
@@ -86,6 +96,13 @@ through its child. Started with a read agent's key, the child polls nothing
 (it learns from `GET /agent/me` that the agent reads) and refuses `order`,
 `cancel` and the other calls a read agent does not make with a 403
 `EngineError`, before anything is sent.
+
+Contract 0.21.0 changed the account's shape: an account is one pool, so
+`Balance.wallet` is gone and no read takes a wallet; the account's `kind`
+and `setup` are its connection's (`account["connection"]["kind"]`,
+`["setup"]`), and so is `sync` (`account["connection"]["sync"]`); positions
+and transactions carry their `market` (perp, spot, …), balances their
+`priceUsd`, and a value leaves out the assets named in `unpricedAssets`.
 
 Run the tests, which include the cross-language vectors in `../spec/vectors`:
 

@@ -156,66 +156,6 @@ func (e ApprovalStatus) Valid() bool {
 	}
 }
 
-// Defines values for BalanceWallet.
-const (
-	BalanceWalletMargin BalanceWallet = "margin"
-	BalanceWalletOther  BalanceWallet = "other"
-	BalanceWalletSpot   BalanceWallet = "spot"
-)
-
-// Valid indicates whether the value is a known member of the BalanceWallet enum.
-func (e BalanceWallet) Valid() bool {
-	switch e {
-	case BalanceWalletMargin:
-		return true
-	case BalanceWalletOther:
-		return true
-	case BalanceWalletSpot:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ConnectedAccountCreateHyperliquidNetwork.
-const (
-	ConnectedAccountCreateHyperliquidNetworkMainnet ConnectedAccountCreateHyperliquidNetwork = "mainnet"
-	ConnectedAccountCreateHyperliquidNetworkTestnet ConnectedAccountCreateHyperliquidNetwork = "testnet"
-)
-
-// Valid indicates whether the value is a known member of the ConnectedAccountCreateHyperliquidNetwork enum.
-func (e ConnectedAccountCreateHyperliquidNetwork) Valid() bool {
-	switch e {
-	case ConnectedAccountCreateHyperliquidNetworkMainnet:
-		return true
-	case ConnectedAccountCreateHyperliquidNetworkTestnet:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ConnectedAccountKind.
-const (
-	ConnectedAccountKindCosignerCallback ConnectedAccountKind = "cosigner_callback"
-	ConnectedAccountKindExchange         ConnectedAccountKind = "exchange"
-	ConnectedAccountKindHyperliquid      ConnectedAccountKind = "hyperliquid"
-)
-
-// Valid indicates whether the value is a known member of the ConnectedAccountKind enum.
-func (e ConnectedAccountKind) Valid() bool {
-	switch e {
-	case ConnectedAccountKindCosignerCallback:
-		return true
-	case ConnectedAccountKindExchange:
-		return true
-	case ConnectedAccountKindHyperliquid:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ConnectedAccountMode.
 const (
 	ConnectedAccountModeAgentsOnly ConnectedAccountMode = "agents_only"
@@ -300,6 +240,36 @@ func (e ConnectedAccountStatus) Valid() bool {
 	case ConnectedAccountStatusPaused:
 		return true
 	case ConnectedAccountStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConnectedAccountType.
+const (
+	ConnectedAccountTypeDerivatives ConnectedAccountType = "derivatives"
+	ConnectedAccountTypeFunding     ConnectedAccountType = "funding"
+	ConnectedAccountTypeMargin      ConnectedAccountType = "margin"
+	ConnectedAccountTypeOther       ConnectedAccountType = "other"
+	ConnectedAccountTypeSpot        ConnectedAccountType = "spot"
+	ConnectedAccountTypeUnified     ConnectedAccountType = "unified"
+)
+
+// Valid indicates whether the value is a known member of the ConnectedAccountType enum.
+func (e ConnectedAccountType) Valid() bool {
+	switch e {
+	case ConnectedAccountTypeDerivatives:
+		return true
+	case ConnectedAccountTypeFunding:
+		return true
+	case ConnectedAccountTypeMargin:
+		return true
+	case ConnectedAccountTypeOther:
+		return true
+	case ConnectedAccountTypeSpot:
+		return true
+	case ConnectedAccountTypeUnified:
 		return true
 	default:
 		return false
@@ -621,6 +591,33 @@ func (e LedgerEventKind) Valid() bool {
 	case LedgerEventKindResolved:
 		return true
 	case LedgerEventKindVenueEvent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MarketKind.
+const (
+	MarketKindEquity MarketKind = "equity"
+	MarketKindFuture MarketKind = "future"
+	MarketKindOption MarketKind = "option"
+	MarketKindPerp   MarketKind = "perp"
+	MarketKindSpot   MarketKind = "spot"
+)
+
+// Valid indicates whether the value is a known member of the MarketKind enum.
+func (e MarketKind) Valid() bool {
+	switch e {
+	case MarketKindEquity:
+		return true
+	case MarketKindFuture:
+		return true
+	case MarketKindOption:
+		return true
+	case MarketKindPerp:
+		return true
+	case MarketKindSpot:
 		return true
 	default:
 		return false
@@ -1191,6 +1188,81 @@ func (e Venue) Valid() bool {
 	}
 }
 
+// Defines values for VenueAccountRole.
+const (
+	VenueAccountRoleMain       VenueAccountRole = "main"
+	VenueAccountRoleSubaccount VenueAccountRole = "subaccount"
+)
+
+// Valid indicates whether the value is a known member of the VenueAccountRole enum.
+func (e VenueAccountRole) Valid() bool {
+	switch e {
+	case VenueAccountRoleMain:
+		return true
+	case VenueAccountRoleSubaccount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VenueConnectionStatus.
+const (
+	VenueConnectionStatusActive  VenueConnectionStatus = "active"
+	VenueConnectionStatusPending VenueConnectionStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the VenueConnectionStatus enum.
+func (e VenueConnectionStatus) Valid() bool {
+	switch e {
+	case VenueConnectionStatusActive:
+		return true
+	case VenueConnectionStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VenueConnectionCreateHyperliquidNetwork.
+const (
+	VenueConnectionCreateHyperliquidNetworkMainnet VenueConnectionCreateHyperliquidNetwork = "mainnet"
+	VenueConnectionCreateHyperliquidNetworkTestnet VenueConnectionCreateHyperliquidNetwork = "testnet"
+)
+
+// Valid indicates whether the value is a known member of the VenueConnectionCreateHyperliquidNetwork enum.
+func (e VenueConnectionCreateHyperliquidNetwork) Valid() bool {
+	switch e {
+	case VenueConnectionCreateHyperliquidNetworkMainnet:
+		return true
+	case VenueConnectionCreateHyperliquidNetworkTestnet:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VenueConnectionKind.
+const (
+	VenueConnectionKindCosignerCallback VenueConnectionKind = "cosigner_callback"
+	VenueConnectionKindExchange         VenueConnectionKind = "exchange"
+	VenueConnectionKindHyperliquid      VenueConnectionKind = "hyperliquid"
+)
+
+// Valid indicates whether the value is a known member of the VenueConnectionKind enum.
+func (e VenueConnectionKind) Valid() bool {
+	switch e {
+	case VenueConnectionKindCosignerCallback:
+		return true
+	case VenueConnectionKindExchange:
+		return true
+	case VenueConnectionKindHyperliquid:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VenueKeyHyperliquidApprovalStatus.
 const (
 	VenueKeyHyperliquidApprovalStatusApproved VenueKeyHyperliquidApprovalStatus = "approved"
@@ -1376,7 +1448,8 @@ type AccountDataEntitlements struct {
 	RetentionDays int `json:"retentionDays"`
 }
 
-// AccountPosition The venue's own net position in one symbol, whoever placed the orders behind it.
+// AccountPosition The venue's own net position in one market, whoever placed the orders
+// behind it. Derivatives only: an asset held outright is a balance.
 type AccountPosition struct {
 	// EntryPrice A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -1395,6 +1468,11 @@ type AccountPosition struct {
 	// float formatting unchanged, so the bytes an agent signs are the bytes the
 	// engine verifies, and sums of cents stay exact.
 	MarkPrice *Decimal `json:"markPrice,omitempty"`
+
+	// Market What kind of market a symbol is on. A venue may use one symbol for
+	// several (Binance's BTCUSDT is a spot pair and a perpetual), so a
+	// symbol identifies a market only together with this.
+	Market MarketKind `json:"market"`
 
 	// NotionalUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -1452,10 +1530,26 @@ type AccountTransaction struct {
 	At                 time.Time `json:"at"`
 	ConnectedAccountId string    `json:"connectedAccountId"`
 
+	// CounterpartConnectedAccountId On a transfer, the connected account on the other side, when the
+	// engine can tell: always for a move within one connection, and
+	// for a move to or from a sub-account whose connection is here
+	// too. Absent on a deposit or a withdrawal.
+	CounterpartConnectedAccountId *string `json:"counterpartConnectedAccountId,omitempty"`
+
 	// FeeUsd A trade's fee.
-	FeeUsd *Decimal               `json:"feeUsd,omitempty"`
-	Id     string                 `json:"id"`
-	Kind   AccountTransactionKind `json:"kind"`
+	FeeUsd *Decimal `json:"feeUsd,omitempty"`
+	Id     string   `json:"id"`
+
+	// Kind transfer_in and transfer_out cross the account's edge: deposits,
+	// withdrawals, and moves to or from another account. A move between
+	// two accounts of one connection (Binance Futures to Spot) is a
+	// transfer_out on the one and a transfer_in on the other, each naming
+	// the other side (`counterpartConnectedAccountId`); it moves each
+	// account's value by the amount and the connection's by nothing.
+	Kind AccountTransactionKind `json:"kind"`
+
+	// Market With `symbol`.
+	Market *MarketKind `json:"market,omitempty"`
 
 	// Origin Trades and liquidations. Absent on the rest.
 	Origin *TransactionOrigin `json:"origin,omitempty"`
@@ -1480,13 +1574,31 @@ type AccountTransaction struct {
 	VenueId *string `json:"venueId,omitempty"`
 }
 
-// AccountTransactionKind defines model for AccountTransactionKind.
+// AccountTransactionKind transfer_in and transfer_out cross the account's edge: deposits,
+// withdrawals, and moves to or from another account. A move between
+// two accounts of one connection (Binance Futures to Spot) is a
+// transfer_out on the one and a transfer_in on the other, each naming
+// the other side (`counterpartConnectedAccountId`); it moves each
+// account's value by the amount and the connection's by nothing.
 type AccountTransactionKind string
 
 // AccountTransactionPage defines model for AccountTransactionPage.
 type AccountTransactionPage struct {
 	Items      []AccountTransaction `json:"items"`
 	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
+// AccountValue One account's value at a moment, within its connection's.
+type AccountValue struct {
+	ConnectedAccountId string `json:"connectedAccountId"`
+
+	// EquityUsd Its balances at their prices plus its positions' unrealised PnL.
+	EquityUsd Decimal `json:"equityUsd"`
+
+	// UnpricedAssets Assets the account held that the engine had no price for at that
+	// moment, so `equityUsd` leaves them out. Absent when every asset
+	// was priced.
+	UnpricedAssets *[]string `json:"unpricedAssets,omitempty"`
 }
 
 // Agent defines model for Agent.
@@ -1694,7 +1806,8 @@ type ApprovalOutcome struct {
 // ApprovalStatus defines model for ApprovalStatus.
 type ApprovalStatus string
 
-// Balance defines model for Balance.
+// Balance One asset the account holds. Before contract 0.21.0 it carried
+// `wallet`, a label; the pool is now the account itself.
 type Balance struct {
 	// Amount A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
 	// quantities are never JSON numbers. A string survives every language's
@@ -1705,15 +1818,13 @@ type Balance struct {
 	// Asset The asset as the venue names it, e.g. USDC, BTC.
 	Asset string `json:"asset"`
 
-	// UsdValue Absent when the engine has no price for the asset.
+	// PriceUsd The price `usdValue` was worked out at. Absent with it.
+	PriceUsd *Decimal `json:"priceUsd,omitempty"`
+
+	// UsdValue Absent when the engine has no price for the asset; the
+	// snapshot's `unpricedAssets` then names it.
 	UsdValue *Decimal `json:"usdValue,omitempty"`
-
-	// Wallet Where the venue holds it. margin is what backs derivatives positions.
-	Wallet BalanceWallet `json:"wallet"`
 }
-
-// BalanceWallet Where the venue holds it. margin is what backs derivatives positions.
-type BalanceWallet string
 
 // BalanceSnapshot defines model for BalanceSnapshot.
 type BalanceSnapshot struct {
@@ -1721,7 +1832,9 @@ type BalanceSnapshot struct {
 	Balances           []Balance `json:"balances"`
 	ConnectedAccountId string    `json:"connectedAccountId"`
 
-	// EquityUsd The account's whole value, balances plus unrealised PnL.
+	// EquityUsd The account's value at `asOf`: balances at their prices plus
+	// unrealised PnL. An asset with no price is left out and named in
+	// `unpricedAssets`.
 	EquityUsd *Decimal `json:"equityUsd,omitempty"`
 
 	// Source observed: read from the venue at that moment. rebuilt: worked out
@@ -1730,6 +1843,9 @@ type BalanceSnapshot struct {
 	// the venue's historical prices. No engine rebuilds yet: every reading
 	// served today is observed.
 	Source SnapshotSource `json:"source"`
+
+	// UnpricedAssets Assets held at `asOf` with no price. Absent when every asset was priced.
+	UnpricedAssets *[]string `json:"unpricedAssets,omitempty"`
 }
 
 // CommitmentBatch defines model for CommitmentBatch.
@@ -1763,16 +1879,35 @@ type CommitmentRequest struct {
 	VenueKeyId string `json:"venueKeyId"`
 }
 
-// ConnectedAccount One account at a venue, connected with read access. It needs no agent:
-// it is connected by itself, the engine keeps its balances, positions,
-// equity and transactions over time, and agents are then given it to
-// read or to trade on. Before contract 0.20.0 this was TradingAccount.
+// ConnectedAccount One pool of money at a venue, with its own balances, positions,
+// margin and value. The test: moving money between two of them takes a
+// transfer. A Binance login has a Spot account and a USDⓈ-M Futures
+// account; a Hyperliquid address has Perps and Spot; a brokerage
+// account number is one. Every balance, position, transaction and
+// equity reading belongs to exactly one, rules are scoped to one, and
+// an agent is given one to read or to trade on.
+//
+// Accounts are not connected one by one: they come with their venue
+// connection (VenueConnection), which holds the read access. The
+// engine keeps each account's balances, positions, equity and
+// transactions over time. Before contract 0.21.0 a ConnectedAccount
+// was the whole login; an account connected before it keeps its id as
+// the pool its value measured (USDⓈ-M Futures on Binance, Perps on
+// Hyperliquid) and the login's other pools are new accounts. Before
+// contract 0.20.0 this was TradingAccount.
 type ConnectedAccount struct {
-	CreatedAt time.Time `json:"createdAt"`
-	Id        string    `json:"id"`
+	// Connection What an account says about its connection, so that the account alone
+	// is enough to tell which one it is and, for a signer, how to reach
+	// the venue. Nothing secret.
+	Connection VenueConnectionRef `json:"connection"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	EquityAsOf *time.Time         `json:"equityAsOf,omitempty"`
 
-	// Kind An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
-	Kind ConnectedAccountKind `json:"kind"`
+	// EquityUsd The account's value at `equityAsOf`: its balances at their prices
+	// plus its positions' unrealised PnL. Absent until the first
+	// reading.
+	EquityUsd *Decimal `json:"equityUsd,omitempty"`
+	Id        string   `json:"id"`
 
 	// Maintenance An open maintenance window (openMaintenance). Absent when none is open.
 	Maintenance *MaintenanceWindow `json:"maintenance,omitempty"`
@@ -1788,67 +1923,64 @@ type ConnectedAccount struct {
 	// a maintenance window. shared: such a fill is booked to the unassigned book
 	// and trading continues; account and connected account rules see it, agent rules do not.
 	Mode ConnectedAccountMode `json:"mode"`
-	Name string               `json:"name"`
+
+	// Name What the venue calls it: "Spot", "USDⓈ-M Futures", "Perps". On a
+	// connection with a single account, "Main". Not editable; a person
+	// names the connection. A line of text for the account is the
+	// venue, the connection's name, this name and
+	// `connection.venueAccount.label`.
+	Name string `json:"name"`
 
 	// Restrictions What blocks new risk on the connected account right now, set by the engine
 	// rather than by a person (pause and stop are `status`). Exits pass
 	// under every restriction. Absent when there is none.
 	Restrictions *[]ConnectedAccountRestriction `json:"restrictions,omitempty"`
-	Setup        ConnectedAccountSetup          `json:"setup"`
-	Status       ConnectedAccountStatus         `json:"status"`
 
-	// Sync How current each kind of the account's data is. Absent until the
-	// account is verified.
-	Sync *[]SyncState `json:"sync,omitempty"`
+	// Status pending until the account's connection is verified. pause and stop
+	// are per account.
+	Status ConnectedAccountStatus `json:"status"`
+
+	// Tradable Whether agents can trade on the account through Mishmar (with a
+	// trading key, or through a custodian's callback). False on an
+	// account the engine reads but cannot trade yet (Binance Spot,
+	// Hyperliquid Spot, a Hyperliquid sub-account's): createVenueKey
+	// there is 409 `conflict`. Absent means true.
+	Tradable *bool `json:"tradable,omitempty"`
 
 	// Traded Whether any agent holds an unrevoked trading key on the account.
 	// False, Mishmar can only read it: every trade there is recorded as
 	// it is, `mode` restricts nothing and no discrepancy is opened.
-	Traded       bool                          `json:"traded"`
-	UpdatedAt    time.Time                     `json:"updatedAt"`
-	Venue        Venue                         `json:"venue"`
-	Verification *ConnectedAccountVerification `json:"verification,omitempty"`
+	Traded bool `json:"traded"`
+
+	// Type spot: assets held outright (a broker's cash account). derivatives:
+	// the collateral behind perpetuals and futures, with their positions
+	// (Hyperliquid's perps, Binance's USDⓈ-M futures). margin: assets
+	// bought with borrowing (cross or isolated margin, a broker's margin
+	// account). funding: holds deposits, withdrawals and payments and
+	// trades nothing. unified: one pool behind every kind of market (a
+	// unified trading account). other: anything else the venue keeps
+	// apart.
+	Type ConnectedAccountType `json:"type"`
+
+	// UnpricedAssets Assets the account held at `equityAsOf` that the engine had no
+	// price for, so `equityUsd` leaves them out. Absent when every
+	// asset was priced.
+	UnpricedAssets *[]string `json:"unpricedAssets,omitempty"`
+
+	// UntradableReason With `tradable` false, one line for a person saying why, without
+	// the account's name: "Mishmar does not trade spot on Binance
+	// yet", "Mishmar does not trade a Hyperliquid sub-account yet".
+	// Absent when the account can be traded.
+	UntradableReason  *string   `json:"untradableReason,omitempty"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+	Venue             Venue     `json:"venue"`
+	VenueConnectionId string    `json:"venueConnectionId"`
+
+	// VenueRef The engine's stable word for the pool at this venue, readable:
+	// `spot`, `usdm-futures`, `perps`, `main`. Unique within the
+	// connection.
+	VenueRef string `json:"venueRef"`
 }
-
-// ConnectedAccountCreate defines model for ConnectedAccountCreate.
-type ConnectedAccountCreate struct {
-	// Exchange An exchange account. The trading keys come later, one per agent
-	// (VenueKey). The read-only key may come later too (`setReadKey`):
-	// without it the account is created with `readKeyRegistered` false
-	// and cannot verify or stream until it has one.
-	Exchange *struct {
-		// ReadApiKey A key with read permissions only, for the account's margin, positions and fills. Write-only.
-		ReadApiKey *string `json:"readApiKey,omitempty"`
-
-		// ReadApiSecret The read-only key's secret (HMAC). Write-only and stored whole; it cannot trade or withdraw.
-		ReadApiSecret *string `json:"readApiSecret,omitempty"`
-		Subaccount    *string `json:"subaccount,omitempty"`
-	} `json:"exchange,omitempty"`
-	Fireblocks *struct {
-		ApiUserId string `json:"apiUserId"`
-	} `json:"fireblocks,omitempty"`
-	Hyperliquid *struct {
-		// MasterAddress The master account. Absent, the engine learns it from the first
-		// API wallet an agent gets on this account that the master approves
-		// at Hyperliquid (`userRole` names the approving account), and
-		// verifies the account then; until that the account is pending.
-		MasterAddress *string `json:"masterAddress,omitempty"`
-
-		// Network A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
-		Network ConnectedAccountCreateHyperliquidNetwork `json:"network"`
-	} `json:"hyperliquid,omitempty"`
-
-	// Mode Default agents_only.
-	Mode  *ConnectedAccountMode `json:"mode,omitempty"`
-	Name  string                `json:"name"`
-	Venue Venue                 `json:"venue"`
-}
-
-// ConnectedAccountCreateHyperliquidNetwork A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
-type ConnectedAccountCreateHyperliquidNetwork string
-
-// ConnectedAccountKind An exchange account reached with API keys, a Hyperliquid master account, or a custodian's co-signer callback.
-type ConnectedAccountKind string
 
 // ConnectedAccountMode What a fill Mishmar did not place means on a connected account agents
 // trade on (`traded`); on one Mishmar only reads it means nothing and
@@ -1906,13 +2038,19 @@ type ConnectedAccountRestrictionCause string
 // ConnectedAccountRestrictionScope The whole connected account, or one asset on it (every market that trades that asset).
 type ConnectedAccountRestrictionScope string
 
-// ConnectedAccountSetup defines model for ConnectedAccountSetup.
-type ConnectedAccountSetup struct {
-	union json.RawMessage
-}
-
-// ConnectedAccountStatus defines model for ConnectedAccountStatus.
+// ConnectedAccountStatus pending until the account's connection is verified. pause and stop
+// are per account.
 type ConnectedAccountStatus string
+
+// ConnectedAccountType spot: assets held outright (a broker's cash account). derivatives:
+// the collateral behind perpetuals and futures, with their positions
+// (Hyperliquid's perps, Binance's USDⓈ-M futures). margin: assets
+// bought with borrowing (cross or isolated margin, a broker's margin
+// account). funding: holds deposits, withdrawals and payments and
+// trades nothing. unified: one pool behind every kind of market (a
+// unified trading account). other: anything else the venue keeps
+// apart.
+type ConnectedAccountType string
 
 // ConnectedAccountUpdate defines model for ConnectedAccountUpdate.
 type ConnectedAccountUpdate struct {
@@ -1927,22 +2065,11 @@ type ConnectedAccountUpdate struct {
 	// a maintenance window. shared: such a fill is booked to the unassigned book
 	// and trading continues; account and connected account rules see it, agent rules do not.
 	Mode *ConnectedAccountMode `json:"mode,omitempty"`
-	Name *string               `json:"name,omitempty"`
-}
-
-// ConnectedAccountVerification defines model for ConnectedAccountVerification.
-type ConnectedAccountVerification struct {
-	Checks []struct {
-		Detail *string `json:"detail,omitempty"`
-		Name   string  `json:"name"`
-		Passed bool    `json:"passed"`
-	} `json:"checks"`
-	VerifiedAt *time.Time `json:"verifiedAt,omitempty"`
 }
 
 // CosignerCallbackSetup defines model for CosignerCallbackSetup.
 type CosignerCallbackSetup struct {
-	// ApiUserId The Fireblocks API user that maps to this connected account.
+	// ApiUserId The Fireblocks API user that maps to this connection.
 	ApiUserId         *string `json:"apiUserId,omitempty"`
 	CallbackPublicKey string  `json:"callbackPublicKey"`
 
@@ -2298,11 +2425,14 @@ type Entitlements struct {
 	// createAgent is refused with `limit_reached` until one is deleted.
 	MaxAgents *int `json:"maxAgents,omitempty"`
 
-	// MaxConnectedAccounts The most connected accounts the account may have, on every venue
-	// together. Absent means no limit. createConnectedAccount is refused
-	// with `limit_reached` past it, as createAgent is. One Mishmar only
-	// reads counts like one agents trade on.
-	MaxConnectedAccounts *int `json:"maxConnectedAccounts,omitempty"`
+	// MaxVenueConnections The most venue connections the account may have, on every venue
+	// together. Absent means no limit. createVenueConnection is refused
+	// with `limit_reached` past it, as createAgent is. A connection
+	// counts once whatever the number of accounts under it; a
+	// sub-account's connection counts like any other; one Mishmar only
+	// reads counts like one agents trade on. Before contract 0.21.0
+	// this was `maxConnectedAccounts`.
+	MaxVenueConnections *int `json:"maxVenueConnections,omitempty"`
 
 	// SelfHosted Licensed to run the engine on the customer's own infrastructure.
 	SelfHosted bool `json:"selfHosted"`
@@ -2328,10 +2458,7 @@ type Entitlements struct {
 type EquityPoint struct {
 	At time.Time `json:"at"`
 
-	// EquityUsd A decimal number as a string: "98000.25", "-1234.5", "0.001". Money and
-	// quantities are never JSON numbers. A string survives every language's
-	// float formatting unchanged, so the bytes an agent signs are the bytes the
-	// engine verifies, and sums of cents stay exact.
+	// EquityUsd The account's value at that moment.
 	EquityUsd Decimal `json:"equityUsd"`
 
 	// Source observed: read from the venue at that moment. rebuilt: worked out
@@ -2360,6 +2487,8 @@ type Error struct {
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
 	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
 	// `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+	// `already_connected` (409) answers connecting or verifying a venue login
+	// that is connected already; `details.venueConnectionId` is the existing one.
 	// `evaluation_changed` (409) answers an approve whose `revision` is not the
 	// current evaluation's: the rules now say something else than what the approver
 	// saw. `details.now` is the current ApprovalEvaluation; show it and approve again
@@ -2368,7 +2497,7 @@ type Error struct {
 	// answered (verifyVenueKey's co-signed read). Nothing was recorded: start the
 	// signer and send the same request again.
 	// `limit_reached` (403) means the account's plan holds no more of what
-	// the request would add (`Entitlements.maxAgents`, `maxConnectedAccounts`).
+	// the request would add (`Entitlements.maxAgents`, `maxVenueConnections`).
 	// Sending it again changes nothing: delete one, or move to a larger plan.
 	// `unavailable` (503) means the request did nothing: the engine cannot read its
 	// state, it is starting or waiting for its account, or it is stopping. Send the
@@ -2383,12 +2512,12 @@ type Error struct {
 	Message string                  `json:"message"`
 }
 
-// ExchangeReadKey An exchange account's read-only key, for `setReadKey`. Both write-only.
+// ExchangeReadKey An exchange connection's read-only key, for `setReadKey`. Both write-only.
 type ExchangeReadKey struct {
 	ReadApiKey    string `json:"readApiKey"`
 	ReadApiSecret string `json:"readApiSecret"`
 
-	// Subaccount Replaces the account's subaccount name when given.
+	// Subaccount Replaces the connection's subaccount name when given.
 	Subaccount *string `json:"subaccount,omitempty"`
 }
 
@@ -2402,9 +2531,9 @@ type ExchangeSetup struct {
 	Kind               ExchangeSetupKind        `json:"kind"`
 	ReadKeyFingerprint *string                  `json:"readKeyFingerprint,omitempty"`
 
-	// ReadKeyRegistered Whether the engine holds the account's read-only key, for margin,
+	// ReadKeyRegistered Whether the engine holds the connection's read-only key, for margin,
 	// positions and fills. The trading keys belong to the agents (VenueKey);
-	// a connected account without a read key verifies and streams nothing.
+	// a connection without a read key verifies and streams nothing.
 	ReadKeyRegistered bool    `json:"readKeyRegistered"`
 	Subaccount        *string `json:"subaccount,omitempty"`
 }
@@ -2426,6 +2555,11 @@ type HyperliquidSetup struct {
 	// master approves at Hyperliquid.
 	MasterAddress *string                 `json:"masterAddress,omitempty"`
 	Network       HyperliquidSetupNetwork `json:"network"`
+
+	// SubaccountAddress On a sub-account (`venueAccount.role` subaccount), its own
+	// address: what the engine reads. `masterAddress` is then the
+	// master that owns it, whose API wallets trade on it.
+	SubaccountAddress *string `json:"subaccountAddress,omitempty"`
 }
 
 // HyperliquidSetupKind defines model for HyperliquidSetup.Kind.
@@ -2535,6 +2669,11 @@ type MarkInput struct {
 	Symbol string  `json:"symbol"`
 	Venue  Venue   `json:"venue"`
 }
+
+// MarketKind What kind of market a symbol is on. A venue may use one symbol for
+// several (Binance's BTCUSDT is a spot pair and a perpetual), so a
+// symbol identifies a market only together with this.
+type MarketKind string
 
 // Operator defines model for Operator.
 type Operator struct {
@@ -3568,7 +3707,7 @@ type SymbolRules struct {
 // SyncKind defines model for SyncKind.
 type SyncKind string
 
-// SyncState How current one kind of a connected account's data is.
+// SyncState How current one kind of a venue connection's data is, across its accounts.
 type SyncState struct {
 	// AsOf The moment the data is complete up to. Absent before the first read.
 	AsOf *time.Time `json:"asOf,omitempty"`
@@ -3622,6 +3761,35 @@ type TransactionOriginKind string
 // Venue defines model for Venue.
 type Venue string
 
+// VenueAccount Which login this is at the venue, in the venue's own terms, so that
+// a person or an agent can tell two connections apart without relying
+// on the name someone typed.
+type VenueAccount struct {
+	// Id The venue's own identifier for the login: a Hyperliquid address,
+	// a Binance account's UID, a sub-account's email or address, a
+	// brokerage account number. Absent until the engine has learnt it
+	// (verify), and on a venue that gives none (a co-signer callback
+	// uses its API user id). One venue login connects once.
+	Id *string `json:"id,omitempty"`
+
+	// Label `id` shortened for a line of text: `0x12ab…9f3c`, `UID …4471`,
+	// or a sub-account's own name at the venue.
+	Label *string `json:"label,omitempty"`
+
+	// ParentVenueAccountId On a sub-account, its main account's `id` at the venue, connected or not.
+	ParentVenueAccountId *string `json:"parentVenueAccountId,omitempty"`
+
+	// Role On Hyperliquid the venue says which. An exchange's read key does
+	// not, so an exchange connection is a subaccount when it was
+	// connected with a `subaccount` name.
+	Role VenueAccountRole `json:"role"`
+}
+
+// VenueAccountRole On Hyperliquid the venue says which. An exchange's read key does
+// not, so an exchange connection is a subaccount when it was
+// connected with a `subaccount` name.
+type VenueAccountRole string
+
 // VenueAck defines model for VenueAck.
 type VenueAck struct {
 	// ClientOrderId The id the venue indexed the order under when it is not the proposal's own clientOrderId (Hyperliquid derives a 16-byte cloid from it). Fills the venue reports under it are attributed to this decision, also after the engine restarts.
@@ -3638,6 +3806,186 @@ type VenueBudget struct {
 	// WeightPerMinute Request weight a minute, in the venue's own units: Hyperliquid's
 	// and Binance's published weights per request.
 	WeightPerMinute int `json:"weightPerMinute"`
+}
+
+// VenueConnection One login at a venue, connected with read access: one owner and one
+// identifier there (a Hyperliquid master address or one sub-account's,
+// a Binance main account or one sub-account, one brokerage account
+// number). It is how Mishmar reaches the venue, and it holds one or
+// more accounts (ConnectedAccount), which are where the money is. The
+// read key, verification and sync are the connection's; balances,
+// positions, transactions, value, rules, agents' access and trading
+// keys are each account's. The plan counts connections.
+type VenueConnection struct {
+	// ConnectedAccountIds The connection's accounts, in the venue's own order. Fixed by the
+	// venue and what the engine reads there, and created with the
+	// connection. A venue that keeps no pools apart, or one the engine
+	// reads nothing from (a co-signer callback), has one account.
+	ConnectedAccountIds []string   `json:"connectedAccountIds"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	EquityAsOf          *time.Time `json:"equityAsOf,omitempty"`
+
+	// EquityUsd The connection's value at `equityAsOf`: the sum of its accounts'.
+	// Absent until the first reading.
+	EquityUsd *Decimal `json:"equityUsd,omitempty"`
+	Id        string   `json:"id"`
+
+	// Kind An exchange login reached with API keys, a Hyperliquid address (a
+	// master or one of its sub-accounts), or a custodian's co-signer
+	// callback. Before contract 0.21.0 this was ConnectedAccountKind.
+	Kind VenueConnectionKind `json:"kind"`
+
+	// Name The person's own name for it, e.g. "Carry".
+	Name string `json:"name"`
+
+	// ParentId On a sub-account's connection, the connection of its main
+	// account, when that is connected too. A main connection does not
+	// include its sub-accounts: its accounts and its value are the main
+	// login's alone. The engine keeps it in step as the main login is
+	// connected or deleted.
+	ParentId *string              `json:"parentId,omitempty"`
+	Setup    VenueConnectionSetup `json:"setup"`
+
+	// Status pending until `verify` passes.
+	Status VenueConnectionStatus `json:"status"`
+
+	// Sync How current each kind of the connection's data is, across its
+	// accounts. Absent until the connection is verified.
+	Sync *[]SyncState `json:"sync,omitempty"`
+
+	// UnpricedAssets Assets some account of the connection held at `equityAsOf` that
+	// the engine had no price for, so `equityUsd` leaves them out.
+	// Absent when every asset was priced.
+	UnpricedAssets *[]string `json:"unpricedAssets,omitempty"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+	Venue          Venue     `json:"venue"`
+
+	// VenueAccount Which login this is at the venue, in the venue's own terms, so that
+	// a person or an agent can tell two connections apart without relying
+	// on the name someone typed.
+	VenueAccount VenueAccount                 `json:"venueAccount"`
+	Verification *VenueConnectionVerification `json:"verification,omitempty"`
+}
+
+// VenueConnectionStatus pending until `verify` passes.
+type VenueConnectionStatus string
+
+// VenueConnectionCreate defines model for VenueConnectionCreate.
+type VenueConnectionCreate struct {
+	// Exchange An exchange login. The trading keys come later, one per agent
+	// and account (VenueKey). The read-only key may come later too
+	// (`setReadKey`): without it the connection is created with
+	// `readKeyRegistered` false and cannot verify or stream until it has one.
+	Exchange *struct {
+		// ReadApiKey A key with read permissions only, for the account's margin, positions and fills. Write-only.
+		ReadApiKey *string `json:"readApiKey,omitempty"`
+
+		// ReadApiSecret The read-only key's secret (HMAC). Write-only and stored whole; it cannot trade or withdraw.
+		ReadApiSecret *string `json:"readApiSecret,omitempty"`
+		Subaccount    *string `json:"subaccount,omitempty"`
+	} `json:"exchange,omitempty"`
+	Fireblocks *struct {
+		ApiUserId string `json:"apiUserId"`
+	} `json:"fireblocks,omitempty"`
+	Hyperliquid *struct {
+		// MasterAddress The master account. Absent, the engine learns it from the first
+		// API wallet an agent gets on one of this connection's accounts that
+		// the master approves at Hyperliquid (`userRole` names the approving
+		// account), and verifies the connection then; until that it is pending.
+		MasterAddress *string `json:"masterAddress,omitempty"`
+
+		// Network A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
+		Network VenueConnectionCreateHyperliquidNetwork `json:"network"`
+
+		// SubaccountAddress To connect one of the master's sub-accounts: its address.
+		// `masterAddress` is then required, and verify checks at
+		// Hyperliquid that the master owns it.
+		SubaccountAddress *string `json:"subaccountAddress,omitempty"`
+	} `json:"hyperliquid,omitempty"`
+
+	// Mode The mode its accounts start in. Default agents_only.
+	Mode  *ConnectedAccountMode `json:"mode,omitempty"`
+	Name  string                `json:"name"`
+	Venue Venue                 `json:"venue"`
+}
+
+// VenueConnectionCreateHyperliquidNetwork A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
+type VenueConnectionCreateHyperliquidNetwork string
+
+// VenueConnectionEquityPoint defines model for VenueConnectionEquityPoint.
+type VenueConnectionEquityPoint struct {
+	// Accounts Each account's value in that reading, in the connection's order.
+	Accounts []AccountValue `json:"accounts"`
+	At       time.Time      `json:"at"`
+
+	// EquityUsd The sum of `accounts`.
+	EquityUsd Decimal `json:"equityUsd"`
+}
+
+// VenueConnectionEquitySeries Starts at the first reading that covered every account of the
+// connection: for a login connected before contract 0.21.0, at the
+// upgrade.
+type VenueConnectionEquitySeries struct {
+	Points            []VenueConnectionEquityPoint `json:"points"`
+	Resolution        EquityResolution             `json:"resolution"`
+	VenueConnectionId string                       `json:"venueConnectionId"`
+}
+
+// VenueConnectionKind An exchange login reached with API keys, a Hyperliquid address (a
+// master or one of its sub-accounts), or a custodian's co-signer
+// callback. Before contract 0.21.0 this was ConnectedAccountKind.
+type VenueConnectionKind string
+
+// VenueConnectionRef What an account says about its connection, so that the account alone
+// is enough to tell which one it is and, for a signer, how to reach
+// the venue. Nothing secret.
+type VenueConnectionRef struct {
+	// AccountCount How many accounts the connection has, whether or not the reader
+	// was given all of them. An agent given fewer than this sees part
+	// of the login, and the sum of what it sees is not the
+	// connection's value. 1 means this account is the whole login.
+	AccountCount int    `json:"accountCount"`
+	Id           string `json:"id"`
+
+	// Kind An exchange login reached with API keys, a Hyperliquid address (a
+	// master or one of its sub-accounts), or a custodian's co-signer
+	// callback. Before contract 0.21.0 this was ConnectedAccountKind.
+	Kind VenueConnectionKind `json:"kind"`
+	Name string              `json:"name"`
+
+	// ParentId As on VenueConnection.
+	ParentId *string              `json:"parentId,omitempty"`
+	Setup    VenueConnectionSetup `json:"setup"`
+
+	// Sync As on VenueConnection: how current each kind of data is, across
+	// the connection's accounts. It is how an agent, which reads no
+	// connection, tells how fresh an account's data is.
+	Sync *[]SyncState `json:"sync,omitempty"`
+
+	// VenueAccount Which login this is at the venue, in the venue's own terms, so that
+	// a person or an agent can tell two connections apart without relying
+	// on the name someone typed.
+	VenueAccount VenueAccount `json:"venueAccount"`
+}
+
+// VenueConnectionSetup defines model for VenueConnectionSetup.
+type VenueConnectionSetup struct {
+	union json.RawMessage
+}
+
+// VenueConnectionUpdate defines model for VenueConnectionUpdate.
+type VenueConnectionUpdate struct {
+	Name *string `json:"name,omitempty"`
+}
+
+// VenueConnectionVerification defines model for VenueConnectionVerification.
+type VenueConnectionVerification struct {
+	Checks []struct {
+		Detail *string `json:"detail,omitempty"`
+		Name   string  `json:"name"`
+		Passed bool    `json:"passed"`
+	} `json:"checks"`
+	VerifiedAt *time.Time `json:"verifiedAt,omitempty"`
 }
 
 // VenueKey One agent's trading key on one connected account. Created with the engine's share (or nothing, for HMAC venues), registered or approved at the venue, verified by a co-signed read, revoked by the operator.
@@ -3697,10 +4045,10 @@ type VenueKey struct {
 	// Status pending until the venue accepts a co-signed read, active until
 	// `expiresAt` or revocation. An expired key never signs again: the
 	// engine forgets its share, as on revocation.
-	Status              VenueKeyStatus                `json:"status"`
-	Venue               Venue                         `json:"venue"`
-	Verification        *ConnectedAccountVerification `json:"verification,omitempty"`
-	WithdrawalsDisabled *bool                         `json:"withdrawalsDisabled,omitempty"`
+	Status              VenueKeyStatus               `json:"status"`
+	Venue               Venue                        `json:"venue"`
+	Verification        *VenueConnectionVerification `json:"verification,omitempty"`
+	WithdrawalsDisabled *bool                        `json:"withdrawalsDisabled,omitempty"`
 }
 
 // VenueKeyHyperliquidApprovalStatus defines model for VenueKey.Hyperliquid.ApprovalStatus.
@@ -3826,6 +4174,9 @@ type PortfolioId = string
 // RuleId defines model for ruleId.
 type RuleId = string
 
+// VenueConnectionId defines model for venueConnectionId.
+type VenueConnectionId = string
+
 // VenueKeyId defines model for venueKeyId.
 type VenueKeyId = string
 
@@ -3910,6 +4261,12 @@ type ListApprovalsParams struct {
 	Status *ApprovalStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// ListConnectedAccountsParams defines parameters for ListConnectedAccounts.
+type ListConnectedAccountsParams struct {
+	// VenueConnectionId Only this connection's accounts.
+	VenueConnectionId *string `form:"venueConnectionId,omitempty" json:"venueConnectionId,omitempty"`
+}
+
 // GetConnectedAccountBalancesParams defines parameters for GetConnectedAccountBalances.
 type GetConnectedAccountBalancesParams struct {
 	// At The moment to answer for. Absent means now.
@@ -3990,6 +4347,13 @@ type ListRulesParams struct {
 	Enabled   *bool      `form:"enabled,omitempty" json:"enabled,omitempty"`
 }
 
+// GetVenueConnectionEquityParams defines parameters for GetVenueConnectionEquity.
+type GetVenueConnectionEquityParams struct {
+	From       *time.Time        `form:"from,omitempty" json:"from,omitempty"`
+	To         *time.Time        `form:"to,omitempty" json:"to,omitempty"`
+	Resolution *EquityResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+}
+
 // SetAccountEntitlementsJSONRequestBody defines body for SetAccountEntitlements for application/json ContentType.
 type SetAccountEntitlementsJSONRequestBody = Entitlements
 
@@ -4032,9 +4396,6 @@ type ApproveApprovalJSONRequestBody = ApprovalDecide
 // RejectApprovalJSONRequestBody defines body for RejectApproval for application/json ContentType.
 type RejectApprovalJSONRequestBody = ApprovalDecide
 
-// CreateConnectedAccountJSONRequestBody defines body for CreateConnectedAccount for application/json ContentType.
-type CreateConnectedAccountJSONRequestBody = ConnectedAccountCreate
-
 // UpdateConnectedAccountJSONRequestBody defines body for UpdateConnectedAccount for application/json ContentType.
 type UpdateConnectedAccountJSONRequestBody = ConnectedAccountUpdate
 
@@ -4043,9 +4404,6 @@ type OpenMaintenanceJSONRequestBody = MaintenanceOpen
 
 // ReassignPositionJSONRequestBody defines body for ReassignPosition for application/json ContentType.
 type ReassignPositionJSONRequestBody = PositionReassign
-
-// SetReadKeyJSONRequestBody defines body for SetReadKey for application/json ContentType.
-type SetReadKeyJSONRequestBody = ExchangeReadKey
 
 // ResolveDiscrepancyJSONRequestBody defines body for ResolveDiscrepancy for application/json ContentType.
 type ResolveDiscrepancyJSONRequestBody = DiscrepancyResolve
@@ -4068,15 +4426,24 @@ type CreateRuleJSONRequestBody = RuleCreate
 // UpdateRuleJSONRequestBody defines body for UpdateRule for application/json ContentType.
 type UpdateRuleJSONRequestBody = RuleUpdate
 
-// AsHyperliquidSetup returns the union data inside the ConnectedAccountSetup as a HyperliquidSetup
-func (t ConnectedAccountSetup) AsHyperliquidSetup() (HyperliquidSetup, error) {
+// CreateVenueConnectionJSONRequestBody defines body for CreateVenueConnection for application/json ContentType.
+type CreateVenueConnectionJSONRequestBody = VenueConnectionCreate
+
+// UpdateVenueConnectionJSONRequestBody defines body for UpdateVenueConnection for application/json ContentType.
+type UpdateVenueConnectionJSONRequestBody = VenueConnectionUpdate
+
+// SetReadKeyJSONRequestBody defines body for SetReadKey for application/json ContentType.
+type SetReadKeyJSONRequestBody = ExchangeReadKey
+
+// AsHyperliquidSetup returns the union data inside the VenueConnectionSetup as a HyperliquidSetup
+func (t VenueConnectionSetup) AsHyperliquidSetup() (HyperliquidSetup, error) {
 	var body HyperliquidSetup
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromHyperliquidSetup overwrites any union data inside the ConnectedAccountSetup as the provided HyperliquidSetup
-func (t *ConnectedAccountSetup) FromHyperliquidSetup(v HyperliquidSetup) error {
+// FromHyperliquidSetup overwrites any union data inside the VenueConnectionSetup as the provided HyperliquidSetup
+func (t *VenueConnectionSetup) FromHyperliquidSetup(v HyperliquidSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4086,8 +4453,8 @@ func (t *ConnectedAccountSetup) FromHyperliquidSetup(v HyperliquidSetup) error {
 	return err
 }
 
-// MergeHyperliquidSetup performs a merge with any union data inside the ConnectedAccountSetup, using the provided HyperliquidSetup
-func (t *ConnectedAccountSetup) MergeHyperliquidSetup(v HyperliquidSetup) error {
+// MergeHyperliquidSetup performs a merge with any union data inside the VenueConnectionSetup, using the provided HyperliquidSetup
+func (t *VenueConnectionSetup) MergeHyperliquidSetup(v HyperliquidSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4102,15 +4469,15 @@ func (t *ConnectedAccountSetup) MergeHyperliquidSetup(v HyperliquidSetup) error 
 	return err
 }
 
-// AsExchangeSetup returns the union data inside the ConnectedAccountSetup as a ExchangeSetup
-func (t ConnectedAccountSetup) AsExchangeSetup() (ExchangeSetup, error) {
+// AsExchangeSetup returns the union data inside the VenueConnectionSetup as a ExchangeSetup
+func (t VenueConnectionSetup) AsExchangeSetup() (ExchangeSetup, error) {
 	var body ExchangeSetup
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromExchangeSetup overwrites any union data inside the ConnectedAccountSetup as the provided ExchangeSetup
-func (t *ConnectedAccountSetup) FromExchangeSetup(v ExchangeSetup) error {
+// FromExchangeSetup overwrites any union data inside the VenueConnectionSetup as the provided ExchangeSetup
+func (t *VenueConnectionSetup) FromExchangeSetup(v ExchangeSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4120,8 +4487,8 @@ func (t *ConnectedAccountSetup) FromExchangeSetup(v ExchangeSetup) error {
 	return err
 }
 
-// MergeExchangeSetup performs a merge with any union data inside the ConnectedAccountSetup, using the provided ExchangeSetup
-func (t *ConnectedAccountSetup) MergeExchangeSetup(v ExchangeSetup) error {
+// MergeExchangeSetup performs a merge with any union data inside the VenueConnectionSetup, using the provided ExchangeSetup
+func (t *VenueConnectionSetup) MergeExchangeSetup(v ExchangeSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4136,15 +4503,15 @@ func (t *ConnectedAccountSetup) MergeExchangeSetup(v ExchangeSetup) error {
 	return err
 }
 
-// AsCosignerCallbackSetup returns the union data inside the ConnectedAccountSetup as a CosignerCallbackSetup
-func (t ConnectedAccountSetup) AsCosignerCallbackSetup() (CosignerCallbackSetup, error) {
+// AsCosignerCallbackSetup returns the union data inside the VenueConnectionSetup as a CosignerCallbackSetup
+func (t VenueConnectionSetup) AsCosignerCallbackSetup() (CosignerCallbackSetup, error) {
 	var body CosignerCallbackSetup
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromCosignerCallbackSetup overwrites any union data inside the ConnectedAccountSetup as the provided CosignerCallbackSetup
-func (t *ConnectedAccountSetup) FromCosignerCallbackSetup(v CosignerCallbackSetup) error {
+// FromCosignerCallbackSetup overwrites any union data inside the VenueConnectionSetup as the provided CosignerCallbackSetup
+func (t *VenueConnectionSetup) FromCosignerCallbackSetup(v CosignerCallbackSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4154,8 +4521,8 @@ func (t *ConnectedAccountSetup) FromCosignerCallbackSetup(v CosignerCallbackSetu
 	return err
 }
 
-// MergeCosignerCallbackSetup performs a merge with any union data inside the ConnectedAccountSetup, using the provided CosignerCallbackSetup
-func (t *ConnectedAccountSetup) MergeCosignerCallbackSetup(v CosignerCallbackSetup) error {
+// MergeCosignerCallbackSetup performs a merge with any union data inside the VenueConnectionSetup, using the provided CosignerCallbackSetup
+func (t *VenueConnectionSetup) MergeCosignerCallbackSetup(v CosignerCallbackSetup) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4170,7 +4537,7 @@ func (t *ConnectedAccountSetup) MergeCosignerCallbackSetup(v CosignerCallbackSet
 	return err
 }
 
-func (t ConnectedAccountSetup) Discriminator() (string, error) {
+func (t VenueConnectionSetup) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
 	}
@@ -4178,7 +4545,7 @@ func (t ConnectedAccountSetup) Discriminator() (string, error) {
 	return discriminator.Discriminator, err
 }
 
-func (t ConnectedAccountSetup) ValueByDiscriminator() (interface{}, error) {
+func (t VenueConnectionSetup) ValueByDiscriminator() (interface{}, error) {
 	discriminator, err := t.Discriminator()
 	if err != nil {
 		return nil, err
@@ -4195,12 +4562,12 @@ func (t ConnectedAccountSetup) ValueByDiscriminator() (interface{}, error) {
 	}
 }
 
-func (t ConnectedAccountSetup) MarshalJSON() ([]byte, error) {
+func (t VenueConnectionSetup) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *ConnectedAccountSetup) UnmarshalJSON(b []byte) error {
+func (t *VenueConnectionSetup) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

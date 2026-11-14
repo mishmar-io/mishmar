@@ -1,14 +1,14 @@
 ---
 title: Connect a Hyperliquid account
-description: Connect your Hyperliquid master account to Mishmar by its address, which is all Mishmar needs to read it. Mishmar checks it, reads its balances, positions, value and the last 90 days of transactions, and keeps reading it every minute. Nothing here can trade or move funds; agents are given the account afterwards.
+description: Connect your Hyperliquid master account to Mishmar by its address, which is all Mishmar needs to read it. Mishmar checks it, reads the balances, positions, value and the last 90 days of transactions of its Perps and Spot accounts, and keeps reading them every minute. Nothing here can trade or move funds; agents are given the accounts afterwards.
 sidebar:
   order: 1
 lastUpdated: 2026-11-12
 ---
 
-When you are done, your Hyperliquid master account is a **connected account** in Mishmar: an account at a venue that Mishmar can read. Mishmar reads it by its address, which takes no key, so nothing you enter here can place an order or move funds. From then on it reads the account every minute and keeps what it reads: balances, positions, the account's value over time and its transactions. [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) has the details.
+When you are done, your Hyperliquid master account's address is a **connection** in Mishmar, and it holds two **connected accounts**, **Perps** and **Spot**, as Hyperliquid keeps them: each one pool of money that Mishmar can read. Mishmar reads them by the address, which takes no key, so nothing you enter here can place an order or move funds. From then on it reads both accounts every minute and keeps what it reads: each one's balances, positions, value over time and transactions. The connection's value is the sum of the two, and a transfer between them shows on both. [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) has the details.
 
-A connected account needs no agent. Agents come afterwards, and you give each one the accounts it may use: a **read agent** only reads them, and a **trade agent** also gets its own key to trade on one. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) sets up a trade agent, and its dialog can connect the account on the way; [Add a read agent](/start/add-a-read-agent/) sets up one that only reads.
+A connected account needs no agent. Agents come afterwards, and you give each one the accounts it may use: a **read agent** only reads them, and a **trade agent** also gets its own key to trade on one (on Hyperliquid, the Perps account: Spot is read, not traded, for now, and so are a sub-account's accounts). [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) sets up a trade agent, and its dialog can connect the account on the way; [Add a read agent](/start/add-a-read-agent/) sets up one that only reads.
 
 The console sets the network from the Mishmar it is connected to: mainnet on app.mishmar.io, which trades real funds, and testnet on app.testnet.mishmar.io. You don't choose it.
 
@@ -19,7 +19,7 @@ It takes about two minutes.
 - **Your Hyperliquid master address**, or the browser wallet that holds it. It is the account you trade from on Hyperliquid, not an API wallet. On mainnet ([app.hyperliquid.xyz](https://app.hyperliquid.xyz)) for app.mishmar.io, or testnet ([app.hyperliquid-testnet.xyz](https://app.hyperliquid-testnet.xyz)) for the testnet console, with USDC in it: the account has to have margin to pass verification.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot connect accounts.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before a change like this one. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one connected account, on any venue.
+- **Room on your plan.** The free plan holds one venue connection, on any venue: one login, with all its accounts.
 
 ## 1. Start connecting
 
@@ -81,5 +81,5 @@ Next, give the account to an agent: [add an agent on Hyperliquid](/hyperliquid/a
 - **Master account has margin fails, with `$0 available`**: the account holds no USDC on this network. Deposit some on that network at Hyperliquid, then click **Check again** (or **Verify again** on the account's page).
 - **The toast says `… of 3 checks still failing`**: the failing checks are marked in red with what Hyperliquid answered. Fix them at Hyperliquid, then click **Verify again**.
 - **The account's page says `Mishmar can't read this account's … right now`**: the last reads of that kind failed, with the reason after it, and what you see is as of the time it gives. Mishmar keeps trying every minute; tell us if it doesn't clear.
-- **You entered the wrong address.** A connected account's address can't be changed. On its page, click the bin icon (**Delete connected account**), then connect it again. Deleting stops Mishmar reading it, and the agents given it lose access. Mishmar refuses with `Agents still hold venue keys on this connected account; revoke them first` while an agent has a trading key on it: revoke those keys on each agent's **Keys** tab first.
-- **`The account's plan holds 1 connected account; delete one or move to a larger plan`**, or **Connect account** is greyed out with the reason beside it: the free plan holds one connected account, on Hyperliquid and Binance together. Delete one, or move to a larger plan.
+- **You entered the wrong address.** A connection's address can't be changed. On its page, click the bin icon (**Delete connected account**), then connect it again. Deleting removes the connection with all its accounts: Mishmar stops reading them, and the agents given them lose access. Mishmar refuses with `Agents still hold venue keys on this connected account; revoke them first` while an agent has a trading key on it: revoke those keys on each agent's **Keys** tab first.
+- **`The account's plan holds 1 venue connection; delete one or move to a larger plan`**, or **Connect account** is greyed out with the reason beside it: the free plan holds one venue connection, on Hyperliquid and Binance together, whatever the number of accounts under it. Delete one, or move to a larger plan.

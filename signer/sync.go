@@ -209,9 +209,9 @@ func (s *Signer) hyperliquidNetwork(ctx context.Context, connectedAccountID stri
 	if err != nil {
 		return "", fmt.Errorf("signer: reading connected account %s for the key's network: %w", connectedAccountID, err)
 	}
-	hl, err := ta.Setup.AsHyperliquidSetup()
+	hl, err := ta.Connection.Setup.AsHyperliquidSetup()
 	if err != nil || hl.Network == "" {
-		return "", fmt.Errorf("signer: connected account %s names no Hyperliquid network in its setup", connectedAccountID)
+		return "", fmt.Errorf("signer: connected account %s names no Hyperliquid network in its connection's setup", connectedAccountID)
 	}
 	if _, err := hyperliquid.ParseNetwork(string(hl.Network)); err != nil {
 		return "", fmt.Errorf("signer: connected account %s: %w", connectedAccountID, err)
