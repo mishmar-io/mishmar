@@ -1,6 +1,7 @@
 ---
 title: Mishmar docs
 description: What Mishmar does, and where to start. Connect an account, then add an agent that reads it or trades on it.
+lastUpdated: 2026-11-15
 ---
 
 Mishmar is a risk management layer for trading bots and AI agents: every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.
@@ -11,9 +12,9 @@ These pages walk through each setup task step by step, with the screens and comm
 
 ## Setting up
 
-Accounts come first. You connect a venue login to Mishmar with read access, a Hyperliquid address or a Binance login with a read-only API key, and each pool of money the venue keeps under it is a **connected account**: Perps and Spot on Hyperliquid, Spot and USDⓈ-M Futures on Binance. The login is the account's **connection**. Mishmar reads every account every minute from then on and keeps its balances, positions, value and transactions, with or without an agent.
+Accounts come first. You connect a venue to Mishmar with read access, a Hyperliquid address or a Binance read-only API key, and it becomes a **connection**. Each pool of money the venue keeps under it is an **account**: Perps and Spot on Hyperliquid, Spot and USDⓈ-M Futures on Binance. Mishmar reads every account every minute from then on and keeps its balances, positions, value and transactions, with or without an agent.
 
-Then you add **agents** and give each the connected accounts it may use. You choose what each agent is for:
+Then you add **agents** and give each the accounts it may use. You choose what each agent is for:
 
 - A **read agent** reads the accounts it was given with its Mishmar API key, and can never trade. For an assistant, a report, or anything that only needs to look.
 - A **trade agent** also gets its own **trading key** on an account, split between its signer and Mishmar, and trades within your rules.
@@ -28,7 +29,7 @@ Then you add **agents** and give each the connected accounts it may use. You cho
 
 - [How a trading key is split](/concepts/how-a-trading-key-is-split/): why neither your agent nor Mishmar can trade alone, and what each side checks before it signs.
 - [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/): what it reads, how often, for how long, and who can read it.
-- [Where rules apply](/start/where-rules-apply/): on the whole account, a connection, a connected account or one agent, and the capital an agent's leverage and drawdown rules are measured against.
+- [Where rules apply](/start/where-rules-apply/): on the whole Mishmar account, a connection, an account or one agent, and the capital an agent's leverage and drawdown rules are measured against.
 
 ## Stuck?
 

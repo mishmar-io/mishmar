@@ -17,7 +17,7 @@ The package also puts `mishmar` on the path, so `npx -y mishmar mcp` runs
 the MCP server and `npx -y mishmar signer run` the signer without the CLI
 installed: the command runs the binary found through `MISHMAR_BIN`, the
 PATH or `~/.mishmar/bin`, and when there is none fetches the pinned release
-(v0.5.0) into `~/.mishmar/bin` first, checked against the release's
+(v0.5.1) into `~/.mishmar/bin` first, checked against the release's
 checksums.
 
 ```ts
@@ -56,11 +56,12 @@ is retried. `new Client(url, key, keyId, { retries: false })` turns that off;
 An agent reads each connected account it was given whole: balances, the
 venue's positions, transactions and value over time, whoever acted on the
 account. A connected account is one pool of money at a venue: a Binance
-login has a Spot and a USDⓈ-M Futures account, a Hyperliquid address has
-Perps and Spot. Each names its `connection`, the venue login that holds it
-(the person's name for it, `venueAccount`, which login it is, `sync`, how
-current its data is, and `accountCount`, how many accounts the login has).
-The accounts' values add up to the login's only when the agent was given
+connection has a Spot and a USDⓈ-M Futures account, a Hyperliquid address
+has Perps and Spot. Each names its `connection`, which holds it at the
+venue (the person's name for it, `venueAccount`, which main account or
+sub-account it is there, `sync`, how current its data is, and
+`accountCount`, how many accounts the connection has). The accounts'
+values add up to the connection's only when the agent was given
 all `accountCount` of them; otherwise the sum is of the accounts it can
 see. A move between two accounts of one connection is a `transfer_out` on
 one and a `transfer_in` on the other, each naming the other in
@@ -75,8 +76,8 @@ import { Client } from "mishmar";
 
 const client = Client.fromApiKey(); // $MISHMAR_API_KEY
 for (const account of await client.connectedAccounts()) {
-  const login = account.connection; // the venue login that holds it
-  console.log(account.venue, login.name, account.name, account.equityUsd);
+  const connection = account.connection; // what holds it at the venue
+  console.log(account.venue, connection.name, account.name, account.equityUsd);
   const snap = await client.accountBalances(account.id); // { at } for a past moment
 }
 

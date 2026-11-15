@@ -167,7 +167,7 @@ func TestReadFromTheAPIKey(t *testing.T) {
 		}},
 		{[]string{"account", "ta_1"}, []string{"" +
 			"ta_1  Hyperliquid · Main · Perps · 0x12ab…9f3c  2300.5 USD  active  read only\n" +
-			"  derivatives account perps, one of the 2 accounts of connection hl_main (hyperliquid), main login 0x12ab000000000000000000000000000000009f3c\n" +
+			"  derivatives account perps, one of the 2 accounts of connection hl_main (hyperliquid) to the master account 0x12ab000000000000000000000000000000009f3c\n" +
 			"  value as of 2026-11-12T10:00:00Z\n" +
 			"  balances current as of 2026-11-12T10:00:00Z; transactions backfilling (0.4 done)\n",
 		}},

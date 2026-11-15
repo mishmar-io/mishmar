@@ -3,7 +3,7 @@ title: "Pre-trade risk checks for a crypto trading bot: what are the options?"
 description: Four places a pre-trade check can live (in the bot or its framework, at the exchange, in a risk proxy you run, or in a service that holds half the key), compared on the question that matters, whether the bot can send an order without passing the check, plus what any check has to get right.
 sidebar:
   order: 6
-lastUpdated: 2026-11-08
+lastUpdated: 2026-11-14
 ---
 
 A pre-trade check can live in four places: in the bot's own code or framework, at the exchange, in a risk proxy you run between the bot and the exchange, or in a service that holds half of the trading key. They differ on one question: can the bot, or whoever controls it, send an order without passing the check? Inside the bot it can. At the exchange it cannot, but the limits are the exchange's, not yours. A proxy closes the gap but holds the whole key in one place. A split key closes it without that.
@@ -33,7 +33,7 @@ The bot sends orders to a service of yours, which checks them and signs with the
 
 ## A split-key risk layer
 
-Mishmar does what the proxy does without holding the whole key. The trading key is split in two: one half in the bot's signer on the bot's machine, one with Mishmar. The exchange sees an ordinary API wallet or API key and ordinary signatures, but neither half can sign alone, and Mishmar adds its half only to orders that passed your rules or that you approved. Like a proxy, it has to be up for the bot to trade; your own access to the exchange is never touched, so you can always close from your exchange account. On Binance the halves sign with FROST ([RFC 9591](https://www.rfc-editor.org/rfc/rfc9591)); on Hyperliquid with two-party ECDSA from Coinbase's [cb-mpc](https://github.com/coinbase/cb-mpc). The limits are order size, gross and net exposure, leverage, concentration, drawdown, daily loss and daily realised loss, on the whole account, a venue connection, a connected account or an agent; [How do I limit what my trading bot can do?](/questions/how-do-i-limit-what-my-trading-bot-can-do/) goes through them.
+Mishmar does what the proxy does without holding the whole key. The trading key is split in two: one half in the bot's signer on the bot's machine, one with Mishmar. The exchange sees an ordinary API wallet or API key and ordinary signatures, but neither half can sign alone, and Mishmar adds its half only to orders that passed your rules or that you approved. Like a proxy, it has to be up for the bot to trade; your own access to the exchange is never touched, so you can always close from your exchange account. On Binance the halves sign with FROST ([RFC 9591](https://www.rfc-editor.org/rfc/rfc9591)); on Hyperliquid with two-party ECDSA from Coinbase's [cb-mpc](https://github.com/coinbase/cb-mpc). The limits are order size, gross and net exposure, leverage, concentration, drawdown, daily loss and daily realised loss, on the whole Mishmar account, a connection, an account or an agent; [How do I limit what my trading bot can do?](/questions/how-do-i-limit-what-my-trading-bot-can-do/) goes through them.
 
 ## What any pre-trade check has to get right
 
@@ -46,4 +46,4 @@ Whichever you choose, check it does these:
 - **Has a person in the loop for the large ones,** and a kill switch the bot does not control. [How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) has both, with code.
 - **Keeps a record you can check.** In Mishmar every decision, allowed, held or blocked, is signed and chained to the one before it, and the ledger exports and verifies.
 
-Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one venue connection.
+Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The hosted testnet is free for one agent and one connection.

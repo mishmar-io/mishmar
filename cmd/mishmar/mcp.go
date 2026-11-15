@@ -22,8 +22,8 @@ func newMCPCmd() *cobra.Command {
 		Long: `An MCP server for one agent: a model gets tools to propose orders and
 cancels, follow a decision parked for a person, and read positions, PnL,
 approvals, and the venue rules; and to read each connected account the agent
-was given (one pool of money at a venue, with the venue login that holds
-it, its connection): its balances, the venue's positions, its transactions
+was given (one pool of money at a venue, with the connection that holds
+it): its balances, the venue's positions, its transactions
 (with who placed each trade) and its value over time. The agent's signer
 runs inside this process with the config's key and shares, so the model
 never sees a key, every order it proposes is checked by the engine's rules,

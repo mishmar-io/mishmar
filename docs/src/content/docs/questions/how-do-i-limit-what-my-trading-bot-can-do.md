@@ -3,7 +3,7 @@ title: How do I limit what my trading bot can do?
 description: The eight limits you can put on a bot or agent (order size, gross and net exposure, leverage, concentration, drawdown, daily loss), what each does when crossed, where it applies, and why it has to be enforced outside the bot.
 sidebar:
   order: 2
-lastUpdated: 2026-11-08
+lastUpdated: 2026-11-15
 ---
 
 Put the limits outside the bot, in front of the exchange, where the bot cannot skip them, and give each limit one of two outcomes: block the order, or hold it until a person approves it. A limit inside the bot's own code is a suggestion: a bug, a bad prompt or whoever controls the machine can go around it. A limit enforced by the party that holds half of the trading key cannot be gone around, because without that half nothing gets signed.
@@ -37,12 +37,12 @@ An order is valued before it is sent, and what the limits see is its effect: the
 
 A limit has a scope, and every rule in scope runs on every order:
 
-- **The whole account**: everything you run.
-- **A venue connection**: one login at an exchange and every account under it, its sub-accounts' included.
-- **A connected account**: one pool of money at one exchange (a Binance login's USDⓈ-M Futures account, say), whatever trades on it.
-- **An agent**: one bot or model, across every connected account it trades on. Leverage and drawdown on an agent are measured against the [capital](/start/where-rules-apply/#give-an-agent-capital) you allocate to it; everywhere else, against the value of the accounts the rule covers.
+- **The whole Mishmar account**: everything you run.
+- **A connection**: one login at an exchange and every account under it, its sub-accounts' included.
+- **An account**: one pool of money at one exchange (a Binance connection's USDⓈ-M Futures account, say), whatever trades on it.
+- **An agent**: one bot or model, across every account it trades on. Leverage and drawdown on an agent are measured against the [capital](/start/where-rules-apply/#give-an-agent-capital) you allocate to it; everywhere else, against the value of the accounts the rule covers.
 
-So a connected account can cap what all the bots on it hold together, each agent its own share, and the whole account the total across exchanges. [Where rules apply](/start/where-rules-apply/) has the details.
+So an account can cap what all the bots on it hold together, each agent its own share, and the whole Mishmar account the total across exchanges. [Where rules apply](/start/where-rules-apply/) has the details.
 
 ## What happens when a limit is crossed
 
@@ -54,15 +54,15 @@ So a connected account can cap what all the bots on it hold together, each agent
 
 Two levels, both outside the bot:
 
-- **Pause all trading**, on the account, an agent or a connected account: only reduce-only orders that close a position pass, so a bot can wind down. Everything else is refused.
-- **Stop all trading** is the kill switch, on the account, an agent or a connected account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
+- **Pause**, on an agent's or an account's page, or **Pause all trading** on the whole Mishmar account: only reduce-only orders that close a position pass, so a bot can wind down. Everything else is refused.
+- **Stop** is the kill switch, on an agent's or an account's page, or **Stop all trading** on the whole Mishmar account: every order is refused, reduce-only included. Cancels still go through, so a bot can pull its resting orders. Nothing is closed for you: open positions stay at the exchange, and you close them from your own exchange account or pause instead of stopping.
 
 [How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) goes through both.
 
 ## Beyond the limits
 
 - **A check of your own.** The bot's signer can run a program of yours before every signature, with the order on its stdin; if it exits non-zero, the signer refuses. Use it for anything the eight limits do not express: trading hours, a symbol allowlist, a sanity check against your own price feed.
-- **One key per agent per account.** Each bot has its own trading key on each connected account, so stopping or revoking one touches nothing else.
+- **One key per agent per account.** Each bot has its own trading key on each account, so stopping or revoking one touches nothing else.
 - **Keys expire** 100 days after they become active.
 - **A record.** Every decision, allowed, held or blocked, is signed and chained in a ledger you can export and verify.
 
@@ -72,4 +72,4 @@ The same limits apply to a model's orders. The `mishmar mcp` server gives a mode
 
 ## Set it up
 
-Rules live in the console, on the whole account, a venue connection, a connected account or an agent. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Where rules apply](/start/where-rules-apply/) through shared limits and an agent's capital.
+Rules live in the console, on the whole Mishmar account, a connection, an account or an agent. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Where rules apply](/start/where-rules-apply/) through shared limits and an agent's capital.

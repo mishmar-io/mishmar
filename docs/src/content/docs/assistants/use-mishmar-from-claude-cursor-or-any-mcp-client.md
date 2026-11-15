@@ -1,12 +1,12 @@
 ---
 title: Use Mishmar from Claude, Cursor or any MCP client
-description: mishmar mcp is Mishmar's MCP server, sixteen tools to propose orders and cancels, follow a held decision, read positions, PnL, approvals and venue rules, and read the connected accounts the agent was given, with the agent's signer built in so the model never sees a key. Setup for Claude Code, Claude Desktop, Cursor, VS Code and any other client.
+description: mishmar mcp is Mishmar's MCP server, sixteen tools to propose orders and cancels, follow a held decision, read positions, PnL, approvals and venue rules, and read the accounts the agent was given, with the agent's signer built in so the model never sees a key. Setup for Claude Code, Claude Desktop, Cursor, VS Code and any other client.
 sidebar:
   order: 2
-lastUpdated: 2026-11-12
+lastUpdated: 2026-11-15
 ---
 
-`mishmar mcp` is Mishmar's MCP server. It runs on the machine where the agent's signer config lives, speaks the Model Context Protocol on stdin and stdout, and gives the model sixteen tools: propose an order or a cancel, follow a decision that waits for a person, read decisions, positions, PnL, approvals and the exchange's rules for sizing and pricing, and read the connected accounts the agent was given: their balances, the venue's positions, their transactions and their value over time. The agent's signer runs inside the same process with the config's key and shares, so the model never sees a key, every order it proposes is checked against your rules, and nothing reaches the exchange without both halves of the trading key.
+`mishmar mcp` is Mishmar's MCP server. It runs on the machine where the agent's signer config lives, speaks the Model Context Protocol on stdin and stdout, and gives the model sixteen tools: propose an order or a cancel, follow a decision that waits for a person, read decisions, positions, PnL, approvals and the exchange's rules for sizing and pricing, and read the accounts the agent was given: their balances, the venue's positions, their transactions and their value over time. The agent's signer runs inside the same process with the config's key and shares, so the model never sees a key, every order it proposes is checked against your rules, and nothing reaches the exchange without both halves of the trading key.
 
 ## Before you start
 
@@ -14,7 +14,7 @@ lastUpdated: 2026-11-12
 2. Add an agent and make its trading key, [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). That leaves the signer config at `~/.mishmar/agent.json`.
 3. Set the rules first. [How do I let an AI agent trade for me safely?](/questions/how-do-i-let-an-ai-agent-trade-for-me-safely/) has a first set.
 
-For a model that should only read your accounts, [add a read agent](/start/add-a-read-agent/) instead and put its Mishmar API key in the server's `env` as `MISHMAR_API_KEY`: the first time the server starts, it checks the key and writes the config itself. No rules are needed for an agent that cannot trade.
+For a model that should only read your accounts, [add a read agent](/start/add-a-read-agent/) instead and put its Mishmar API key in the server's `env` as `MISHMAR_API_KEY`: the first time the server starts, it checks the key and writes the config itself. An agent that only reads needs no rules, but you can set its own before it ever trades: they judge nothing until then.
 
 The server holds the config's lock while it runs, like `mishmar signer run`, so it does not start next to a signer on the same config: stop that signer first, or give the model its own agent. With a config elsewhere, add `--config /path/to/agent.json` after `mcp` in every snippet below. Without a config at the path yet, the agent's Mishmar API key in `MISHMAR_API_KEY` (the client's `env` block) sets the agent up; without that too, the server still starts and lists its tools, and every call returns an error that names the path it looked for.
 
@@ -86,7 +86,7 @@ From version 0.3.0 of the SDKs, `npx -y mishmar mcp` and `uvx mishmar mcp` do th
 
 | Tool | What it does |
 | --- | --- |
-| `propose_order` | Propose an order on a connected account. Mishmar checks it against the rules and, when allowed, signs and sends it; the decision says what happened. A limit order needs a price; a market order is priced at the mark. Refused for a read agent. |
+| `propose_order` | Propose an order on an account. Mishmar checks it against the rules and, when allowed, signs and sends it; the decision says what happened. A limit order needs a price; a market order is priced at the mark. Refused for a read agent. |
 | `cancel_order` | Cancel a resting order this agent placed, by the client order id its decision carries. No rule runs on a cancel, and a stopped account still lets it through. |
 | `get_decision` | One decision: its verdict, every rule's evaluation, the signing outcome, the exchange's acknowledgement and, if it was held, the approval's state. |
 | `wait_for_decision` | Follow a held decision until it is approved, rejected or expired, or until the timeout. |
@@ -96,12 +96,12 @@ From version 0.3.0 of the SDKs, `npx -y mishmar mcp` and `uvx mishmar mcp` do th
 | `list_approvals` | Proposals that wait for a person, or were decided by one. |
 | `get_venue_rules` | What the exchange accepts per symbol: tick size, step size, minimums. The model uses it to size and price orders. |
 | `get_identity` | Who this agent is: its id and name, the Mishmar account it belongs to, whether it reads or trades (permission), the capital its own leverage and drawdown rules are measured against (capitalUsd, absent when none is set), and the id of the key it signs with. |
-| `list_connected_accounts` | The connected accounts this agent was given, each one pool of money at a venue (Spot and USDⓈ-M Futures on a Binance login, Perps and Spot on a Hyperliquid address), with its value in USD, its status, whether any agent trades on it, and its connection: the venue login that holds it, which login it is and how current its data is. |
+| `list_connected_accounts` | The accounts this agent was given, each one pool of money at a venue (Spot and USDⓈ-M Futures on a Binance connection, Perps and Spot on a Hyperliquid address), with its value in USD, its status, whether any agent trades on it, and its connection: what holds it at the venue, which main account or sub-account that is there, and how current its data is. |
 | `get_connected_account` | One of them: its name at the venue, value, status, and its connection, with the connection's setup and no secret. |
-| `get_account_balances` | A connected account's balances, each with its value in USD and the price used, and the account's value, now or at a past moment. An asset with no price is named rather than counted. |
-| `get_account_positions` | The venue's net position per market (a symbol with its market kind) on a connected account, whoever placed the orders behind it, now or at a past moment. |
-| `list_account_transactions` | Trades, transfers, funding, fees and liquidations on a connected account, newest first. A trade's origin says who placed it, and `origin.own` marks this agent's own. A transfer between two accounts of one connection shows on both, each naming the other: it moves each account's value by the amount and the connection's by nothing. |
-| `get_account_equity` | A connected account's value in USD over time, oldest point first. |
+| `get_account_balances` | An account's balances, each with its value in USD and the price used, and the account's value, now or at a past moment. An asset with no price is named rather than counted. |
+| `get_account_positions` | The venue's net position per market (a symbol with its market kind) on an account, whoever placed the orders behind it, now or at a past moment. |
+| `list_account_transactions` | Trades, transfers, funding, fees and liquidations on an account, newest first. A trade's origin says who placed it, and `origin.own` marks this agent's own. A transfer between two accounts of one connection shows on both, each naming the other: it moves each account's value by the amount and the connection's by nothing. |
+| `get_account_equity` | An account's value in USD over time, oldest point first. |
 
 Each tool carries the protocol's hints, which a client uses to decide what to confirm with you: `propose_order` and `cancel_order` are marked as reaching the exchange and changing what is there, and the other fourteen as read-only.
 
@@ -113,4 +113,4 @@ Each tool carries the protocol's hints, which a client uses to decide what to co
 - Approve its own order. There is no approval tool.
 - Change a rule. There is no rule tool; rules live in the console.
 - Withdraw. On Hyperliquid an API wallet cannot; on Binance you leave withdrawals off the key.
-- Keep going after you stop it. Stop the agent, its connected account or the whole account in the console, and nothing more is signed; cancels still go through.
+- Keep going after you stop it. Stop the agent, its account or the whole Mishmar account in the console, and nothing more is signed; cancels still go through.

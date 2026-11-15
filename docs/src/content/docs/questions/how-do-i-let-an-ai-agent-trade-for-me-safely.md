@@ -3,7 +3,7 @@ title: How do I let an AI agent trade for me safely?
 description: Treat the model as an untrusted process. Give it tools, not keys; put the limits where its tool calls cannot reach; have a person approve large orders; keep a record of every decision; and keep a stop button that does not depend on the model.
 sidebar:
   order: 3
-lastUpdated: 2026-11-08
+lastUpdated: 2026-11-15
 ---
 
 Treat the model the way you would treat a contractor you have never met: give it tools, not keys; set limits it cannot change; look at anything large before it goes out; keep a record; and keep a stop button in your own hand. A language model that trades is a bot with two extra failure modes, and the setup has to survive both.
@@ -21,7 +21,7 @@ Treat the model the way you would treat a contractor you have never met: give it
 2. **Limits the model cannot change.** Order size, exposure, leverage, concentration, drawdown and daily loss, set in the console and enforced by Mishmar before an order is signed. The model's tool calls cannot reach them. [How do I limit what my trading bot can do?](/questions/how-do-i-limit-what-my-trading-bot-can-do/) lists them.
 3. **A person on large orders.** A rule that holds any order over a threshold for your approval. The model can wait for the decision or move on. Approval takes a passkey, so an injected "approve it" goes nowhere.
 4. **A record.** Every proposal, with the model's reasoning if your agent includes it, and every decision, signed and chained. When the model does something odd you can see what it asked for and what was allowed.
-5. **A stop button that is not a tool.** Stop all trading from the console, on the whole account, the connected account it trades on or the one agent, and Mishmar's half of the key signs nothing more but cancels. Pause instead, and only orders that close a position pass.
+5. **A stop button that is not a tool.** **Stop** the one agent or the account it trades on from the console, or **Stop all trading** on the whole Mishmar account, and Mishmar's half of the key signs nothing more but cancels. **Pause** instead, and only orders that close a position pass.
 
 A rule set to start with, for a model trading a small account:
 
@@ -35,7 +35,7 @@ A rule set to start with, for a model trading a small account:
 
 ## Give the model the tools
 
-`mishmar mcp` is Mishmar's MCP server: one command on the machine where the agent's signer config lives, and any MCP client (Claude Code, Claude Desktop, Cursor, VS Code, your own agent) gets sixteen tools: propose an order, cancel one, read and wait for a decision, list decisions, positions, PnL and approvals, read the exchange's rules for sizing and pricing, and read the connected accounts the agent was given (balances, the venue's positions, transactions and value over time). The signer runs inside that process, so the model never sees a key, every order it proposes passes your rules, and nothing reaches the exchange without both signatures.
+`mishmar mcp` is Mishmar's MCP server: one command on the machine where the agent's signer config lives, and any MCP client (Claude Code, Claude Desktop, Cursor, VS Code, your own agent) gets sixteen tools: propose an order, cancel one, read and wait for a decision, list decisions, positions, PnL and approvals, read the exchange's rules for sizing and pricing, and read the accounts the agent was given (balances, the venue's positions, transactions and value over time). The signer runs inside that process, so the model never sees a key, every order it proposes passes your rules, and nothing reaches the exchange without both signatures.
 
 ```json
 { "mcpServers": { "mishmar": { "command": "mishmar", "args": ["mcp"] } } }
@@ -45,4 +45,4 @@ A rule set to start with, for a model trading a small account:
 
 ## What this does not do
 
-Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet, which is free for one agent and one venue connection, with the rule set above, and read the ledger before you widen anything.
+Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet, which is free for one agent and one connection, with the rule set above, and read the ledger before you widen anything.

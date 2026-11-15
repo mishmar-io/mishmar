@@ -3,19 +3,19 @@ title: How do I add a kill switch and approval step to a trading bot?
 description: Put both outside the bot, where every order has to pass before it is signed. Pause lets a bot close positions and nothing else, Stop refuses everything but cancels, and an approval rule holds large orders for a person with a passkey. What each does, what the bot sees, and the code to handle it.
 sidebar:
   order: 5
-lastUpdated: 2026-11-08
+lastUpdated: 2026-11-15
 ---
 
 Put both outside the bot, at the point every order has to pass before it is signed. A kill switch written into the bot is a flag the bot can ignore, and an approval step written into the bot is a prompt the bot can skip: the bug or the bad prompt that sends the wrong order is the same one that skips the check. With Mishmar the kill switch and the approval step sit with the half of the trading key the bot does not have, so the bot only has to handle the answer.
 
 ## The kill switch: Pause and Stop
 
-Two levels, set from the console, each lifted with **Resume trading**:
+Two levels, set from the console. On an agent's or an account's page they are **Pause** and **Stop**, lifted with **Resume**; on the whole Mishmar account they are **Pause all trading** and **Stop all trading**, under **Stop trading** at the top right, lifted with **Resume trading**:
 
 | Level | What still passes | Where you can set it | Use it when |
 | --- | --- | --- | --- |
-| **Pause all trading** | cancels, and reduce-only orders that close a position | the account, an agent, a connected account | you want the bot to wind down: it can close what it holds, and open nothing new |
-| **Stop all trading** | cancels only | the account, an agent, a connected account | something is wrong now: nothing new goes out, closing orders included |
+| **Pause** | cancels, and reduce-only orders that close a position | an agent, an account, the whole Mishmar account | you want the bot to wind down: it can close what it holds, and open nothing new |
+| **Stop** | cancels only | an agent, an account, the whole Mishmar account | something is wrong now: nothing new goes out, closing orders included |
 
 A stop outranks a pause. Neither closes anything for you: Mishmar holds only its half of each trading key and never trades on its own, so open positions and resting orders stay at the exchange. Under a stop, the bot can still pull its resting orders, and you close positions from your own exchange account (your master wallet on Hyperliquid, your login on Binance), which Mishmar never touches. If you want the bot to do the closing, pause instead.
 
@@ -36,7 +36,7 @@ An approval step is a rule whose outcome is **hold for approval** instead of blo
 What happens to a held order:
 
 1. The bot gets a decision with the verdict `require_approval`, every rule's evaluation and an approval id. Nothing is signed yet.
-2. The order shows in the console and the account's owner gets an email.
+2. The order shows in the console and the Mishmar account's owner gets an email.
 3. You approve or reject it in the console, and approving takes a passkey, so an injected "approve it" in a model's context goes nowhere.
 4. At the moment you approve, the rules run again against the account as it is then. If a rule now blocks it, or a pause or stop is on, the approval is refused and the order stays held. If the numbers moved enough to change a rule's outcome since you looked, you are asked to confirm again.
 5. Approved, the order is signed by both halves and sent. Rejected or expired, it is dropped.
@@ -85,8 +85,8 @@ In regulated markets the kill switch belongs to the firm that sends the orders, 
 ## Set it up
 
 1. [Install the mishmar CLI](/start/install-the-cli/) and add an agent [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/).
-2. In the console, add a hold-for-approval rule next to your block rules, on the agent, the connected account it trades on or the whole account.
+2. In the console, add a hold-for-approval rule next to your block rules, on the agent, the account it trades on or the whole Mishmar account.
 3. Give orders that may be held a deadline long enough for you to answer, and handle all three verdicts in the bot.
 4. Try Pause and Stop once on the hosted testnet before you need them, and watch what the bot does.
 
-The hosted testnet is free for one agent and one venue connection, on Hyperliquid testnet or Binance demo trading.
+The hosted testnet is free for one agent and one connection, on Hyperliquid testnet or Binance demo trading.

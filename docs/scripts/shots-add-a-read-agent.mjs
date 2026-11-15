@@ -23,12 +23,12 @@ try {
   })
   const dialog = page.getByRole('dialog')
 
-  // 1. Agents → Add agent: read only, on both accounts.
+  // 1. Agents → Add agent: read only, on the Hyperliquid Perps and Binance USDⓈ-M Futures accounts.
   await page.getByRole('button', { name: 'Add agent' }).first().click()
   await dialog.getByLabel('Name').fill('Desk assistant')
   await dialog.getByRole('radio', { name: 'Read only' }).click()
-  await dialog.getByRole('checkbox', { name: /Hyperliquid main/ }).click()
-  await dialog.getByRole('checkbox', { name: /Binance futures/ }).click()
+  await dialog.getByRole('checkbox', { name: /Hyperliquid · Main · Perps/ }).click()
+  await dialog.getByRole('checkbox', { name: /Binance · Carry · USDⓈ-M Futures/ }).click()
   await dialog.getByLabel('Description').fill('Answers questions about the accounts')
   await shot('add-agent')
 
@@ -44,9 +44,9 @@ try {
   await dialog.getByRole('button', { name: 'Finish' }).click()
   await page.waitForURL(/\/agents\/agt_/)
   await page.setViewportSize(PAGE_VIEWPORT)
-  await card(/^Connected accounts/).getByText('Binance futures').waitFor()
+  await card(/^Accounts/).getByText('USDⓈ-M Futures').waitFor()
   await page.waitForTimeout(600)
-  await shot('agent-page', [card(/^Overview$/), card(/^Connected accounts/)])
+  await shot('agent-page', [card(/^Overview$/), card(/^Accounts/)])
 
   // The program reads, which the mock is told: its access log, as the engine writes it.
   await mock((m, a) => {
@@ -70,6 +70,9 @@ try {
         ...(span ? { from: at(min + span), to: at(min) } : {}),
       })
   }, agentId)
+  // Wider: each row names its account in full (venue, connection, account, address), which
+  // the one-column window cuts off.
+  await page.setViewportSize({ ...PAGE_VIEWPORT, width: 1240 })
   await page.getByRole('tab', { name: 'Access' }).click()
   await card('What it read').getByText('Value over time').waitFor()
   await page.waitForTimeout(400)
