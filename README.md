@@ -125,7 +125,16 @@ key and, for each request, refuses unless, in this order:
   compares, checks the nonce is fresh, and checks the action is the
   proposal's order (asset, side, size, a limit price on the tick rules within
   1 % on the passive side, reduce-only, the cloid of the request's client
-  order id) or the cancel of its target;
+  order id) or the cancel of its target. The asset is the coin's position in
+  Hyperliquid's own list of perp markets, which the signer reads from the
+  venue itself (`api.hyperliquid.xyz`, or `api.hyperliquid-testnet.xyz` for
+  a testnet key) and keeps for ten minutes; it does not take it from the
+  engine, and a coin that is not in that list is refused. So the signer's
+  machine must be able to reach that address over HTTPS. When it cannot,
+  the signer goes on signing cancels and reduce-only orders against the
+  venue's last answer and refuses new orders (`venue_list_unavailable`)
+  until a read succeeds; a signer that has not read the list since it
+  started signs nothing on Hyperliquid;
 - an `order` is for a proposal it has not signed an order for yet. It keeps
   a record of the proposals it signed orders for, by the proposal's key and
   nonce (which the agent signed, so the engine cannot change them), in

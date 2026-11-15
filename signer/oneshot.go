@@ -46,13 +46,12 @@ func (n *NoOneShot) Error() string { return "signer: not one-shot: " + n.Reason 
 
 func noOneShot(format string, a ...any) error { return &NoOneShot{fmt.Sprintf(format, a...)} }
 
-// oneShotState is the signer's cache for one-shot signing: venue rules per
+// oneShotState is the signer's cache for one-shot signing: Binance rules per
 // connected account and symbol, and the engine's unused commitments per venue
 // key with the engine instance that issued them.
 type oneShotState struct {
 	mu          sync.Mutex
 	rules       map[string]cachedRules
-	hl          map[string]cachedHLRules
 	commitments map[string][]api.EngineCommitment
 	presigs     map[string][]*presigBatch
 	instance    string
@@ -68,11 +67,6 @@ type oneShotState struct {
 
 type cachedRules struct {
 	rules   binance.Rules
-	fetched time.Time
-}
-
-type cachedHLRules struct {
-	rules   hyperliquid.Rules
 	fetched time.Time
 }
 
@@ -188,7 +182,7 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 }
 
 // prepareHyperliquid builds the venue message for a Hyperliquid limit order
-// or cancel: the action from the coin's rules with a cloid derived from a
+// or cancel: the action from the coin's rules, as Hyperliquid lists them, with a cloid derived from a
 // fresh client order id and the clock as the nonce, the agent's last
 // protocol message over its digest from a presigned slot. A market order is
 // left to the channel: the venue has none, and the engine prices one at its
@@ -200,10 +194,21 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 	}
 	now := s.now()
 	nonce := hyperliquid.Nonce(now)
-	rules, err := s.hlRules(ctx, p.ConnectedAccountId, p.Symbol)
-	if err != nil {
-		return noOneShot("venue rules for %s: %v", p.Symbol, err)
+	// The coin's index and decimals are Hyperliquid's own (hlmarkets.go),
+	// never the engine's. A coin the venue's list cannot answer for, or a
+	// list too old for this order, is refused here: the channel would be
+	// refused the same way.
+	if err := s.refreshHLMarkets(ctx, network); err != nil {
+		s.Logger.Warn("signer: Hyperliquid's market list", "network", network, "err", err)
 	}
+	market, err := s.hlMarket(network, p.Symbol)
+	if err != nil {
+		return hlMarketRefusal(err)
+	}
+	if r := hlAgeRule(market, p.Kind == api.ProposalKindCancel || (p.ReduceOnly != nil && *p.ReduceOnly), now); r != nil {
+		return r
+	}
+	rules := market.Rules
 	req := api.SignRequest{
 		AgentId: s.Config.AgentID, ConnectedAccountId: p.ConnectedAccountId, VenueKeyId: vkID, Venue: api.VenueHyperliquid,
 		Scheme: api.SigningSchemeEcdsa2p, Proposal: p, IssuedAt: now, ExpiresAt: now.Add(hyperliquid.NonceWindow),
@@ -447,43 +452,6 @@ func (s *Signer) symbolRules(ctx context.Context, connectedAccountID, symbol str
 	return binance.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, connectedAccountID)
 }
 
-// hlRules returns a coin's Hyperliquid rules on a connected account, from the
-// engine once per rulesTTL.
-func (s *Signer) hlRules(ctx context.Context, connectedAccountID, symbol string) (hyperliquid.Rules, error) {
-	key := connectedAccountID + "/" + strings.ToUpper(symbol)
-	st := s.oneShot()
-	st.mu.Lock()
-	c, ok := st.hl[key]
-	st.mu.Unlock()
-	if ok && s.now().Sub(c.fetched) < rulesTTL {
-		return c.rules, nil
-	}
-	vr, err := s.Client.VenueRules(ctx, connectedAccountID, strings.ToUpper(symbol))
-	if err != nil {
-		return hyperliquid.Rules{}, err
-	}
-	for _, sr := range vr.Symbols {
-		if !strings.EqualFold(sr.Symbol, symbol) || sr.AssetIndex == nil || sr.SizeDecimals == nil {
-			continue
-		}
-		r := hyperliquid.Rules{AssetIndex: *sr.AssetIndex, SizeDecimals: *sr.SizeDecimals}
-		st.mu.Lock()
-		st.hl[key] = cachedHLRules{rules: r, fetched: s.now()}
-		st.mu.Unlock()
-		return r, nil
-	}
-	return hyperliquid.Rules{}, fmt.Errorf("the engine lists no rules for %s on %s", symbol, connectedAccountID)
-}
-
-// cachedHLRules is what Policy.Rules reads: the rules hlRules fetched.
-func (s *Signer) cachedHLRules(connectedAccountID, symbol string) (hyperliquid.Rules, bool) {
-	st := s.oneShot()
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	c, ok := st.hl[connectedAccountID+"/"+strings.ToUpper(symbol)]
-	return c.rules, ok
-}
-
 // takeCommitment pops an unused engine commitment for the venue key, taking
 // a batch from the engine when none is left, and tops the cache up in the
 // background when it runs low and the signer keeps a batch.
@@ -618,7 +586,7 @@ func (s *Signer) oneShot() *oneShotState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.os == nil {
-		s.os = &oneShotState{rules: map[string]cachedRules{}, hl: map[string]cachedHLRules{}, commitments: map[string][]api.EngineCommitment{}, presigs: map[string][]*presigBatch{}, refilling: map[string]bool{}}
+		s.os = &oneShotState{rules: map[string]cachedRules{}, commitments: map[string][]api.EngineCommitment{}, presigs: map[string][]*presigBatch{}, refilling: map[string]bool{}}
 	}
 	return s.os
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/ecdsa2p"
 	"github.com/mishmar-io/mishmar/frost"
+	"github.com/mishmar-io/mishmar/venues/hyperliquid"
 )
 
 // Defaults of the loop.
@@ -63,6 +64,13 @@ type Signer struct {
 	// it stops polling, then finishes what it holds). Zero ends them with
 	// the context, as before.
 	DrainTimeout time.Duration
+	// HyperliquidInfoURL is for tests that stand in for the venue (this
+	// package's, and the engine's end-to-end tests): it replaces the address
+	// the signer reads Hyperliquid's list of markets from. Nil, as in every
+	// program built from this repository, means the network's own address
+	// (hyperliquid.Network.InfoURL). No flag, config field, environment
+	// variable or answer from the engine sets it.
+	HyperliquidInfoURL func(hyperliquid.Network) string
 
 	perm      *permissionState
 	record    *orderRecord
@@ -73,6 +81,7 @@ type Signer struct {
 	ecdsaKeys map[string]*ecdsa2p.Key
 	answered  *idSet
 	os        *oneShotState
+	hl        hlLists
 	warned    map[string]bool
 	fileSeen  fileStamp
 }
@@ -104,7 +113,7 @@ func New(cfg *Config, client *Client, log *slog.Logger) (*Signer, error) {
 
 // Policy is what the signer checks a request against.
 func (s *Signer) Policy() Policy {
-	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.venueKeys(), Now: s.now, Answered: s.answered.has, Rules: s.cachedHLRules}
+	return Policy{KeyID: s.Config.KeyID, PublicKey: s.pub, VenueKeys: s.venueKeys(), Now: s.now, Answered: s.answered.has, Market: s.hlMarket}
 }
 
 // Handle answers one request: the checks, the record of the orders signed
@@ -116,9 +125,12 @@ func (s *Signer) Policy() Policy {
 // refused, after a restart too.
 func (s *Signer) Handle(ctx context.Context, req api.SignRequest) api.SignerAnswer {
 	if req.Venue == api.VenueHyperliquid && req.Proposal != nil {
-		// The checks need the coin's rules; fetched here, read in Check.
-		if _, err := s.hlRules(ctx, req.ConnectedAccountId, req.Proposal.Symbol); err != nil {
-			s.Logger.Warn("signer: venue rules", "connectedAccount", req.ConnectedAccountId, "symbol", req.Proposal.Symbol, "err", err)
+		// The checks need Hyperliquid's own list of markets; read here when
+		// the signer's copy is old, used in Check whatever its age.
+		if network, err := hyperliquid.ParseNetwork(s.venueKeys()[req.VenueKeyId].Network); err == nil {
+			if err := s.refreshHLMarkets(ctx, network); err != nil {
+				s.Logger.Warn("signer: Hyperliquid's market list", "network", network, "err", err)
+			}
 		}
 	}
 	message, refusal := s.Policy().Check(req)
