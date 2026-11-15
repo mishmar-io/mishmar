@@ -7,7 +7,8 @@
 # releases/prod.yaml merges, with the ref and version named there; it can be started by
 # hand the same way. It runs on main but builds `ref`, and refuses unless every package at
 # `ref` says `version`. A version already out is skipped, so it is safe to run again.
-# The registry checks server.json against npm and PyPI, so it goes last.
+# The registry checks server.json against npm and PyPI, so it goes last, and first waits
+# until both show the version.
 name: Publish
 
 on:
@@ -139,6 +140,27 @@ jobs:
           found=$(curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mishmar-io/mishmar" \
             | jq -r --arg v "$VERSION" '[.servers[].server.version] | index($v) != null')
           echo "yes=$found" >> "$GITHUB_OUTPUT"
+      # npm and PyPI can take a while to show a version they have just taken, and the
+      # registry refuses server.json until both do (0.5.1's first run failed that way).
+      - name: Wait until npm and PyPI show the version
+        if: steps.out.outputs.yes != 'true'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          npm=no
+          pypi=no
+          for try in $(seq 30); do
+            if [ "$npm" = no ] && curl -fsS -o /dev/null --max-time 10 "https://registry.npmjs.org/mishmar/$VERSION"; then npm=yes; fi
+            if [ "$pypi" = no ] && curl -fsS -o /dev/null --max-time 10 "https://pypi.org/pypi/mishmar/$VERSION/json"; then pypi=yes; fi
+            if [ "$npm" = yes ] && [ "$pypi" = yes ]; then
+              echo "npm and PyPI both show $VERSION (try $try)"
+              exit 0
+            fi
+            if [ "$try" -lt 30 ]; then sleep 10; fi
+          done
+          if [ "$npm" = no ]; then echo "npm still does not show mishmar@$VERSION after 5 minutes"; fi
+          if [ "$pypi" = no ]; then echo "PyPI still does not show mishmar $VERSION after 5 minutes"; fi
+          exit 1
       - name: Install mcp-publisher
         if: steps.out.outputs.yes != 'true'
         run: |
