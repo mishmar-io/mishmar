@@ -169,9 +169,17 @@ func TestPolicyCheck(t *testing.T) {
 		{"buy exactly 1 percent below accepted", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"price": "59400"})), ""},
 		{"sell a tick above accepted", orderRequest(sell, binanceOrder(sell, cid, map[string]string{"price": "60000.1"})), ""},
 		{"reduce-only accepted", orderRequest(reduce, binanceOrder(reduce, cid, nil)), ""},
-		{"symbol with a suffix accepted", orderRequest(
+		{"lower-case proposal symbol accepted", orderRequest(
+			f.proposal(t, f.key, func(p *api.ProposalSubmit) { p.Symbol = strings.ToLower(p.Symbol) }),
+			binanceOrder(limit, cid, nil)), ""},
+		{"bare coin proposed, contract ordered", orderRequest(
 			f.proposal(t, f.key, func(p *api.ProposalSubmit) { p.Symbol = "btc" }),
-			binanceOrder(limit, cid, map[string]string{"symbol": "BTCUSDT"})), ""},
+			binanceOrder(limit, cid, map[string]string{"symbol": "BTCUSDT"})), RefuseMessage},
+		{"longer symbol that begins with the proposed one", func() api.SignRequest {
+			r := orderRequest(limit, binanceOrder(limit, cid, map[string]string{"symbol": limit.Symbol + "_261225"}))
+			r.Order.Symbol = limit.Symbol + "_261225"
+			return r
+		}(), RefuseMessage},
 		{"wrong clientOrderId", orderRequest(limit, binanceOrder(limit, "msh-ag1-other", nil)), RefuseMessage},
 		{"other side", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"side": "SELL"})), RefuseMessage},
 		{"other symbol", orderRequest(limit, binanceOrder(limit, cid, map[string]string{"symbol": "ETHUSDT"})), RefuseMessage},
@@ -289,6 +297,7 @@ func TestPolicyCheck(t *testing.T) {
 		{"cancel accepted", cancelRequest(pull, cancelMessage), ""},
 		{"cancel of another order", cancelRequest(pull, strings.Replace(cancelMessage, "abc123", "zzz999", 1)), RefuseMessage},
 		{"cancel of another symbol", cancelRequest(pull, strings.Replace(cancelMessage, "BTCUSDT", "ETHUSDT", 1)), RefuseMessage},
+		{"cancel on a longer symbol that begins with the proposed one", cancelRequest(pull, strings.Replace(cancelMessage, "BTCUSDT", "BTCUSDT_261225", 1)), RefuseMessage},
 		{"cancel by venue order id", cancelRequest(pull, cancelMessage+"&orderId=1"), RefuseMessage},
 		{"cancel carrying an order proposal", cancelRequest(limit, cancelMessage), RefuseMessage},
 		{"cancel as a POST", func() api.SignRequest {

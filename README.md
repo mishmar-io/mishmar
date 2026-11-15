@@ -108,8 +108,9 @@ key and, for each request, refuses unless, in this order:
 - the message, decoded, is that order and nothing more. On Binance the
   message is the parameter string the venue verifies: it may carry only the
   parameters the engine sends; `newClientOrderId` is the request's;
-  `symbol` is the request's and starts with the proposal's; `side` is the
-  proposal's; `type` is `LIMIT` with `GTC` for a limit proposal, and for a
+  `symbol` is the request's and is the proposal's exactly, upper-cased;
+  `side` is the proposal's; `type` is `LIMIT` with `GTC` for a limit
+  proposal, and for a
   market proposal either `MARKET` (an exit, or an older engine) or `LIMIT`
   with `IOC` at the engine's bound; `quantity` is a decimal with
   `0 < quantity <= size` (the engine floors to the lot step, never more); a
