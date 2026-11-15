@@ -1,18 +1,90 @@
 ---
 title: Add a read agent
-description: Give an assistant, a report or any program read access to your accounts with a Mishmar API key alone. No signer, no trading key, nothing that can trade. Add the agent, pick its accounts, then read them over MCP, from the Python or TypeScript SDK, or with the mishmar CLI.
+description: Let an AI app such as Claude or Cursor read the accounts you pick, with one address, mcp.mishmar.io, and your approval in Mishmar; no key to copy. Or, for scripts and bots, add a read agent with a Mishmar API key and read over MCP, from the Python or TypeScript SDK, or with the mishmar CLI. Neither can trade.
 sidebar:
   order: 2
 lastUpdated: 2026-11-15
 ---
 
-A **read agent** reads the accounts you give it, and nothing else: their balances, the venue's positions, their transactions and their value over time. It has a **Mishmar API key**, which signs every read so Mishmar knows each one comes from this agent, and no signer and no trading key, so it can never trade: Mishmar refuses its orders. Use one for an assistant you want to ask about your accounts, a report, a dashboard, or anything that only needs to look.
+A **read agent** reads the accounts you give it, and nothing else: their balances, the venue's positions, their transactions and their value over time. It holds no signer and no trading key, so it can never trade: Mishmar refuses its orders. Every read it makes shows on the account's **Access** tab.
 
-When you are done, the program you give the key to can read the accounts you picked, and every read it makes shows on the account's **Access** tab. To trade as well, add a trade agent instead: [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/).
+There are two ways to set one up. For an AI app you talk to, give the app Mishmar's address and approve it in Mishmar. For a script, a bot or a report, add the agent in the console and give its program a Mishmar API key: that way is [lower down](#for-scripts-and-bots-a-mishmar-api-key). To trade as well, add a trade agent instead: [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/).
+
+## Connect an AI app with one address
+
+The app will see the balances, positions, value over time and transactions of the accounts you tick, and nothing else.
+There is no key to copy, and through this address it cannot place, change or cancel an order, move funds or change a setting.
+
+### What you need
+
+- **An account to read**, connected [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/). If you have none yet, the approval page offers **Connect an account**.
+- **The owner or admin role** on the Mishmar account. Approvers and viewers cannot connect an app.
+- **A passkey or a linked wallet on your Mishmar login.** Approving asks for a fresh proof of one. Add one under **Profile** in the console's sidebar.
+- **Room on your plan.** The app becomes one of the plan's agents, and the free plan holds one. When the plan is full, the approval page offers to remove an agent to make room.
+- **An AI app that takes a remote MCP server address**, such as Claude or Cursor.
+
+### 1. Give the app Mishmar's address
+
+In your AI app, add a remote MCP server (some apps call it a connector) and give it this address:
+
+```text
+https://mcp.mishmar.io
+```
+
+The console shows the address for the Mishmar you are signed in to, testnet included: in **Agents**, click **Add agent**, choose **Read only**, then **Connect an app**, and use **Copy address**.
+
+The app then opens your browser for you to sign in to Mishmar and approve it.
+
+### 2. Approve it in Mishmar
+
+Sign in to Mishmar in the browser the app opened. The **Connect an app** page opens, headed **… asks to read your accounts** with the app's name.
+
+- **App** is the name the app gives itself. Anyone can use any name, so go by **Answers from**: the host Mishmar checked, where the app receives your answer. Approve only if it is the app you are using.
+- **What approving does** says what the app can do, as above.
+- **Mishmar account**, when you have more than one: pick the one to read.
+- **Accounts … may read**: tick each account the app may read. When there is only one, it is ticked for you.
+
+Click **Approve**. The console asks you to confirm with your passkey or wallet if you have not in the last ten minutes. The page says **… is connected** and takes you back to the app.
+
+The app now shows under **Agents** as a read agent, marked **Connected app**. Approve within the time the page shows beside **Closes**; after that the app has to ask again.
+
+### 3. Ask it something
+
+Ask the app:
+
+```text
+What are my open positions on Hyperliquid?
+```
+
+It answers from the accounts you ticked, and only those. Each read it made is listed on the **Access** tab of the account it read, and of the app's agent.
+
+### Take the access away
+
+In the console, open **Agents** and click the app's agent. On **Overview**, under **App access**, the **Read** row has **Disconnect**. Click it, then **Disconnect** again to confirm. No passkey is needed to disconnect.
+
+It ends at once: Mishmar revokes the key it holds for the app, and within seconds every read the app tries is refused. If the agent never traded, it is removed as well, which frees its place on your plan. Deleting the agent ends the connection too.
+
+To give the app more accounts, or take one away, use **Accounts** on its agent's page, as [below](#give-it-more-accounts-or-take-one-away).
+
+A connection also ends by itself when the person who approved it leaves the Mishmar account or is removed from it, and when the same app is approved again, which replaces the old connection. An app that has not used its connection for 90 days has to be approved again.
+
+### If it does not work
+
+- **`This request is no longer open`**: it expired, or was already approved or denied. Start again from the app: connect Mishmar there once more.
+- **`This request was started in another browser`**: a request can be approved only in the browser the app opened. Approve it there, or start again from the app in this browser.
+- **`Ask an owner or admin`**: as an approver or viewer you cannot connect an app. Ask an owner or admin, or pick a Mishmar account where you are one.
+- **`Tick at least one account for it to read.`**: tick an account, or connect one with **Connect an account**.
+- The app asks you to sign in to Mishmar again: its connection ended, for one of the reasons above. Approve it again, as in step 2.
+- The app says **`this connection cannot sign its reads`**: disconnect it under **Agents**, as above, then connect it again from the app.
+- The app says **`this account's data cannot be reached right now`**: nothing is wrong with the connection. Ask again in a minute.
+
+## For scripts and bots: a Mishmar API key
+
+This is the way for a program of your own: a script, a bot, a report or a dashboard, or an MCP server you run yourself. The agent has a **Mishmar API key**, which signs every read so Mishmar knows each one comes from this agent. When you are done, the program you give the key to can read the accounts you picked.
 
 It takes about two minutes.
 
-## What you need
+### What you need
 
 - **An account to read**, connected [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/). The dialog can connect one on the way.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot add agents.
@@ -20,12 +92,13 @@ It takes about two minutes.
 - **Room on your plan.** The free plan holds one agent, read and trade agents together.
 - **Something to read with**: an MCP client and the [mishmar CLI](/start/install-the-cli/) (or `npx`/`uvx`, as in [the MCP setup](/assistants/use-mishmar-from-claude-cursor-or-any-mcp-client/#without-installing-the-cli)), the Python or TypeScript SDK, or the CLI alone.
 
-## 1. Add the agent
+### 1. Add the agent
 
 In the console, open **Agents** and click **Add agent**.
 
 - **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Read only**. Nothing is picked until you choose.
+- **How it reads**, on hosted Mishmar: choose **A key for your own program**. The other choice, **Connect an app**, is [the way above](#connect-an-ai-app-with-one-address).
 - **Reads**: tick each account the agent may read (the only one there is is ticked for you), or click **Connect an account** to connect one without leaving the dialog. It reads each account whole: balances, positions, value and every transaction, who placed each one included.
 - **Description** (optional): what it reads them for.
 
@@ -33,7 +106,7 @@ In the console, open **Agents** and click **Add agent**.
 
 Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes.
 
-## 2. Copy its key
+### 2. Copy its key
 
 The dialog says the agent is ready and shows its **Mishmar API key**. **It is shown once.** Copy it before you close the dialog, with **Copy key**, or **Copy variable** for the line `MISHMAR_API_KEY=msk_…`. If you lose it, revoke it on the agent's **Keys** tab and issue another.
 
@@ -41,11 +114,11 @@ The dialog says the agent is ready and shows its **Mishmar API key**. **It is sh
 
 Click **Finish**: the agent's page opens.
 
-## 3. Read the accounts
+### 3. Read the accounts
 
 Give the key to the program that reads, in its environment as `MISHMAR_API_KEY`. The key names the Mishmar it belongs to, so on hosted Mishmar that is all it needs; a self-hosted engine is named in `MISHMAR_ENGINE` as well. Treat the key like a password: it reads everything in the accounts you gave the agent.
 
-### Over MCP, for an assistant
+#### Over MCP, for an assistant
 
 `mishmar mcp` is Mishmar's MCP server. Put the key in the server's `env`:
 
@@ -75,7 +148,7 @@ An account is one pool of money at a venue, and what holds it there is its **con
 
 The server lists its other tools too. For a read agent each of them answers `… is not open to a read agent, and nothing was sent`, without calling Mishmar, and the signer inside the server opens no channel to Mishmar and syncs no keys: the reads above are the only calls it makes.
 
-### From code
+#### From code
 
 The SDKs' `Client` reads with the key alone, with no signer and no binary:
 
@@ -110,7 +183,7 @@ const page = await client.accountTransactions("ta_…", { from: "2026-11-01T00:0
 
 Each SDK also has `me()`, `connected_account(id)` (`connectedAccount`), `account_positions` (`accountPositions`) and `account_equity` (`accountEquity`). A page of transactions carries `nextCursor` when there is more; pass it back as `cursor`.
 
-### From the command line
+#### From the command line
 
 ```sh
 export MISHMAR_API_KEY=msk_…
@@ -136,7 +209,7 @@ mishmar read agent                               # who the key belongs to
 
 Times are RFC 3339 (`2026-11-12T09:30:00Z`) or a date. `--json` prints Mishmar's answer as it came.
 
-## Check it worked
+### Check it worked
 
 - **Agents** lists the agent with **Read only** under **Permission**. On its page, **Overview** says **For** **Read only**, and **Accounts** lists its accounts with **Reads** under **Access**.
 - After the program has read, the agent's **Access** tab lists each read, and so does the **Access** tab of each account it read.
@@ -145,13 +218,13 @@ Times are RFC 3339 (`2026-11-12T09:30:00Z`) or a date. `--json` prints Mishmar's
 
 ![The agent's Access tab, What it read: each read with its time, the account, what it read (its list of accounts, balances, positions, transactions, value over time), the range and the key it used](/screens/start/add-a-read-agent/agent-access.png)
 
-## Give it more accounts, or take one away
+### Give it more accounts, or take one away
 
 On the agent's page, under **Overview**, **Accounts** has **Give access**: pick the account and click **Give access**. **Remove** on an account's row takes it away (**Remove access** to confirm): its reads of that account are refused from then on. What it already read can't be taken back.
 
 To stop the agent reading altogether, revoke its Mishmar API key on its **Keys** tab, or delete the agent.
 
-## When something goes wrong
+### When something goes wrong
 
 - **`Say what the agent is for`** under **What it is for**: choose **Read only** (or **Trade**).
 - **`Pick at least one account`** under **Reads**: tick an account, or connect one.
