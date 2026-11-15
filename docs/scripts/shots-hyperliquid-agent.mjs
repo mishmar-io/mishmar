@@ -15,12 +15,12 @@ try {
   await page.goto(`${base}/agents`)
   const dialog = page.getByRole('dialog')
 
-  // 1. Agents → Add agent: a trade agent on the Hyperliquid account.
+  // 1. Agents → Add agent: a trade agent on the fixture's Hyperliquid Perps account.
   await page.getByRole('button', { name: 'Add agent' }).first().click()
   await dialog.getByLabel('Name').fill('Trend follower')
   await dialog.getByRole('radio', { name: 'Trade' }).click()
   await dialog.getByRole('combobox', { name: 'Trades on' }).click()
-  await page.getByRole('option', { name: /^Hyperliquid main/ }).click()
+  await page.getByRole('option', { name: /^Hyperliquid · Main · Perps/ }).click()
   await dialog.getByLabel('Description').fill('Trend following on BTC and ETH perps')
   await shot('add-agent')
 

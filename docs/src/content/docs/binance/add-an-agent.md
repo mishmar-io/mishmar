@@ -1,9 +1,9 @@
 ---
 title: Add an agent on Binance
-description: Add an agent that trades on a connected Binance account. Give it its Mishmar API key, start it with that one key, and register the Ed25519 trading key its signer generates at Binance. Four steps in one dialog, one command on the agent's machine.
+description: Add an agent that trades on a Binance account you connected. Give it its Mishmar API key, start it with that one key, and register the Ed25519 trading key its signer generates at Binance. Four steps in one dialog, one command on the agent's machine.
 sidebar:
   order: 2
-lastUpdated: 2026-11-12
+lastUpdated: 2026-11-15
 ---
 
 When you are done, the agent has two keys:
@@ -13,7 +13,7 @@ When you are done, the agent has two keys:
 
 Binance sees an ordinary API key, and you decide at Binance what it may do: let it trade futures, and leave withdrawals off.
 
-This page sets up a **trade agent**: one that trades on a connected account, within your rules. An agent that only reads your accounts, for an assistant or a report, needs no signer and no trading key: [Add a read agent](/start/add-a-read-agent/).
+This page sets up a **trade agent**: one that trades on an account, within your rules. An agent that only reads your accounts, for an assistant or a report, needs no signer and no trading key: [Add a read agent](/start/add-a-read-agent/).
 
 It takes about ten minutes.
 
@@ -23,7 +23,7 @@ It takes about ten minutes.
 - **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one agent and one venue connection.
+- **Room on your plan.** The free plan holds one agent and one connection.
 
 ## 1. Add the agent
 
@@ -31,11 +31,11 @@ In the console, open **Agents** and click **Add agent**. The dialog has four ste
 
 - **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Trade**. Nothing is picked until you choose.
-- **Trades on**: the connected account the agent gets its trading key on. Pick your Binance account if you connected it already (the only one there is is picked for you), or click **Connect an account**, which opens [the same steps as connecting one](/binance/connect-an-account/) without leaving the dialog, read-only key included, and picks the account when it is done.
-- **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside the account's and the connected account's.
+- **Trades on**: the account the agent gets its trading key on. Pick your Binance **USDⓈ-M Futures** account if you connected it already (the only one there is is picked for you; accounts Mishmar only reads, such as Spot, are left out), or click **Connect an account**, which opens [the same steps as connecting one](/binance/connect-an-account/) without leaving the dialog, read-only key included, and picks the USDⓈ-M Futures account when it is done.
+- **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside those of the whole Mishmar account, the connection and the account.
 - **Description** (optional): what it trades and how.
 
-![Step 1 of 4, Add agent: the name Reversion, Trade chosen under What it is for, Trades on set to the Binance account with Connect an account beside it, Capital left empty, and a description](/screens/binance/add-an-agent/add-agent.png)
+![Step 1 of 4, Add agent: the name Reversion, Trade chosen under What it is for, Trades on set to a Binance USDⓈ-M Futures account with Connect an account beside it, Capital left empty, and a description](/screens/binance/add-an-agent/add-agent.png)
 
 Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes. Mishmar creates the agent, issues its Mishmar API key, gives it the account and sets a trading key aside on it, all at once. The agent reads the account it trades on too: [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) says what it can read.
 
@@ -78,7 +78,7 @@ The dialog lists what to do at Binance, each step with the field it fills in rig
 
 ![Step 3 of 4, Register the key at Binance, on the testnet console: on demo.binance.com, create a self-generated API key with the public key shown in full, from BEGIN to END, and Enable Futures on; then paste the API key Binance shows into Key id issued by Binance; then Save and verify](/screens/binance/add-an-agent/register-key.png)
 
-A connected account that has no read-only key yet (one connected before the console asked for it) gets three steps first, in the same visit: open and fund the USDⓈ-M Futures account, set the position mode to One-way, and make the read-only key as in [Connect a Binance account](/binance/connect-an-account/), pasted as **Read-only API key** and **Its secret key**.
+A connection that has no read-only key yet (one connected before the console asked for it) gets three steps first, in the same visit: open and fund the USDⓈ-M Futures account, set the position mode to One-way, and make the read-only key as in [Connect a Binance account](/binance/connect-an-account/), pasted as **Read-only API key** and **Its secret key**.
 
 Click **Save and verify**. Mishmar proves the trading key end to end: it asks the agent's signer to co-sign a read of the account and sends it to Binance under the new key. It also checks what trading on the account needs, which connecting it did not. Four checks:
 
@@ -95,11 +95,11 @@ The dialog says **Start the agent first** while the agent's signer is not connec
 
 The dialog says the agent is ready. Click **Finish**: the agent's page opens.
 
-![Step 4 of 4: Reversion is ready, with Agent connected and Trading key active on the Binance account both ticked, and the Finish button](/screens/binance/add-an-agent/ready.png)
+![Step 4 of 4: Reversion is ready, with Agent connected and Trading key active on the Binance USDⓈ-M Futures account both ticked, and the Finish button](/screens/binance/add-an-agent/ready.png)
 
 ## Place a test order
 
-With the signer running, in a second terminal on the agent's machine, propose a small limit buy a few percent under the market, so it rests on the book and does not fill. Use your connected account's id (`ta_…`, on its page in the console) and a price about 3% under BTCUSDT's current price:
+With the signer running, in a second terminal on the agent's machine, propose a small limit buy a few percent under the market, so it rests on the book and does not fill. Use the USDⓈ-M Futures account's id (`ta_…`, on its page in the console) and a price about 3% under BTCUSDT's current price:
 
 ```sh
 mishmar propose --config ~/.mishmar/agent.json --connected-account ta_… --symbol BTCUSDT --side buy --size 0.001 --price 75000
@@ -141,12 +141,12 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 ## Check it worked
 
 - The agent's page shows no **Setup isn't finished** warning, and **Signer** reads **Connected** under **Overview**.
-- On the agent's **Keys** tab, **Mishmar API keys** lists the `msk_…` key as Active, and **Trading keys** lists the Binance connected account with key type **Ed25519**, **Active**, **Key id entered** under **At the venue**, and the date the key expires under **Expires**.
+- On the agent's **Keys** tab, **Mishmar API keys** lists the `msk_…` key as Active, and **Trading keys** lists the Binance USDⓈ-M Futures account with key type **Ed25519**, **Active**, **Key id entered** under **At the venue**, and the date the key expires under **Expires**.
 - On Binance, API Management lists both keys: the read-only one and the self-generated one.
-- On the agent's **Overview**, **Connected accounts** lists the account with **Reads and trades** under **Access**.
-- **Connected accounts** lists the account as **Active**; on its page, **Setup** shows **Read-only key** **On file**.
+- On the agent's **Overview**, **Accounts** lists the account with **Reads and trades** under **Access**.
+- **Connected accounts** lists the account as **Active**; on its connection's page, **Setup** shows **Read-only key** **On file**.
 
-![The agent's Keys tab: under Mishmar API keys, the msk_… key Active; under Trading keys, the key on the Binance account, Ed25519, Active, Key id entered at the venue, and the date it expires](/screens/binance/add-an-agent/agent-keys.png)
+![The agent's Keys tab: under Mishmar API keys, the msk_… key Active; under Trading keys, the key on the Binance USDⓈ-M Futures account, Ed25519, Active, Key id entered at the venue, and the date it expires](/screens/binance/add-an-agent/agent-keys.png)
 
 ## When something goes wrong
 
@@ -167,9 +167,9 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 - **Account has margin fails, with `$0 available`**: the USDⓈ-M Futures account has no available balance in a USD stablecoin. Mishmar counts USDT, USDC and the other USD stablecoins at a dollar each; a balance in BNB, BTC or another coin is named in the check but not counted, unless the account is in Multi-Assets Mode, where Binance's own USD total is used. Add a stablecoin to the USDⓈ-M Futures account at Binance, then verify the key again.
 - **An order comes back `allow` with `(Not forwarded: …)`**: Mishmar's rules allowed it, but Binance refused it, in the words after `Not forwarded:`. A size under the symbol's minimum is the usual reason. Change the order and propose again.
 - **`Agent …'s key on connected account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
-- **`The account's plan holds 1 agent; delete one or move to a larger plan`**. The free plan holds one agent and one venue connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
-- **An order comes back `rate_limited`: `The account's request budget for binance is spent for now; send it again in … s. Exits and cancels still go`.** Each plan has a share of what Binance lets one address send. The SDKs and `mishmar signer run` send the order again after the wait.
-- **The connected account says New orders are blocked: Mishmar has lost the venue's stream of this account's fills and orders.** While Mishmar can't see the account's fills and orders, it blocks new risk. Closing positions still works. Trading starts again by itself once the stream is back; if it hasn't within a few minutes, tell us.
+- **`The Mishmar account's plan holds 1 agent; delete one or move to a larger plan`**. The free plan holds one agent and one connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
+- **An order comes back `rate_limited`: `The Mishmar account's request budget for binance is spent for now; send it again in … s. Exits and cancels still go`.** Each plan has a share of what Binance lets one address send. The SDKs and `mishmar signer run` send the order again after the wait.
+- **The account's page says New orders are blocked: Mishmar has lost the venue's stream of this account's fills and orders.** While Mishmar can't see the account's fills and orders, it blocks new risk. Closing positions still works. Trading starts again by itself once the stream is back; if it hasn't within a few minutes, tell us.
 
 ## When the key expires
 

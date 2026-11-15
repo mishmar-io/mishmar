@@ -7,6 +7,7 @@ const PORT = 5183
 const READ_KEY = 'q7Xk2Rm9VbT4wLp8Nz3HcY6sJd1Fg5Ue0Ka7Qo2Wi9Mx4Bt8Ev3Ry6Cn1Pl5Sh0Z'
 const READ_SECRET = 'not-a-real-secret-0000000000000000000000000000000000000000000000'
 const ID = 'ta_7d2kq9wmx4pb'
+const CONNECTION = 'vc_3pw8kd5rnx2c'
 
 const { page, base, tidy, shot, card, close } = await start({ port: PORT })
 try {
@@ -14,7 +15,10 @@ try {
   // What the mock shows differently from a real account: short ids, and the paper-mode check
   // details, which read as Binance demo trading's answers, in the engine's words.
   await tidy({
-    subs: [['\\bta_[a-z0-9]{1,4}\\b', 'g', ID]],
+    subs: [
+      ['\\bta_[a-z0-9]{1,4}\\b', 'g', ID],
+      ['\\bvc_[a-z0-9]{1,4}\\b', 'g', CONNECTION],
+    ],
     checks: {
       'Read-only key accepted by venue': 'Accepted by Binance',
       'Read-only key cannot trade or withdraw':
@@ -42,11 +46,13 @@ try {
   await dialog.getByRole('heading', { name: /is connected$/ }).waitFor({ timeout: 20000 })
   await shot('first-read')
 
-  // Check it worked: the account's page, its Setup, Verification and Data, stacked.
+  // Check it worked: Done opens the connection's page (a login with two accounts); its Setup
+  // tab: Setup, Verification and Data, stacked.
   await dialog.getByRole('button', { name: 'Done' }).click()
-  await page.waitForURL(/\/connected-accounts\/ta_/)
+  await page.waitForURL(/\/connections\/vc_/)
   await page.setViewportSize(PAGE_VIEWPORT)
-  await card('Who trades here').waitFor()
+  await page.getByRole('tab', { name: 'Setup' }).click()
+  await card(/^Data/).getByText('Up to date').first().waitFor()
   await page.waitForTimeout(800)
   await shot('account-page', [card(/^Setup$/), card(/^Verification/), card(/^Data/)])
 } finally {

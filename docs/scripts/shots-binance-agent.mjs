@@ -18,12 +18,12 @@ try {
   await page.goto(`${base}/agents`)
   const dialog = page.getByRole('dialog')
 
-  // 1. Agents → Add agent: a trade agent on the Binance account.
+  // 1. Agents → Add agent: a trade agent on the fixture's Binance USDⓈ-M Futures account.
   await page.getByRole('button', { name: 'Add agent' }).first().click()
   await dialog.getByLabel('Name').fill('Reversion')
   await dialog.getByRole('radio', { name: 'Trade' }).click()
   await dialog.getByRole('combobox', { name: 'Trades on' }).click()
-  await page.getByRole('option', { name: /^Binance futures/ }).click()
+  await page.getByRole('option', { name: /^Binance · Carry · USDⓈ-M Futures/ }).click()
   await dialog.getByLabel('Description').fill('Mean reversion on BTCUSDT and ETHUSDT perps')
   await shot('add-agent')
 

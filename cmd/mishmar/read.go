@@ -38,11 +38,11 @@ and the owner's activity included; every read is signed with the agent's
 key and written to the account's access log, which its owner sees.
 
 A connected account is one pool of money at a venue, and its connection is
-the venue login that holds it: a Binance login has a Spot and a USDⓈ-M
-Futures account, a Hyperliquid address has Perps and Spot. Every balance,
-position and transaction belongs to one account. "read accounts" lists the
-accounts by connection, each with its value, and the connection's total;
-when the agent was given only some of a login's accounts it says how many
+what holds it there: a Binance connection has a Spot and a USDⓈ-M Futures
+account, a Hyperliquid address has Perps and Spot. Every balance, position
+and transaction belongs to one account. "read accounts" lists the accounts
+by connection, each with its value, and the connection's total; when the
+agent was given only some of a connection's accounts it says how many
 ("2 of 3 accounts") and totals those alone. A move between two accounts of
 one connection is a transfer_out on one and a transfer_in on the other,
 each naming the other account.
@@ -115,14 +115,14 @@ func newReadAccountsCmd(o *readOptions) *cobra.Command {
 		Use:   "accounts",
 		Short: "The connected accounts the agent was given, by connection, each with its value",
 		Long: `The connected accounts the agent was given, grouped by their connection
-(the venue login that holds them). Each line is one account: its id, then
-venue · connection · account · login (the account's name left out on a
-login with a single account), its value in USD, its status, and whether an
-agent trades on it. Under a login's accounts, "total" is their sum; when the
-agent was given fewer than all of them, the line says how many it sees ("2
-of 3 accounts, total of these") and the sum is of those alone, not the
-login's value. An asset with no price is not in a value and is named on its
-line.`,
+(what holds them at the venue). Each line is one account: its id, then
+venue · connection · account · the venue's identifier (the account's name
+left out on a connection with a single account), its value in USD, its
+status, and whether an agent trades on it. Under a connection's accounts,
+"total" is their sum; when the agent was given fewer than all of them, the
+line says how many it sees ("2 of 3 accounts, total of these") and the sum
+is of those alone, not the connection's value. An asset with no price is not
+in a value and is named on its line.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := readClient(*o)
@@ -492,20 +492,25 @@ func printAccount(w io.Writer, a api.ConnectedAccount) {
 	tw.Flush()
 	c := a.Connection
 	fmt.Fprintf(w, "  %s account %s, %s connection %s (%s)", a.Type, a.VenueRef, shareOf(c.AccountCount), connectionOf(a), c.Kind)
+	// Which login it is, in the venue's words and as the connection's ("connection hl_main
+	// (hyperliquid) to the master account 0x…"), so it never reads as one more account.
 	v := c.VenueAccount
-	login := "main login"
+	at := "the main account"
+	if c.Kind == api.VenueConnectionKindHyperliquid {
+		at = "the master account"
+	}
 	if v.Role == api.VenueAccountRoleSubaccount {
-		login = "sub-account"
+		at = "a sub-account"
 	}
 	if v.Id != nil && *v.Id != "" {
-		login += " " + *v.Id
+		at += " " + *v.Id
 	}
 	if v.ParentVenueAccountId != nil && *v.ParentVenueAccountId != "" {
-		login += " of " + *v.ParentVenueAccountId
+		at += " of " + *v.ParentVenueAccountId
 	}
-	fmt.Fprintf(w, ", %s", login)
+	fmt.Fprintf(w, " to %s", at)
 	if c.ParentId != nil && *c.ParentId != "" {
-		fmt.Fprintf(w, " (its main login is connection %s)", *c.ParentId)
+		fmt.Fprintf(w, " (under connection %s)", *c.ParentId)
 	}
 	fmt.Fprintln(w)
 	if a.EquityAsOf != nil {

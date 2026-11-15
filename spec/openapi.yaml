@@ -1147,9 +1147,14 @@ paths:
 
         A scope must name something that exists: a `venue_connection`,
         `connected_account` or `agent` id that names nothing is 422
-        `validation`, and so is a rule scoped to a read agent, which places
-        no orders. A rule already on an agent that is then switched to read
-        stays and judges nothing.
+        `validation`. A rule may be scoped to a read agent, so its rules can
+        be set before it trades: a read agent places no orders, so the rule
+        judges nothing until the agent trades. The exception is an enabled
+        leverage or drawdown rule: it is measured against the agent's
+        capital, which a read agent cannot have, so it is 422 `validation`
+        (without `details.agentId`); saved disabled, it is accepted. A rule
+        already on an agent that is then switched to read stays and judges
+        nothing.
       requestBody:
         required: true
         content:
@@ -1181,10 +1186,11 @@ paths:
       description: |
         The same check as createRule, on the rule as it would be after the
         update: enabling a leverage or drawdown rule on an agent, or moving
-        one to an agent's scope, needs that agent's allocated capital. That a
-        scope names something that exists, and not a read agent, is checked
-        only when the update sends a `scope`, so a rule whose agent became a
-        read agent or was deleted can still be disabled or renamed.
+        one to an agent's scope, needs that agent's allocated capital, which
+        a read agent cannot have. That a scope names something that exists
+        is checked only when the update sends a `scope`, so a rule whose
+        agent was deleted can still be disabled or renamed. Moving a rule to
+        a read agent's scope is accepted, as at createRule.
       requestBody:
         required: true
         content:

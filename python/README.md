@@ -54,11 +54,12 @@ tunes it.
 An agent reads each connected account it was given whole: balances, the
 venue's positions, transactions and value over time, whoever acted on the
 account. A connected account is one pool of money at a venue: a Binance
-login has a Spot and a USDⓈ-M Futures account, a Hyperliquid address has
-Perps and Spot. Each names its `connection`, the venue login that holds it
-(the person's name for it, `venueAccount`, which login it is, `sync`, how
-current its data is, and `accountCount`, how many accounts the login has).
-The accounts' values add up to the login's only when the agent was given
+connection has a Spot and a USDⓈ-M Futures account, a Hyperliquid address
+has Perps and Spot. Each names its `connection`, which holds it at the
+venue (the person's name for it, `venueAccount`, which main account or
+sub-account it is there, `sync`, how current its data is, and
+`accountCount`, how many accounts the connection has). The accounts'
+values add up to the connection's only when the agent was given
 all `accountCount` of them; otherwise the sum is of the accounts it can
 see. A move between two accounts of one connection is a `transfer_out` on
 one and a `transfer_in` on the other, each naming the other in
@@ -73,8 +74,8 @@ from mishmar import Client
 
 client = Client.from_api_key()                    # $MISHMAR_API_KEY
 for account in client.connected_accounts():
-    login = account["connection"]                  # the venue login that holds it
-    print(account["venue"], login["name"], account["name"], account.get("equityUsd"))
+    connection = account["connection"]             # what holds it at the venue
+    print(account["venue"], connection["name"], account["name"], account.get("equityUsd"))
     snap = client.account_balances(account["id"])  # at=… for a past moment
 
 page = client.account_transactions("ta_…", since="2026-11-01T00:00:00Z", kind="trade", limit=200)

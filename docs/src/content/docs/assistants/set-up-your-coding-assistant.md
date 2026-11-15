@@ -3,7 +3,7 @@ title: Set up your coding assistant
 description: "Give Claude Code, Cursor, Codex or any other coding assistant what it needs to write a bot against Mishmar correctly, in one line each: a skill, a rule file or an AGENTS.md snippet, and a link that opens Claude with the docs loaded."
 sidebar:
   order: 1
-lastUpdated: 2026-11-08
+lastUpdated: 2026-11-15
 ---
 
 An assistant that has never seen Mishmar will write a bot that holds an exchange key, treats a decision as a fill and sends prices as floats. The files on this page tell it the three things that matter (the bot holds no key, an order comes back with one of three verdicts, numbers are decimal strings) and where the docs are as Markdown. Each is a few lines. Add the one for your assistant to the bot's repo.
@@ -54,7 +54,7 @@ This bot trades through [Mishmar](https://mishmar.io), a risk management layer f
 - Sizes and prices are decimal strings, never floats. Size and price from the venue rules the signer returns (`venue_rules` / `venueRules`: tick size, step size, minimums).
 - Never call the exchange's order endpoints directly; every order goes through the signer. The signer and Mishmar each hold half of the trading key, so a direct call could not be signed anyway.
 - `mishmar mcp` is the same signer as an MCP server, for an agent that is a language model.
-- The agent reads each connected account it was given whole: balances, the venue's positions, transactions (a trade's `origin.own` marks the agent's own) and value over time (`account_balances`, `account_positions`, `account_transactions`, `account_equity`; camelCase in TypeScript). A connected account is one pool of money at a venue (a Binance login's Spot and USDⓈ-M Futures are two accounts): `connection` on it is the venue login that holds it, its accounts' values add up to the login's only when the agent was given all `connection.accountCount` of them, and a move between two accounts of one connection is a `transfer_out` on one and a `transfer_in` on the other, each naming the other in `counterpartConnectedAccountId`. A read agent holds no signer and cannot propose; it reads with its Mishmar API key alone (`Client.from_api_key()` / `Client.fromApiKey()`, from `MISHMAR_API_KEY`).
+- The agent reads each connected account it was given whole: balances, the venue's positions, transactions (a trade's `origin.own` marks the agent's own) and value over time (`account_balances`, `account_positions`, `account_transactions`, `account_equity`; camelCase in TypeScript). A connected account is one pool of money at a venue (a Binance connection's Spot and USDⓈ-M Futures are two accounts): `connection` on it is the connection that holds it, its accounts' values add up to the connection's only when the agent was given all `connection.accountCount` of them, and a move between two accounts of one connection is a `transfer_out` on one and a `transfer_in` on the other, each naming the other in `counterpartConnectedAccountId`. A read agent holds no signer and cannot propose; it reads with its Mishmar API key alone (`Client.from_api_key()` / `Client.fromApiKey()`, from `MISHMAR_API_KEY`).
 - The setup steps, the rules and the API, as Markdown: https://docs.mishmar.io/llms.txt (all pages in one file: https://docs.mishmar.io/llms-full.txt). Example bots: https://github.com/mishmar-io/mishmar/tree/main/examples
 ```
 

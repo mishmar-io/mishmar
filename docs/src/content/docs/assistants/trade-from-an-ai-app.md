@@ -3,11 +3,11 @@ title: Trade from Claude Code, Cursor or another AI app
 description: Let an AI app on your own computer propose orders through Mishmar. Add Mishmar's trading server to the app, approve your computer in the browser after comparing a code, and authorise the trading key at the exchange. Your half of each trading key stays on your computer, and every order is checked against your limits.
 sidebar:
   order: 3
-lastUpdated: 2026-11-13
+lastUpdated: 2026-11-15
 draft: true
 ---
 
-When you are done, an AI app on your computer (Claude Code, Cursor, VS Code, Claude Desktop or any app that runs MCP servers) can propose orders on one of your connected accounts. Mishmar checks every order against your rules before it reaches the exchange; an order over your approval threshold waits for you in the console. The app never sees a key.
+When you are done, an AI app on your computer (Claude Code, Cursor, VS Code, Claude Desktop or any app that runs MCP servers) can propose orders on one of your accounts. Mishmar checks every order against your rules before it reaches the exchange; an order over your approval threshold waits for you in the console. The app never sees a key.
 
 Trading needs Mishmar's signer on your computer. It holds your half of each trading key; Mishmar holds the other half and never sees yours, so an order goes out only when both have signed it. The app starts the signer itself the first time it needs it, and it keeps running in the background after you close the app, so an order you approve later still goes out.
 
@@ -24,8 +24,8 @@ They are files only you can read (mode 0600) in `~/.mishmar/apps/<app>`, a folde
 - **A Mac or a Linux computer that you sit at, with a browser.** The approval happens in the browser on the same computer.
 - **Node.js 20 or later**, for `npx`. Without it, [uv](https://docs.astral.sh/uv/) works too (`uvx`).
 - **The owner or admin role** on the Mishmar account, and **a passkey or a linked wallet** on your Mishmar login: approving a computer asks for a fresh proof of one.
-- **A connected account** to trade on, [at Hyperliquid](/hyperliquid/connect-an-account/) or [at Binance](/binance/connect-an-account/).
-- **Your rules, set first.** [How do I let an AI agent trade for me safely?](/questions/how-do-i-let-an-ai-agent-trade-for-me-safely/) has a first set.
+- **An account** to trade on, connected [at Hyperliquid](/hyperliquid/connect-an-account/) or [at Binance](/binance/connect-an-account/).
+- **Your rules, set first.** [How do I let an AI agent trade for me safely?](/questions/how-do-i-let-an-ai-agent-trade-for-me-safely/) has a first set. A rule can go on the app's own agent before it trades, from the Rules tab on the agent's page, and judges its orders from the first one.
 
 ## 1. Add Mishmar's trading server to the app
 
@@ -88,7 +88,7 @@ If no browser opened, open the link yourself. It works for ten minutes, and only
 
 Mishmar's page shows the app's name and your computer's name, as the program gave them, a code, and the key's full fingerprint. **Approve only if the code is the one the app showed, and you asked the app on this computer to set up trading in the last few minutes.** Nobody from Mishmar will send you this link or a code, so decline a link that reached you any other way. A code that differs means the page is not for the key your app made: decline it. A code that matches shows only that the page is for that key, not who started the request, which is why the second condition matters. For a closer check, compare the whole fingerprint too; the app shows it on the line after the code.
 
-On the same page you choose the agent the app trades as (or a new one) and the connected account it trades on, and confirm with your passkey or wallet. Approving a computer for an app that already trades from another computer replaces that computer: its key stops working, and so do the trading keys it made.
+On the same page you choose the agent the app trades as (or a new one) and the account it trades on, and confirm with your passkey or wallet. Approving a computer for an app that already trades from another computer replaces that computer: its key stops working, and so do the trading keys it made.
 
 Back in the app, ask again. The app is signed in, and Mishmar's signer on your computer makes the trading key with Mishmar within a few seconds.
 

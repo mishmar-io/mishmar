@@ -342,11 +342,12 @@ registry lists the server as `io.github.mishmar-io/mishmar` (`server.json`).
 An agent is given connected accounts and reads each one whole: its
 balances, the venue's positions, its transactions and its value over time,
 other agents' and the owner's activity included. A connected account is one
-pool of money at a venue, with its own value (`equityUsd`): a Binance login
-has a Spot and a USDⓈ-M Futures account, a Hyperliquid address has Perps
-and Spot. Each names its `connection`, the venue login that holds it (its
-name, which login it is, how current its data is and how many accounts it
-has, `accountCount`); the accounts' values add up to the login's only when
+pool of money at a venue, with its own value (`equityUsd`): a Binance
+connection has a Spot and a USDⓈ-M Futures account, a Hyperliquid address
+has Perps and Spot. Each names its `connection`, which holds it at the
+venue (its name, which main account or sub-account it is there, how current
+its data is and how many accounts it has, `accountCount`); the accounts'
+values add up to the connection's only when
 the agent was given all of them, and a move between two of its accounts is
 a `transfer_out` on one and a `transfer_in` on the other, each naming the
 other in `counterpartConnectedAccountId`. A trade's `origin` says who
@@ -385,7 +386,7 @@ The reads are `me`, `connected_accounts`, `connected_account`,
 and `account_equity` (a range and a `resolution`), camelCase in TypeScript,
 on `Client` and `Signer` alike. From the shell, with the same key or the
 signer's config, `mishmar read agent`, `read accounts` (by connection, each
-account with its value, and the total of a login's accounts, or of those
+account with its value, and the total of a connection's accounts, or of those
 shown when the agent was given fewer), `read account <id>`,
 `read balances <id>`, `read positions <id>`, `read transactions <id>` and
 `read equity <id>`; `--json` prints the engine's answer as it came.
