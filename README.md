@@ -118,8 +118,10 @@ key and, for each request, refuses unless, in this order:
   side (at most the price for a buy, at least for a sell), a `MARKET` order
   carries none, and the bound of an `IOC` is a positive decimal the signer
   does not judge (the engine read it off the venue's order book; the same
-  on Hyperliquid); `reduceOnly` is the proposal's. A `verify` message must decode to a read and not an order: no
-  symbol, side, type, quantity, price or client order id. On Hyperliquid the
+  on Hyperliquid); `reduceOnly` is the proposal's. A `verify` message must decode to a read that says only when it was
+  built: a `timestamp` and a `recvWindow`, no other parameter, written as
+  the engine writes them (`recvWindow=10000&timestamp=<ms>`), with the
+  timestamp checked as an order's is. On Hyperliquid the
   message is the EIP-712 digest, which cannot be read, so the request's body
   carries the action and nonce it came from: the signer decodes them with
   `venues/hyperliquid`, recomputes the digest for the key's network and

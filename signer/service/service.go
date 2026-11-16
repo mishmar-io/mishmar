@@ -955,7 +955,13 @@ func (s *Service) FrostSign(_ context.Context, r signerapi.FrostSignRequestObjec
 		purpose = *r.Body.Purpose
 	}
 	if purpose == signerapi.FrostSignRequestPurposeVerify {
-		if err := binance.CheckRead(message); err != nil {
+		// A verify read needs no decision: it is a timestamp and a
+		// recvWindow and nothing else, built now.
+		read, err := binance.DecodeRead(message)
+		if err != nil {
+			return fail(refused("%v", err))
+		}
+		if err := binance.CheckFresh(read.Timestamp, read.RecvWindow, now); err != nil {
 			return fail(refused("%v", err))
 		}
 	} else {
