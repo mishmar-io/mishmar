@@ -11,8 +11,8 @@ must pass, the agent's signer, the `mishmar` CLI and MCP server, and the
 SDKs themselves. The engine that enforces the rules is a separate, private
 repo; this one is what runs next to your agent.
 
-Status: testnet. Mishmar runs on Hyperliquid testnet and Binance demo
-trading today; real money is not live yet. The contract, the Go packages, the
+Status: live. Mishmar runs with real money on Hyperliquid and Binance USDⓈ-M
+futures, or on their testnets first. The contract, the Go packages, the
 agent's signer and the `mishmar` CLI are here, and so are the Python and
 TypeScript SDKs (`mishmar` on PyPI and npm). Binaries for Linux and macOS are
 on the Releases page.
