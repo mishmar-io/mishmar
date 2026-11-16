@@ -4,11 +4,17 @@ description: What Mishmar does, and where to start. Connect an account, then add
 lastUpdated: 2026-11-15
 ---
 
-Mishmar is a risk management layer for trading bots and AI agents: every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.
+Give AI agents your trading accounts, on your terms. You connect an exchange account once, then decide which agent can see it, which can trade on it, and within what limits. Every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.
 
 An agent proposes an order; Mishmar checks it against your limits and then signs it together with the agent's signer, sends it for your approval, or blocks it. The key the exchange knows is split in two, one half with the agent's signer and one with Mishmar, so neither can sign by itself.
 
 These pages walk through each setup task step by step, with the screens and commands as they are today. Each page is also plain Markdown at the same address with `.md` on the end, and [llms.txt](/llms.txt) lists them all, so an agent can follow the same steps.
+
+## Start here
+
+- **You were given an agent key** for the contest: [You were given an agent key](/start/you-were-given-an-agent-key/) takes you from the key in the email to a first order being judged.
+- **You already run a bot:** [install the mishmar CLI](/start/install-the-cli/), connect an account [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/), then add a trade agent [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/).
+- **You want your AI app to read your account:** [add a read agent](/start/add-a-read-agent/) by giving the app one address, `mcp.mishmar.io`, and approving what it may read. There is no key to copy.
 
 ## Setting up
 
@@ -16,7 +22,7 @@ Accounts come first. You connect a venue to Mishmar with read access, a Hyperliq
 
 Then you add **agents** and give each the accounts it may use. You choose what each agent is for:
 
-- A **read agent** reads the accounts it was given with its Mishmar API key, and can never trade. For an assistant, a report, or anything that only needs to look.
+- A **read agent** reads the accounts it was given and can never trade: an AI app you connect with one address, or a program of your own with a Mishmar API key. For an assistant, a report, or anything that only needs to look.
 - A **trade agent** also gets its own **trading key** on an account, split between its signer and Mishmar, and trades within your rules.
 
 1. Connect an account: [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/).
