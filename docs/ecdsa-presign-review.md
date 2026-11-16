@@ -13,7 +13,10 @@ Where the change is:
 - `mishmar-io/cb-mpc`, branch `presign`, commit `06bdbed` on top of upstream
   `99ecc49`. `git diff 99ecc49 06bdbed` is the whole patch: six files,
   478 lines added, nothing removed. Working tree in this workspace:
-  `cb-mpc-go/cb-mpc` (the submodule).
+  `cb-mpc-go/cb-mpc` (the submodule). The branch has since gained `4350eaf`,
+  which brings `ecdsa_2p.cpp` and `zk_paillier.cpp` in line with upstream and
+  applies the same checks to the presign functions; `cbmpc.ref` builds with
+  it. The line numbers in this note are still those of `06bdbed`.
 - `mishmar-io/cb-mpc-go`, branch `presign`, commit `e6ff887` on top of
   upstream `69f56c8`: the cgo binding for the three new calls, plus the
   module path rename. `git diff 69f56c8 e6ff887 -- internal/cgo/binding.go pkg/mpc/ecdsa.go`
