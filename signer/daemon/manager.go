@@ -248,6 +248,7 @@ func (a *app) startLocked() {
 		return
 	}
 	s.ConfigPath, s.CommitmentBatch, s.DrainTimeout = path, 8, DrainTimeout
+	s.KeepPollingWhenRefused = true // the daemon's own watch ends the app and keeps its status true
 	if a.m.Tune != nil {
 		a.m.Tune(s)
 	}
