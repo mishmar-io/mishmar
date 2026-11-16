@@ -43,7 +43,7 @@ A proposal comes back as a decision: `allow` (signed and sent; the exchange's an
 
 ## On each exchange
 
-- **Hyperliquid.** The agent trades through an API wallet that your master wallet approves. An API wallet can place and cancel orders and cannot withdraw or move funds; Mishmar never has the master wallet. Testnet works the same way.
+- **Hyperliquid.** The agent trades through an API wallet that your master wallet approves. An API wallet can place and cancel orders and cannot withdraw. Hyperliquid's [API page](https://app.hyperliquid.xyz/API) says: "API wallets (also known as agent wallets) can perform actions on behalf of an account without having withdrawal permissions." Mishmar never has the master wallet. Testnet works the same way.
 - **Binance.** The agent trades USD-M futures with an Ed25519 API key you register at Binance, with withdrawals left off. Demo trading works the same way.
 
 On both, the key is split: one half in the signer that runs inside `mishmar mcp` on your machine, one with Mishmar. The exchange sees an ordinary key and ordinary signatures; neither half signs alone.

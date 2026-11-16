@@ -15,10 +15,10 @@ Not as the exchange hands it out. An API key with trading enabled lets whoever h
 | Withdrawals off | the balance leaving by transfer | the balance leaving by trading |
 | IP allowlist | the key used from another machine | anything that runs on the bot's machine |
 | Sub-account with a small balance | losing more than that balance | losing all of it, and topping it up by hand |
-| Hyperliquid API wallet | withdrawals and transfers (it can only place and cancel orders) | any order, at any size |
+| Hyperliquid API wallet | withdrawals | any order, at any size |
 | Read-only key | everything, including trading | a bot that trades |
 
-On Hyperliquid a bot trades with an **API wallet**, an address your master wallet approves. It can sign orders and cancels and nothing else: it cannot withdraw or move funds. It has no limit on order size, leverage or exposure of its own. On Binance a key is given its permissions when you create it (enable trading, leave withdrawals off, restrict it to your IPs), and there is no per-key cap on what it trades either.
+On Hyperliquid a bot trades with an **API wallet**, an address your master wallet approves. It can sign orders and cancels, and it cannot withdraw. Hyperliquid's [API page](https://app.hyperliquid.xyz/API) says: "API wallets (also known as agent wallets) can perform actions on behalf of an account without having withdrawal permissions." It has no limit on order size, leverage or exposure of its own. On Binance a key is given its permissions when you create it (enable trading, leave withdrawals off, restrict it to your IPs), and there is no per-key cap on what it trades either.
 
 ## What goes wrong in practice
 
