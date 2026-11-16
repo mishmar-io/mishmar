@@ -24,7 +24,7 @@ The limits are set in the console, on the whole Mishmar account, a connection, t
 
 ## Set it up
 
-1. [Install the mishmar CLI](/start/install-the-cli/), or skip it and use `npx -y mishmar mcp` or `uvx mishmar mcp`, which fetch the same binary.
+1. [Install the mishmar CLI](/start/install-the-cli/), or skip it and use `npx -y mishmar mcp` or `uvx mishmar mcp`, which fetch the same binary. There is no Windows build yet; on Windows, run it inside [WSL 2](https://learn.microsoft.com/windows/wsl/install).
 2. Add an agent [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). That makes its trading key, split in two, and leaves the signer config at `~/.mishmar/agent.json`.
 3. Set the first rules. [How do I let an AI agent trade for me safely?](/questions/how-do-i-let-an-ai-agent-trade-for-me-safely/) has a starting set.
 4. Add the server to your client:

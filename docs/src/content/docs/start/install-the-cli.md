@@ -12,7 +12,7 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
 
 ## What you need
 
-- macOS or Linux, on amd64 (x86_64) or arm64. There is no Windows build yet.
+- macOS or Linux, on amd64 (x86_64) or arm64. There is no Windows build yet. On Windows, run the CLI inside [WSL 2](https://learn.microsoft.com/windows/wsl/install) (Windows Subsystem for Linux) and follow the Linux steps.
 - `curl`, `tar`, and `shasum` (macOS, most Linux systems) or `sha256sum`.
 
 ## Steps
