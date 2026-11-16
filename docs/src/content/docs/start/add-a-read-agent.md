@@ -12,7 +12,7 @@ There are two ways to set one up. For an AI app you talk to, give the app Mishma
 
 ## Connect an AI app with one address
 
-The app will see the balances, positions, value over time and transactions of the accounts you tick, and nothing else.
+The app will see the balances, positions, value over time and transactions of the accounts you tick. If its agent already has other accounts, because you are approving again an app that also trades, it keeps those too: the agent's page lists every account it can read.
 There is no key to copy, and through this address it cannot place, change or cancel an order, move funds or change a setting.
 
 ### What you need
@@ -56,7 +56,7 @@ Ask the app:
 What are my open positions on Hyperliquid?
 ```
 
-It answers from the accounts you ticked, and only those. Each read it made is listed on the **Access** tab of the account it read, and of the app's agent.
+It answers from the accounts its agent can read: the ones you ticked, and any that agent already had. Each read it made is listed on the **Access** tab of the account it read, and of the app's agent.
 
 ### Take the access away
 

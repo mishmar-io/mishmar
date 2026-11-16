@@ -51,7 +51,7 @@ level=INFO msg="signer: trading key made; register its public key at the venue" 
 
 That line is written for the account's owner, which here is Mishmar. You do nothing at the venue. Your half of the key is now in `~/.mishmar/agent.json` and exists nowhere else, so keep that file: an agent set up again on another machine has no half of this key.
 
-**Leave the signer running and wait for Mishmar's note that your key is active.** On Binance the check that makes the key active needs your signer running, and so does every order after that.
+**Leave the signer running, and reply to your key email with "signer running".** Nothing tells Mishmar by itself that your half is made, so your reply is what starts our part. We switch the key on and write back when it is active, usually within a day. On Binance the check that makes the key active needs your signer running, and so does every order after that.
 
 ## 3. Find the account's id
 
