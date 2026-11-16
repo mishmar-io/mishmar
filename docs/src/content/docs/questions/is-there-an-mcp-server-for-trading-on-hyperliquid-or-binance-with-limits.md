@@ -76,4 +76,4 @@ Found an error here? [Edit this page on GitHub](https://github.com/mishmar-io/mi
 
 ## Try it
 
-The hosted testnet is free for one agent and one connection, on Hyperliquid testnet or Binance demo trading.
+The free plan covers one agent and one connection, with real money or on testnet.
