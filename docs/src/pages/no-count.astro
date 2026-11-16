@@ -1,0 +1,166 @@
+---
+/**
+ * /no-count/, for people at the company (MIS-90): opening it leaves this browser out of the
+ * docs' visit counts, and one button counts it again. Umami's own opt-out is a key in
+ * localStorage, `umami.disabled`, which its script reads before it sends anything.
+ *
+ * The page is outside Starlight on purpose: Starlight's <head> is where src/analytics.ts loads
+ * Umami, so this page never loads the script at all, and it is not in the sidebar, the search
+ * index (Pagefind indexes only Starlight's data-pagefind-body) or llms.txt (content pages only).
+ * The sitemap leaves it out through the filter in astro.config.mjs. Nothing links to it.
+ */
+import '@fontsource-variable/geist'
+
+/** The website's own page; the docs name mishmar.io directly elsewhere too (llms.txt.ts). */
+const WEBSITE_PAGE = 'https://mishmar.io/no-count'
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <script is:inline>
+      // First thing, before anything else on the page: leave this browser out of the counts.
+      // The page loads no Umami script either. A browser that refuses localStorage throws here;
+      // the script at the end of the page reads back what was kept and says so.
+      try {
+        localStorage.setItem('umami.disabled', '1')
+      } catch (e) {}
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Visits from this browser are not counted · Mishmar docs</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --bg: oklch(1 0 0);
+        --fg: oklch(0.145 0 0);
+        --muted: oklch(0.5 0 0);
+        --accent: oklch(0.55 0.26 295);
+        --button-bg: oklch(0.145 0 0);
+        --button-fg: oklch(0.985 0 0);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: oklch(0.13 0.006 280);
+          --fg: oklch(0.985 0 0);
+          --muted: oklch(0.708 0 0);
+          --accent: oklch(0.62 0.2 295);
+          --button-bg: oklch(0.985 0 0);
+          --button-fg: oklch(0.145 0 0);
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 40rem;
+        padding: 3rem 1.25rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 2rem;
+        line-height: 1.2;
+        margin: 0 0 1rem;
+      }
+      button {
+        margin-top: 1rem;
+        padding: 0.6rem 1rem;
+        border: 0;
+        border-radius: 4px;
+        background: var(--button-bg);
+        color: var(--button-fg);
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .other {
+        margin-top: 2.5rem;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      a {
+        color: inherit;
+        text-decoration-color: var(--accent);
+        text-underline-offset: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-pagefind-ignore="all">
+      <section id="off" hidden>
+        <h1>Visits from this browser are not counted</h1>
+        <p>
+          This browser is now left out of Mishmar’s visit counts on <span id="host"></span>. It
+          stays that way until you clear this site’s data. Each browser and device needs one visit
+          to this page, and the website and the docs each have their own.
+        </p>
+        <button type="button" id="count">Count this browser again</button>
+      </section>
+      <section id="on" hidden>
+        <h1>Visits from this browser are counted</h1>
+        <p>This browser is counted like any other visitor.</p>
+        <button type="button" id="stop">Stop counting this browser</button>
+      </section>
+      <section id="unavailable" hidden>
+        <h1>Visits from this browser are counted</h1>
+        <p>
+          This browser does not let the page remember the choice, so its visits are still counted.
+        </p>
+      </section>
+      <p class="other">
+        The website has its own: <a href={WEBSITE_PAGE}>{WEBSITE_PAGE.replace(/^https?:\/\//, '')}</a>
+      </p>
+    </main>
+    <script is:inline>
+      // What the page says is read back from localStorage after every change, never assumed.
+      ;(function () {
+        var KEY = 'umami.disabled'
+        var refused = false
+        document.getElementById('host').textContent = location.host
+        function state() {
+          if (refused) return 'unavailable'
+          try {
+            return localStorage.getItem(KEY) ? 'off' : 'on'
+          } catch (e) {
+            return 'unavailable'
+          }
+        }
+        function show() {
+          var now = state()
+          for (var id of ['off', 'on', 'unavailable'])
+            document.getElementById(id).hidden = id !== now
+        }
+        function write(change) {
+          try {
+            change()
+            refused = false
+          } catch (e) {
+            refused = true
+          }
+          show()
+        }
+        // The write in <head> may have thrown; make it again here to learn whether it did.
+        write(function () {
+          localStorage.setItem(KEY, '1')
+        })
+        document.getElementById('count').addEventListener('click', function () {
+          write(function () {
+            localStorage.removeItem(KEY)
+          })
+        })
+        document.getElementById('stop').addEventListener('click', function () {
+          write(function () {
+            localStorage.setItem(KEY, '1')
+          })
+        })
+        addEventListener('storage', show)
+      })()
+    </script>
+  </body>
+</html>
