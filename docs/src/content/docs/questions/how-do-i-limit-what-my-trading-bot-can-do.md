@@ -14,7 +14,7 @@ Mishmar is that party. It checks every order a bot or agent proposes before anyt
 
 | Limit | What it measures | When it is crossed |
 | --- | --- | --- |
-| Order size | the notional of one order, in USD | block, or hold for approval |
+| Order size | one order's value in USD: its size at its price, or at the market when the market is higher | block, or hold for approval |
 | Gross exposure | the sum of absolute position notional | block, or hold |
 | Net exposure | long minus short notional, for one asset or for all | block, or hold |
 | Leverage | position notional over the accounts' value, or over an agent's capital | block, or hold |

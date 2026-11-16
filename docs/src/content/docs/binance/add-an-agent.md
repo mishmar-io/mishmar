@@ -115,6 +115,8 @@ decision dec_…: allow
   venue: resting order 28665991418 at 2026-11-04T16:26:54Z
 ```
 
+`observed` is the order at the market when the market is above its price, so it can be more than `notional`.
+
 The order is on Binance's book, and the decision is on the console's **Decisions** page. To pull it, copy its **Client order id** (`msh-…`) from the decision's page and run:
 
 ```sh

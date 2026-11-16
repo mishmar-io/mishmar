@@ -86,6 +86,8 @@ decision dec_…: allow
   venue: resting order 64462809897 at 2026-11-04T10:20:31Z
 ```
 
+`observed` is the order at the market when the market is above its price, so it can be more than `notional`.
+
 A refused order says `block` on the first line, with the reason in brackets. The line of each rule it broke starts with `BREACHED` and shows what was observed and the limit. Nothing is sent to the venue. An order that needs an approval says `require_approval` and ends with `parked for approval …`; on the contest account it stays there, because nobody approves it.
 
 A refusal is Mishmar working. The contest is about an order that should have been refused and was not. When you find one, write to security@mishmar.io with the decision ids and what you sent. If you are stuck, see [Get help](/start/get-help/).
