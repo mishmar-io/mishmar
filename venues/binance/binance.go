@@ -190,13 +190,15 @@ func DecodeOrder(message []byte) (Order, error) {
 }
 
 // CheckOrder checks a decoded order against the intent it was built for and
-// the client order id it must carry: the symbol is venueSymbol and starts
-// with the proposed one (BTC → BTCUSDT); the side is the proposal's; the
-// quantity is a decimal with 0 < quantity ≤ the proposed size (it is floored
-// to the step, never rounded up); reduceOnly is the proposal's. A limit
-// proposal is a LIMIT order with GTC at a price within 1 % of the proposed
-// price and on its passive side (at most for a buy, at least for a sell). A
-// market proposal is either a MARKET order with no price and no timeInForce
+// the client order id it must carry: the symbol is venueSymbol and is the
+// proposed one exactly, upper-cased (a proposal names the venue's own symbol,
+// BTCUSDT; a longer symbol that begins with it is another contract); the
+// side is the proposal's; the quantity is a decimal with 0 < quantity ≤ the
+// proposed size (it is floored to the step, never rounded up); reduceOnly is
+// the proposal's. A limit proposal is a LIMIT order with GTC at a price
+// within 1 % of the proposed price and on its passive side (at most for a
+// buy, at least for a sell). A market proposal is either a MARKET order
+// with no price and no timeInForce
 // (an exit, or an older engine), or a LIMIT order with IOC at the bound the
 // engine read off the venue's book: a positive decimal the signer does not
 // know and does not check, as on Hyperliquid. Either can only fill at a price
@@ -205,8 +207,8 @@ func CheckOrder(o Order, in Intent, venueSymbol, clientOrderID string) error {
 	if o.ClientOrderID != clientOrderID {
 		return mismatch("newClientOrderId %q is not the expected %q", o.ClientOrderID, clientOrderID)
 	}
-	if o.Symbol != venueSymbol || !strings.HasPrefix(o.Symbol, strings.ToUpper(in.Symbol)) {
-		return mismatch("symbol %q is not the proposed %s", o.Symbol, strings.ToUpper(in.Symbol))
+	if want := strings.ToUpper(in.Symbol); o.Symbol != venueSymbol || o.Symbol != want {
+		return mismatch("symbol %q is not the proposed %s", o.Symbol, want)
 	}
 	if want := strings.ToUpper(in.Side); o.Side != want {
 		return mismatch("side %q is not the proposed %s", o.Side, want)

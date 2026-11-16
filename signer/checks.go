@@ -383,7 +383,7 @@ func checkBinanceCancel(req api.SignRequest, message []byte) *Refusal {
 	switch {
 	case c.ClientOrderID != *prop.TargetClientOrderId:
 		return &Refusal{RefuseMessage, fmt.Sprintf("origClientOrderId %q is not the proposed %q", c.ClientOrderID, *prop.TargetClientOrderId)}
-	case !strings.HasPrefix(c.Symbol, strings.ToUpper(prop.Symbol)):
+	case c.Symbol != strings.ToUpper(prop.Symbol):
 		return &Refusal{RefuseMessage, fmt.Sprintf("symbol %q is not the proposed %s", c.Symbol, strings.ToUpper(prop.Symbol))}
 	case req.VenueRequest != nil && !strings.EqualFold(req.VenueRequest.Method, http.MethodDelete):
 		return &Refusal{RefuseMessage, fmt.Sprintf("a cancel is a DELETE, not %s %s", req.VenueRequest.Method, req.VenueRequest.Url)}

@@ -116,11 +116,53 @@ func TestCheckOrderRefusesWhatTheProposalDidNotSay(t *testing.T) {
 	}
 }
 
+// TestCheckOrderSymbolIsTheProposalsExactly: the order's symbol is the
+// proposal's, upper-cased, and nothing longer or shorter. A symbol that only
+// begins with the proposed one is another contract (BTCUSDT_261225 is a dated
+// future), whatever symbol the request names beside it; a proposal that names
+// a bare coin matches no order.
+func TestCheckOrderSymbolIsTheProposalsExactly(t *testing.T) {
+	const base = "newClientOrderId=msh-a-abcdef&newOrderRespType=RESULT&price=60000.5&quantity=0.500&recvWindow=10000&side=BUY&symbol=BTCUSDT&timeInForce=GTC&timestamp=1793178000000&type=LIMIT"
+	withSymbol := func(symbol string) Order {
+		t.Helper()
+		o, err := DecodeOrder([]byte(strings.Replace(base, "symbol=BTCUSDT", "symbol="+symbol, 1)))
+		if err != nil {
+			t.Fatalf("decode %s: %v", symbol, err)
+		}
+		return o
+	}
+	lower := limitBuy()
+	lower.Symbol = "btcusdt"
+	for _, in := range []Intent{limitBuy(), lower} {
+		if err := CheckOrder(withSymbol("BTCUSDT"), in, "BTCUSDT", "msh-a-abcdef"); err != nil {
+			t.Errorf("proposal %s, order BTCUSDT: %v", in.Symbol, err)
+		}
+	}
+	bare := limitBuy()
+	bare.Symbol = "BTC"
+	for _, c := range []struct {
+		name                string
+		in                  Intent
+		symbol, venueSymbol string
+	}{
+		{"a dated contract that begins with the proposed symbol, named by the request too", limitBuy(), "BTCUSDT_261225", "BTCUSDT_261225"},
+		{"a dated contract while the request names the proposed symbol", limitBuy(), "BTCUSDT_261225", "BTCUSDT"},
+		{"the proposed symbol while the request names another", limitBuy(), "BTCUSDT", "BTCUSDT_261225"},
+		{"a longer symbol with no separator", limitBuy(), "BTCUSDTX", "BTCUSDTX"},
+		{"a bare coin proposed, the contract ordered", bare, "BTCUSDT", "BTCUSDT"},
+		{"a lower-case order symbol", limitBuy(), "btcusdt", "btcusdt"},
+	} {
+		if err := CheckOrder(withSymbol(c.symbol), c.in, c.venueSymbol, "msh-a-abcdef"); !IsMismatch(err) {
+			t.Errorf("%s: %v, want a mismatch", c.name, err)
+		}
+	}
+}
+
 // TestCheckOrderMarketProposal: a market proposal goes out either as a true
 // MARKET order (an exit, or an older engine) or as the engine's LIMIT IOC at
 // its bound, whose price the signer does not judge; anything else is refused.
 func TestCheckOrderMarketProposal(t *testing.T) {
-	in := Intent{Symbol: "BTC", Side: "buy", OrderType: "market", Size: "0.5"}
+	in := Intent{Symbol: "BTCUSDT", Side: "buy", OrderType: "market", Size: "0.5"}
 	const ioc = "newClientOrderId=msh-a-abcdef&newOrderRespType=RESULT&price=60600.5&quantity=0.500&recvWindow=10000&side=BUY&symbol=BTCUSDT&timeInForce=IOC&timestamp=1793178000000&type=LIMIT"
 	const market = "newClientOrderId=msh-a-abcdef&newOrderRespType=RESULT&quantity=0.500&recvWindow=10000&side=BUY&symbol=BTCUSDT&timestamp=1793178000000&type=MARKET"
 	for _, c := range []struct{ name, msg string }{
