@@ -284,10 +284,16 @@ export class Client {
 
   // The signer channel
 
-  /** Wait up to waitSeconds for requests this agent's signer must sign. */
-  async signerPoll(waitSeconds = 25): Promise<SignRequest[]> {
+  /**
+   * Wait up to waitSeconds for requests this agent's signer must sign.
+   * signerVersion is the version of the signer that polls (SignerPoll.signerVersion):
+   * an engine refuses a poll that names none, or one older than it works with (426 signer_too_old).
+   */
+  async signerPoll(waitSeconds = 25, signerVersion?: string): Promise<SignRequest[]> {
     const timeoutMs = (this.#options.timeoutMs ?? 10_000) + waitSeconds * 1000;
-    return (await this.#agentCall("POST", "/agent/signer/poll", { body: { waitSeconds }, timeoutMs })) as SignRequest[];
+    const body: Record<string, unknown> = { waitSeconds };
+    if (signerVersion !== undefined) body.signerVersion = signerVersion;
+    return (await this.#agentCall("POST", "/agent/signer/poll", { body, timeoutMs })) as SignRequest[];
   }
 
   /** Answer a sign request: a share, a signature, a venue response or a refusal. */

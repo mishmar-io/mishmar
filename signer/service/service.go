@@ -711,7 +711,7 @@ func (s *Service) Finish(_ context.Context, r signerapi.FinishRequestObject) (si
 	if err := matchHyperliquid(action, m, rec, string(purpose)); err != nil {
 		return fail(err)
 	}
-	digest, err := hyperliquid.Digest(action, m.Nonce, network)
+	digest, err := hyperliquid.Digest(action, m.Nonce, m.ExpiresAfter, network)
 	if err != nil {
 		return fail(err)
 	}
@@ -829,6 +829,11 @@ func matchHyperliquid(action hyperliquid.Action, m hyperliquid.Message, rec *dec
 		return nil
 	}
 	p := rec.Proposal
+	// The same bound the agent's signer holds the action to: the venue takes
+	// it no later than the decision's proposal lasts, plus the tolerance.
+	if err := hyperliquid.CheckExpiry(m.ExpiresAfter, p.ExpiresAt); err != nil {
+		return refused("%v", err)
+	}
 	if purpose == "cancel" {
 		if p.Kind != api.ProposalKindCancel || p.TargetClientOrderId == nil {
 			return refused("the decision is not a cancel")

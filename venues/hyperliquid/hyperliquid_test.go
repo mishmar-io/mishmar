@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -197,6 +198,7 @@ func checkTypedData(t *testing.T, td TypedData, want signedVector) {
 func TestL1Vectors(t *testing.T) {
 	v := loadVectors(t)
 	priv, addr := vectorKey(t, v)
+	digestChecks := 0
 	for _, c := range v.L1 {
 		t.Run(c.Name, func(t *testing.T) {
 			action := rawAction(orderedJSON(t, c.Action).(omap))
@@ -225,8 +227,9 @@ func TestL1Vectors(t *testing.T) {
 				td := L1TypedData(net.network, h)
 				checkTypedData(t, td, net.want)
 				digest, _ := td.Digest()
-				if vault == "" && c.ExpiresAfter == nil {
-					d2, err := Digest(action, c.Nonce, net.network)
+				if vault == "" && c.ExpiresAfter != nil {
+					digestChecks++
+					d2, err := Digest(action, c.Nonce, *c.ExpiresAfter, net.network)
 					if err != nil || !bytes.Equal(d2, digest) {
 						t.Errorf("Digest differs from the typed data's: %v", err)
 					}
@@ -244,6 +247,9 @@ func TestL1Vectors(t *testing.T) {
 				}
 			}
 		})
+	}
+	if digestChecks == 0 {
+		t.Error("no vector without a vault and with an end time: Digest was never checked against the typed data")
 	}
 }
 
@@ -294,7 +300,7 @@ func TestTypedActionsMatchSDKBytes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		m, back, err := Decode([]byte(`{"action":` + string(js) + `,"nonce":1,"clientOrderId":"x"}`))
+		m, back, err := Decode([]byte(`{"action":` + string(js) + `,"nonce":1,"expiresAfter":` + strconv.FormatUint(ExpiresAfter(time.UnixMilli(1), time.UnixMilli(1).Add(NonceWindow)), 10) + `,"clientOrderId":"x"}`))
 		if head.Type == "cancel" {
 			if err == nil {
 				t.Errorf("%s: a cancel by oid was decoded; the signer builds cancels by cloid only", c.Name)
@@ -423,7 +429,7 @@ func TestBuildOrderRoundTrip(t *testing.T) {
 	if !IsClientOrderIDOf(id, "agt_abc123") || IsClientOrderIDOf(id, "agt_other") {
 		t.Fatalf("client order id %s", id)
 	}
-	msg, err := BuildOrder(intent, btc, id, Nonce(now))
+	msg, err := BuildOrder(intent, btc, id, Nonce(now), ExpiresAfter(now, now.Add(NonceWindow)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,22 +456,22 @@ func TestBuildOrderRoundTrip(t *testing.T) {
 	if err := CheckOrder(o, intent, btc, id); err != nil {
 		t.Fatal(err)
 	}
-	d1, err := Digest(action, m.Nonce, Testnet)
+	d1, err := Digest(action, m.Nonce, m.ExpiresAfter, Testnet)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The engine re-marshals the typed action for the venue; the bytes it
 	// signs are the ones it sends.
 	js, _ := json.Marshal(action)
-	_, again, err := Decode([]byte(`{"action":` + string(js) + `,"nonce":` + strconv.FormatUint(m.Nonce, 10) + `,"clientOrderId":"` + id + `"}`))
+	_, again, err := Decode([]byte(`{"action":` + string(js) + `,"nonce":` + strconv.FormatUint(m.Nonce, 10) + `,"expiresAfter":` + strconv.FormatUint(m.ExpiresAfter, 10) + `,"clientOrderId":"` + id + `"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	d2, _ := Digest(again, m.Nonce, Testnet)
+	d2, _ := Digest(again, m.Nonce, m.ExpiresAfter, Testnet)
 	if !bytes.Equal(d1, d2) {
 		t.Fatal("the digest changed on the way to the venue")
 	}
-	if _, err := BuildOrder(Intent{Symbol: "BTC", Side: "buy", OrderType: "market", Size: "1"}, btc, id, 1); err == nil {
+	if _, err := BuildOrder(Intent{Symbol: "BTC", Side: "buy", OrderType: "market", Size: "1"}, btc, id, 1, ExpiresAfter(time.UnixMilli(1), time.UnixMilli(1).Add(NonceWindow))); err == nil {
 		t.Fatal("a market order was built by the signer")
 	}
 }
@@ -511,8 +517,9 @@ func TestCheckOrderMismatches(t *testing.T) {
 
 func TestDecodeRefusals(t *testing.T) {
 	id := "msh-abc123-aaaaaa"
+	end := strconv.FormatUint(ExpiresAfter(time.UnixMilli(1761825600000), time.UnixMilli(1761825600000).Add(NonceWindow)), 10)
 	order := func(extra string) string {
-		return `{"action":{"type":"order","orders":[{"a":0,"b":true,"p":"65000","s":"0.0015","r":false,"t":{"limit":{"tif":"Gtc"}},"c":"` + CloidFromString(id) + `"}` + extra + `],"grouping":"na"},"nonce":1761825600000,"clientOrderId":"` + id + `"}`
+		return `{"action":{"type":"order","orders":[{"a":0,"b":true,"p":"65000","s":"0.0015","r":false,"t":{"limit":{"tif":"Gtc"}},"c":"` + CloidFromString(id) + `"}` + extra + `],"grouping":"na"},"nonce":1761825600000,"expiresAfter":` + end + `,"clientOrderId":"` + id + `"}`
 	}
 	if _, _, err := Decode([]byte(order(""))); err != nil {
 		t.Fatal(err)
@@ -520,6 +527,8 @@ func TestDecodeRefusals(t *testing.T) {
 	for name, raw := range map[string]string{
 		"unknown message field": strings.Replace(order(""), `"nonce"`, `"vaultAddress":"0x00","nonce"`, 1),
 		"no nonce":              strings.Replace(order(""), `"nonce":1761825600000,`, ``, 1),
+		"no end time":           strings.Replace(order(""), `"expiresAfter":`+end+`,`, ``, 1),
+		"an end time of zero":   strings.Replace(order(""), `"expiresAfter":`+end, `"expiresAfter":0`, 1),
 		"no client order id":    strings.Replace(order(""), `,"clientOrderId":"`+id+`"`, ``, 1),
 		"two orders":            order(`,{"a":0,"b":true,"p":"65000","s":"1","r":false,"t":{"limit":{"tif":"Gtc"}}}`),
 		"unknown order field":   strings.Replace(order(""), `"r":false`, `"r":false,"x":1`, 1),
@@ -536,12 +545,20 @@ func TestDecodeRefusals(t *testing.T) {
 		if err == nil || !IsMismatch(err) {
 			t.Errorf("%s: %v", name, err)
 		}
+		// A message with no end time is the one refusal a caller can tell
+		// from the others.
+		if noEnd := name == "no end time" || name == "an end time of zero"; errors.Is(err, ErrNoEndTime) != noEnd {
+			t.Errorf("%s: errors.Is(err, ErrNoEndTime) = %v: %v", name, !noEnd, err)
+		}
+	}
+	if err := CheckExpiry(0, time.UnixMilli(1761825600000)); !errors.Is(err, ErrNoEndTime) {
+		t.Errorf("CheckExpiry with no end time: %v", err)
 	}
 }
 
 func TestCancel(t *testing.T) {
 	target := "msh-abc123-bbbbbb"
-	msg, err := BuildCancel(3, target, Nonce(now))
+	msg, err := BuildCancel(3, target, Nonce(now), ExpiresAfter(now, now.Add(NonceWindow)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -568,7 +585,7 @@ func TestCancel(t *testing.T) {
 	if _, err := DecodeOrder(action); err == nil {
 		t.Error("a cancel decoded as an order")
 	}
-	if _, err := Digest(action, m.Nonce, Mainnet); err != nil {
+	if _, err := Digest(action, m.Nonce, m.ExpiresAfter, Mainnet); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -668,5 +685,107 @@ func TestMsgpackIntegerWidths(t *testing.T) {
 	}
 	if _, err := packAction(1.5); err == nil {
 		t.Error("floats must be refused: the SDK never hashes one")
+	}
+}
+
+// The end time is inside what is signed: the same action and nonce with no
+// end time, or with another one, is another digest, on either network.
+func TestDigestCoversTheEndTime(t *testing.T) {
+	now := time.UnixMilli(1761825600000)
+	nonce, end := Nonce(now), ExpiresAfter(now, now.Add(time.Hour))
+	msg, err := BuildOrder(Intent{Symbol: "BTC", Side: "buy", OrderType: "limit", Size: "0.0015", Price: "65000"}, btc, "msh-abc123-aaaaaa", nonce, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, action, err := Decode(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ExpiresAfter != end || m.Nonce != nonce {
+		t.Fatalf("the message carries nonce %d and end %d; built with %d and %d", m.Nonce, m.ExpiresAfter, nonce, end)
+	}
+	for _, network := range []Network{Mainnet, Testnet} {
+		with, err := Digest(action, nonce, end, network)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h, err := ActionHash(action, nonce, "", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		without, err := L1TypedData(network, h).Digest()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Equal(with, without) {
+			t.Errorf("%s: the digest with an end time is the digest without one", network)
+		}
+		for _, other := range []uint64{end - 1, end + 1, end + 60_000, nonce} {
+			d, err := Digest(action, nonce, other, network)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Equal(d, with) {
+				t.Errorf("%s: end times %d and %d give one digest", network, end, other)
+			}
+		}
+		if _, err := Digest(action, nonce, 0, network); err == nil {
+			t.Errorf("%s: a digest was made with no end time", network)
+		}
+	}
+}
+
+// A message is built to end with the proposal, or a minute from now when
+// that comes first, and never without an end after its nonce.
+func TestExpiresAfterIsTheEarlierOfTheProposalsEndAndAMinute(t *testing.T) {
+	now := time.UnixMilli(1761825600000)
+	ms := func(at time.Time) uint64 { return uint64(at.UnixMilli()) }
+	for name, tc := range map[string]struct {
+		proposalEnd time.Time
+		want        uint64
+	}{
+		"a proposal that lasts an hour":         {now.Add(time.Hour), ms(now.Add(NonceWindow))},
+		"a proposal that lasts a minute":        {now.Add(time.Minute), ms(now.Add(time.Minute))},
+		"a proposal that ends in ten seconds":   {now.Add(10 * time.Second), ms(now.Add(10 * time.Second))},
+		"a proposal that ends a millisecond on": {now.Add(time.Millisecond), ms(now.Add(time.Millisecond))},
+	} {
+		if got := ExpiresAfter(now, tc.proposalEnd); got != tc.want {
+			t.Errorf("%s: ends at %d, want %d", name, got, tc.want)
+		}
+	}
+	in := Intent{Symbol: "BTC", Side: "buy", OrderType: "limit", Size: "0.0015", Price: "65000"}
+	nonce := Nonce(now)
+	for name, end := range map[string]uint64{"no end time": 0, "an end at the nonce": nonce, "an end before the nonce": nonce - 1} {
+		if _, err := BuildOrder(in, btc, "msh-abc123-aaaaaa", nonce, end); err == nil {
+			t.Errorf("an order was built with %s", name)
+		}
+		if _, err := BuildCancel(0, "msh-abc123-aaaaaa", nonce, end); err == nil {
+			t.Errorf("a cancel was built with %s", name)
+		}
+	}
+}
+
+// The venue takes an action no later than the proposal lasts, plus the
+// clock difference a nonce is allowed, and never without an end.
+func TestCheckExpiry(t *testing.T) {
+	end := time.UnixMilli(1761825600000)
+	ms := func(at time.Time) uint64 { return uint64(at.UnixMilli()) }
+	for name, tc := range map[string]struct {
+		expiresAfter uint64
+		refused      bool
+	}{
+		"long before the proposal's end":   {ms(end.Add(-time.Hour)), false},
+		"at the proposal's end":            {ms(end), false},
+		"at the end plus the tolerance":    {ms(end.Add(NonceWindow)), false},
+		"a millisecond past the tolerance": {ms(end.Add(NonceWindow + time.Millisecond)), true},
+		"an hour past the proposal's end":  {ms(end.Add(time.Hour)), true},
+		"a year past the proposal's end":   {ms(end.AddDate(1, 0, 0)), true},
+		"the largest time there is":        {^uint64(0) >> 1, true},
+		"no end time":                      {0, true},
+	} {
+		err := CheckExpiry(tc.expiresAfter, end)
+		if tc.refused != (err != nil) || (err != nil && !IsMismatch(err)) {
+			t.Errorf("%s: %v, want refused %t", name, err, tc.refused)
+		}
 	}
 }

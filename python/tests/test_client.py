@@ -182,6 +182,9 @@ def test_another_key_is_refused(engine):
 def test_signer_channel(engine):
     client = Client(engine, KEY, "key_a")
     assert client.signer_poll(wait_seconds=1)[0]["id"] == "sr_1"
+    assert Stub.requests[-1][3] == {"waitSeconds": 1}
+    client.signer_poll(wait_seconds=1, signer_version="v9.8.7")
+    assert Stub.requests[-1][3] == {"waitSeconds": 1, "signerVersion": "v9.8.7"}
     client.signer_answer(
         "sr_1", {"kind": "refusal", "refusal": {"reason": "not my order"}}
     )

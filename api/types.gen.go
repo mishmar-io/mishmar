@@ -2685,6 +2685,9 @@ type Error struct {
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
 	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
 	// `internal`, `not_implemented` (501: in the contract, not yet in this engine).
+	// `signer_too_old` (426): signerPoll, or a proposal's one-step Hyperliquid
+	// message, from a signer older than the engine works with. Nothing was
+	// done. Upgrade the signer to the version the message names.
 	// `key_scope` (403): the request was signed with an agent key of scope
 	// `read`; proposing and the signer channel take a `trade` key. Nothing
 	// was done. A key past its `expiresAt` is 401, "Key expired".
@@ -3344,12 +3347,18 @@ type ProposalVenueMessage struct {
 
 	// Message Base64 of the venue request before its signature: Binance's
 	// parameter string (with its timestamp and recvWindow), which is what
-	// its signature covers; Hyperliquid's action and nonce as the
-	// exchange endpoint takes them, plus the order's Mishmar client
-	// order id, which the cloid on the order is derived from and the
-	// venue never sees: `{"action": …, "nonce": …, "clientOrderId": …}`,
+	// its signature covers; Hyperliquid's action, nonce and end time
+	// (`expiresAfter`, in milliseconds, after which the venue no longer
+	// takes the action) as the exchange endpoint takes them, plus the
+	// order's Mishmar client order id, which the cloid on the order is
+	// derived from and the venue never sees:
+	// `{"action": …, "nonce": …, "expiresAfter": …, "clientOrderId": …}`,
 	// no vault, built by the signer from the connected account's venue
 	// rules, from which the engine derives the EIP-712 digest itself.
+	// The end time is inside the digest. It is the earlier of the
+	// proposal's `expiresAt` and one minute after the message is built;
+	// a message without one, or with one later than the proposal's
+	// `expiresAt` plus one minute, is refused.
 	Message string `json:"message"`
 
 	// Scheme frost-ed25519 (Binance) or ecdsa-2p (Hyperliquid, its half from a
@@ -3673,9 +3682,9 @@ type SignRequest struct {
 	// string, Hyperliquid's EIP-712 digest. The signer decodes them itself
 	// and checks them against the order it proposed; `order` is a courtesy,
 	// never the thing checked. A digest cannot be decoded, so a
-	// two-party ECDSA request also carries the action and nonce it was
-	// computed from in `venueRequest.body`, and the signer recomputes
-	// the digest from them before it signs.
+	// two-party ECDSA request also carries the action, nonce and end
+	// time (`expiresAfter`) it was computed from in `venueRequest.body`,
+	// and the signer recomputes the digest from them before it signs.
 	Message string            `json:"message"`
 	Order   *SignRequestOrder `json:"order,omitempty"`
 
@@ -3779,6 +3788,12 @@ type SignerAnswerKind string
 
 // SignerPoll defines model for SignerPoll.
 type SignerPoll struct {
+	// SignerVersion The version of the signer that polls, as `mishmar version` prints
+	// it (for example `v1.2.3`). An engine refuses the poll of a signer older than
+	// it works with, and of one that names no version, with 426
+	// `signer_too_old`; the message names the version to upgrade to.
+	SignerVersion *string `json:"signerVersion,omitempty"`
+
 	// WaitSeconds How long the engine may hold the poll open waiting for something to sign.
 	WaitSeconds *int `json:"waitSeconds,omitempty"`
 }

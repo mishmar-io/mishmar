@@ -376,12 +376,22 @@ class Client:
 
     # The signer channel
 
-    def signer_poll(self, wait_seconds: int = 25) -> list[dict[str, Any]]:
-        """Wait up to wait_seconds for requests this agent's signer must sign."""
+    def signer_poll(
+        self, wait_seconds: int = 25, signer_version: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Wait up to wait_seconds for requests this agent's signer must sign.
+
+        signer_version is the version of the signer that polls
+        (SignerPoll.signerVersion): an engine refuses a poll that names none,
+        or one older than it works with (426 signer_too_old).
+        """
+        body: dict[str, Any] = {"waitSeconds": wait_seconds}
+        if signer_version is not None:
+            body["signerVersion"] = signer_version
         return self._agent_call(
             "POST",
             "/agent/signer/poll",
-            body={"waitSeconds": wait_seconds},
+            body=body,
             timeout=self.timeout + wait_seconds,
         )
 

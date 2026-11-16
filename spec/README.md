@@ -40,6 +40,30 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-16 (0.22.0)
+
+Every Hyperliquid action has an end time, and a signer names its version
+(Ishai, 16 Nov 2026). Breaking for signers: engine and signer are released
+together, and a signer from before this release no longer signs.
+
+- `ProposalVenueMessage.message` and `VenueRequest.body` for Hyperliquid
+  carry `expiresAfter`, in milliseconds, beside the action and the nonce:
+  `{"action": …, "nonce": …, "expiresAfter": …, "clientOrderId": …}`. It
+  is the exchange endpoint's own `expiresAfter`: after it the venue no
+  longer takes the action. It is inside the EIP-712 digest, so both halves
+  of the key sign it and the engine sends the venue the same value.
+- The end time is the earlier of the proposal's `expiresAt` and one minute
+  after the message is built. The agent's signer and the signer service
+  each refuse a message with none, and one whose end is later than the
+  proposal's `expiresAt` plus one minute (the clock difference a nonce is
+  allowed). Orders, reduce-only orders and cancels alike.
+- `SignerPoll.signerVersion`: the signer names its version each time it
+  polls. An engine answers a signer older than it works with, and one
+  that names no version, with 426 `signer_too_old` and a message that
+  names the version to upgrade to. The version is for those words only:
+  what a signer signs is decided by its own checks, never by what version
+  either side names.
+
 ## Decided on 2026-11-13 (0.21.0, in progress)
 
 A venue connection holds accounts (Ishai, 13 Nov 2026; the whole proposal is

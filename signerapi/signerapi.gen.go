@@ -380,10 +380,16 @@ type Slot struct {
 // VenueAction defines model for VenueAction.
 type VenueAction struct {
 	// Action Base64. Hyperliquid: the exchange request before its signature,
-	// `{"action": …, "nonce": …, "clientOrderId": …}` as the agent's
-	// signer built it (ProposalVenueMessage.message), the client order
-	// id being Mishmar's. Binance: the parameter string the signature
-	// covers.
+	// `{"action": …, "nonce": …, "expiresAfter": …, "clientOrderId": …}`
+	// as the agent's signer built it (ProposalVenueMessage.message),
+	// the client order id being Mishmar's. `expiresAfter` is the time,
+	// in milliseconds, after which the venue no longer takes the
+	// action; it is inside the digest both halves sign. A one-shot
+	// message ends at the proposal's `expiresAt`, or a minute after
+	// the signer built it when that comes first. The service refuses
+	// a message without `expiresAfter`, or with one later than the
+	// decision's proposal's `expiresAt` plus a minute. Binance: the
+	// parameter string the signature covers.
 	Action string `json:"action"`
 
 	// Network Hyperliquid: mainnet or testnet, which the EIP-712 source byte
@@ -560,8 +566,10 @@ type ClientInterface interface {
 	// the engine's signed proof that a person approved this decision,
 	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
-	// for a cancel), rebuilds the EIP-712 digest from the action and the
-	// nonce, verifies the agent's message against it, and only then
+	// for a cancel) and ends no later than the proposal's `expiresAt` plus
+	// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+	// the end time (`expiresAfter`), verifies the agent's message against
+	// it, and only then
 	// decrypts and outputs the signature, after checking it itself. A
 	// message that fails its proof, a decision that does not verify, or
 	// an action the decision does not describe leave no signature (422),
@@ -582,8 +590,10 @@ type ClientInterface interface {
 	// the engine's signed proof that a person approved this decision,
 	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
-	// for a cancel), rebuilds the EIP-712 digest from the action and the
-	// nonce, verifies the agent's message against it, and only then
+	// for a cancel) and ends no later than the proposal's `expiresAt` plus
+	// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+	// the end time (`expiresAfter`), verifies the agent's message against
+	// it, and only then
 	// decrypts and outputs the signature, after checking it itself. A
 	// message that fails its proof, a decision that does not verify, or
 	// an action the decision does not describe leave no signature (422),
@@ -816,8 +826,10 @@ func (c *Client) IssueCommitments(ctx context.Context, keyId KeyId, body IssueCo
 // the engine's signed proof that a person approved this decision,
 // checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
-// for a cancel), rebuilds the EIP-712 digest from the action and the
-// nonce, verifies the agent's message against it, and only then
+// for a cancel) and ends no later than the proposal's `expiresAt` plus
+// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+// the end time (`expiresAfter`), verifies the agent's message against
+// it, and only then
 // decrypts and outputs the signature, after checking it itself. A
 // message that fails its proof, a decision that does not verify, or
 // an action the decision does not describe leave no signature (422),
@@ -848,8 +860,10 @@ func (c *Client) FinishWithBody(ctx context.Context, keyId KeyId, contentType st
 // the engine's signed proof that a person approved this decision,
 // checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
-// for a cancel), rebuilds the EIP-712 digest from the action and the
-// nonce, verifies the agent's message against it, and only then
+// for a cancel) and ends no later than the proposal's `expiresAt` plus
+// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+// the end time (`expiresAfter`), verifies the agent's message against
+// it, and only then
 // decrypts and outputs the signature, after checking it itself. A
 // message that fails its proof, a decision that does not verify, or
 // an action the decision does not describe leave no signature (422),
@@ -1508,8 +1522,10 @@ type ClientWithResponsesInterface interface {
 	// the engine's signed proof that a person approved this decision,
 	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
-	// for a cancel), rebuilds the EIP-712 digest from the action and the
-	// nonce, verifies the agent's message against it, and only then
+	// for a cancel) and ends no later than the proposal's `expiresAt` plus
+	// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+	// the end time (`expiresAfter`), verifies the agent's message against
+	// it, and only then
 	// decrypts and outputs the signature, after checking it itself. A
 	// message that fails its proof, a decision that does not verify, or
 	// an action the decision does not describe leave no signature (422),
@@ -1530,8 +1546,10 @@ type ClientWithResponsesInterface interface {
 	// the engine's signed proof that a person approved this decision,
 	// checks that the action is the decision's (asset, side, size,
 	// price, reduce-only and the client order id for an order; the target
-	// for a cancel), rebuilds the EIP-712 digest from the action and the
-	// nonce, verifies the agent's message against it, and only then
+	// for a cancel) and ends no later than the proposal's `expiresAt` plus
+	// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+	// the end time (`expiresAfter`), verifies the agent's message against
+	// it, and only then
 	// decrypts and outputs the signature, after checking it itself. A
 	// message that fails its proof, a decision that does not verify, or
 	// an action the decision does not describe leave no signature (422),
@@ -2180,8 +2198,10 @@ func (c *ClientWithResponses) IssueCommitmentsWithResponse(ctx context.Context, 
 // the engine's signed proof that a person approved this decision,
 // checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
-// for a cancel), rebuilds the EIP-712 digest from the action and the
-// nonce, verifies the agent's message against it, and only then
+// for a cancel) and ends no later than the proposal's `expiresAt` plus
+// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+// the end time (`expiresAfter`), verifies the agent's message against
+// it, and only then
 // decrypts and outputs the signature, after checking it itself. A
 // message that fails its proof, a decision that does not verify, or
 // an action the decision does not describe leave no signature (422),
@@ -2208,8 +2228,10 @@ func (c *ClientWithResponses) FinishWithBodyWithResponse(ctx context.Context, ke
 // the engine's signed proof that a person approved this decision,
 // checks that the action is the decision's (asset, side, size,
 // price, reduce-only and the client order id for an order; the target
-// for a cancel), rebuilds the EIP-712 digest from the action and the
-// nonce, verifies the agent's message against it, and only then
+// for a cancel) and ends no later than the proposal's `expiresAt` plus
+// a minute, rebuilds the EIP-712 digest from the action, the nonce and
+// the end time (`expiresAfter`), verifies the agent's message against
+// it, and only then
 // decrypts and outputs the signature, after checking it itself. A
 // message that fails its proof, a decision that does not verify, or
 // an action the decision does not describe leave no signature (422),

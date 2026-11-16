@@ -52,13 +52,18 @@ type Intent struct {
 }
 
 // Message is a one-shot venue message (ProposalVenueMessage.message) or the
-// body of a channel request: the action and the nonce the signature covers,
-// as the exchange endpoint takes them, and the Mishmar client order id the
-// order's cloid is derived from, which the venue never sees.
+// body of a channel request: the action, the nonce and the end time the
+// signature covers, as the exchange endpoint takes them, and the Mishmar
+// client order id the order's cloid is derived from, which the venue never
+// sees.
 type Message struct {
-	Action        json.RawMessage `json:"action"`
-	Nonce         uint64          `json:"nonce"`
-	ClientOrderID string          `json:"clientOrderId"`
+	Action json.RawMessage `json:"action"`
+	Nonce  uint64          `json:"nonce"`
+	// ExpiresAfter is the time, in milliseconds, after which the venue no
+	// longer takes the action (the exchange endpoint's expiresAfter). Every
+	// message carries one, and it is part of what is signed (Digest).
+	ExpiresAfter  uint64 `json:"expiresAfter"`
+	ClientOrderID string `json:"clientOrderId"`
 }
 
 // Order is a decoded order action: its one order, in the wire's own words.
@@ -86,6 +91,12 @@ func (m *Mismatch) Error() string { return "hyperliquid: " + m.Detail }
 
 func mismatch(format string, a ...any) error { return &Mismatch{fmt.Sprintf(format, a...)} }
 
+// ErrNoEndTime is the Mismatch of a message that carries no expiresAfter:
+// what a signer from before every message had one builds. Decode and
+// CheckExpiry return it as it is, so a caller can tell that case
+// (errors.Is) and say the signer needs an upgrade.
+var ErrNoEndTime error = &Mismatch{"message carries no expiresAfter"}
+
 // IsMismatch reports whether err says the message is wrong (rather than the input).
 func IsMismatch(err error) bool {
 	var m *Mismatch
@@ -96,10 +107,10 @@ func IsMismatch(err error) bool {
 // asset, the size floored to the size decimals, the price rounded to the
 // tick rules toward the passive side (down for a buy, up for a sell), good
 // till cancelled, reduce-only when the intent says so, with the cloid
-// derived from the client order id, and the nonce. A market intent is
-// refused: the venue has no market orders, and the engine prices one at its
-// mark and asks the signer over the channel.
-func BuildOrder(in Intent, r Rules, clientOrderID string, nonce uint64) ([]byte, error) {
+// derived from the client order id, the nonce and the end time (ExpiresAfter).
+// A market intent is refused: the venue has no market orders, and the engine
+// prices one at its mark and asks the signer over the channel.
+func BuildOrder(in Intent, r Rules, clientOrderID string, nonce, expiresAfter uint64) ([]byte, error) {
 	if in.OrderType != "limit" {
 		return nil, fmt.Errorf("hyperliquid: a %s order is not built by the signer; the engine prices it at the mark", in.OrderType)
 	}
@@ -135,12 +146,13 @@ func BuildOrder(in Intent, r Rules, clientOrderID string, nonce uint64) ([]byte,
 		Orders:   []OrderWire{{A: r.AssetIndex, B: side == Buy, P: px, S: sz, R: in.ReduceOnly, T: OrderTypeWire{Limit: &LimitWire{Tif: Gtc}}, C: &cloid}},
 		Grouping: "na",
 	}
-	return encodeMessage(action, nonce, clientOrderID)
+	return encodeMessage(action, nonce, expiresAfter, clientOrderID)
 }
 
 // BuildCancel is the message that pulls the order the agent placed under the
-// client order id, on the asset: a cancel by cloid.
-func BuildCancel(assetIndex int, clientOrderID string, nonce uint64) ([]byte, error) {
+// client order id, on the asset: a cancel by cloid, with its nonce and end
+// time.
+func BuildCancel(assetIndex int, clientOrderID string, nonce, expiresAfter uint64) ([]byte, error) {
 	if clientOrderID == "" {
 		return nil, errors.New("hyperliquid: a client order id is required")
 	}
@@ -148,25 +160,56 @@ func BuildCancel(assetIndex int, clientOrderID string, nonce uint64) ([]byte, er
 		return nil, fmt.Errorf("hyperliquid: asset index %d is negative", assetIndex)
 	}
 	action := CancelByCloidAction{Type: "cancelByCloid", Cancels: []CancelByCloidWire{{Asset: assetIndex, Cloid: CloidFromString(clientOrderID)}}}
-	return encodeMessage(action, nonce, clientOrderID)
+	return encodeMessage(action, nonce, expiresAfter, clientOrderID)
 }
 
-func encodeMessage(action any, nonce uint64, clientOrderID string) ([]byte, error) {
+func encodeMessage(action any, nonce, expiresAfter uint64, clientOrderID string) ([]byte, error) {
 	if nonce == 0 {
 		return nil, errors.New("hyperliquid: a nonce is required")
+	}
+	if expiresAfter <= nonce {
+		return nil, fmt.Errorf("hyperliquid: the end time %d is not after the nonce %d", expiresAfter, nonce)
 	}
 	raw, err := json.Marshal(action)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(Message{Action: raw, Nonce: nonce, ClientOrderID: clientOrderID})
+	return json.Marshal(Message{Action: raw, Nonce: nonce, ExpiresAfter: expiresAfter, ClientOrderID: clientOrderID})
 }
 
 // Nonce is the nonce a message built now carries: the clock in milliseconds.
 func Nonce(now time.Time) uint64 { return uint64(now.UnixMilli()) }
 
-// Decode reads a message: the action, the nonce and the client order id,
-// nothing else. The action is one order (DecodeOrder) or one cancel
+// ExpiresAfter is the end time a message built now for a proposal carries,
+// in milliseconds: the proposal's own end (its expiresAt), or NonceWindow
+// from now when that comes first. After it the venue refuses the action, so
+// a signature is of no use to anyone who kept it.
+func ExpiresAfter(now, proposalEnd time.Time) uint64 {
+	end := now.Add(NonceWindow)
+	if proposalEnd.Before(end) {
+		end = proposalEnd
+	}
+	return uint64(end.UnixMilli())
+}
+
+// CheckExpiry checks the end time of a message against the proposal it was
+// built for: there is one, and the action is not good at the venue later
+// than the proposal's end plus NonceWindow (the clock difference a nonce is
+// allowed). The proposal's end is the agent's own, signed by its key;
+// nothing else widens it.
+func CheckExpiry(expiresAfter uint64, proposalEnd time.Time) error {
+	if expiresAfter == 0 {
+		return ErrNoEndTime
+	}
+	end := time.UnixMilli(int64(expiresAfter))
+	if end.After(proposalEnd.Add(NonceWindow)) {
+		return mismatch("the action is good at Hyperliquid until %s, past the proposal's end %s", end.UTC().Format(time.RFC3339Nano), proposalEnd.UTC().Format(time.RFC3339))
+	}
+	return nil
+}
+
+// Decode reads a message: the action, the nonce, the end time and the client
+// order id, nothing else. The action is one order (DecodeOrder) or one cancel
 // (DecodeCancel); its type says which. Anything unknown, missing or given
 // twice is a Mismatch: the message is refused unseen rather than guessed at.
 func Decode(message []byte) (Message, Action, error) {
@@ -177,6 +220,8 @@ func Decode(message []byte) (Message, Action, error) {
 	switch {
 	case m.Nonce == 0:
 		return Message{}, nil, mismatch("message carries no nonce")
+	case m.ExpiresAfter == 0:
+		return Message{}, nil, ErrNoEndTime
 	case m.ClientOrderID == "":
 		return Message{}, nil, mismatch("message carries no clientOrderId")
 	case len(m.Action) == 0:
