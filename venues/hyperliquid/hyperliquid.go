@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -201,8 +202,13 @@ func CheckExpiry(expiresAfter uint64, proposalEnd time.Time) error {
 	if expiresAfter == 0 {
 		return ErrNoEndTime
 	}
+	// The two are compared as counts of milliseconds, not as times: a count
+	// too large to be a time is refused before anything reads it as one.
+	if expiresAfter > math.MaxInt64 {
+		return mismatch("the end time %d is too large to be a time", expiresAfter)
+	}
 	end := time.UnixMilli(int64(expiresAfter))
-	if end.After(proposalEnd.Add(NonceWindow)) {
+	if latest := proposalEnd.Add(NonceWindow).UnixMilli(); latest < 0 || expiresAfter > uint64(latest) {
 		return mismatch("the action is good at Hyperliquid until %s, past the proposal's end %s", end.UTC().Format(time.RFC3339Nano), proposalEnd.UTC().Format(time.RFC3339))
 	}
 	return nil

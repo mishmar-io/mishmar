@@ -781,6 +781,10 @@ func TestCheckExpiry(t *testing.T) {
 		"an hour past the proposal's end":  {ms(end.Add(time.Hour)), true},
 		"a year past the proposal's end":   {ms(end.AddDate(1, 0, 0)), true},
 		"the largest time there is":        {^uint64(0) >> 1, true},
+		"one more than the largest time":   {1 << 63, true},
+		"too large to be a time":           {1<<63 + 1, true},
+		"one less than the largest count":  {^uint64(0) - 1, true},
+		"the largest count there is":       {^uint64(0), true},
 		"no end time":                      {0, true},
 	} {
 		err := CheckExpiry(tc.expiresAfter, end)

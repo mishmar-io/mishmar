@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -353,6 +354,9 @@ func TestHyperliquidActionEndsNoLaterThanTheProposal(t *testing.T) {
 		{"at the end plus the tolerance", at(hyperliquid.NonceWindow), false},
 		{"a millisecond past the tolerance", at(hyperliquid.NonceWindow + time.Millisecond), true},
 		{"an hour past the proposal's end", at(time.Hour), true},
+		{"the largest time there is", math.MaxInt64, true},
+		{"too large to be a time", math.MaxInt64 + 1, true},
+		{"the largest count there is", math.MaxUint64, true},
 	}
 	kinds := []struct {
 		name    string
@@ -379,7 +383,11 @@ func TestHyperliquidActionEndsNoLaterThanTheProposal(t *testing.T) {
 			r := h.hlFinish("vk_hl", slots[i], m4, msg, h.decision(proposal), kind.purpose)
 			i++
 			if tc.refused {
-				wantRefused(t, name, r, "past the proposal's end")
+				want := "past the proposal's end"
+				if tc.expiresAfter > math.MaxInt64 {
+					want = "too large to be a time"
+				}
+				wantRefused(t, name, r, want)
 				continue
 			}
 			if r.JSON200 == nil {

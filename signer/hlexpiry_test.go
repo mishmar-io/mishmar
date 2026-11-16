@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,10 +40,15 @@ func TestHyperliquidActionEndsNoLaterThanTheProposal(t *testing.T) {
 			{"a millisecond past the tolerance", at(hyperliquid.NonceWindow + time.Millisecond), true},
 			{"an hour past the proposal's end", at(time.Hour), true},
 			{"a year past the proposal's end", uint64(p.ExpiresAt.AddDate(1, 0, 0).UnixMilli()), true},
+			{"the largest time there is", math.MaxInt64, true},
+			{"too large to be a time", math.MaxInt64 + 1, true},
+			{"the largest count there is", math.MaxUint64, true},
 		} {
 			f.end = tc.end
 			r := f.check(f.request(t, p, 1, nil))
 			switch {
+			case tc.refused && tc.end > math.MaxInt64:
+				wantHLRefusal(t, r, RefuseMessageTime, "too large to be a time")
 			case tc.refused:
 				wantHLRefusal(t, r, RefuseMessageTime, "past the proposal's end")
 			case r != nil:
