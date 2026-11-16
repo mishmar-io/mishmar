@@ -13,7 +13,6 @@ import (
 
 	"github.com/mishmar-io/mishmar/api"
 	"github.com/mishmar-io/mishmar/frost"
-	"github.com/mishmar-io/mishmar/proposal"
 	"github.com/mishmar-io/mishmar/venues/binance"
 	"github.com/mishmar-io/mishmar/venues/hyperliquid"
 )
@@ -281,11 +280,13 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 }
 
 // Propose sends an unsigned proposal one-shot when Prepare can build it and
-// through the channel when it cannot. When the engine refuses the one-shot
-// message because its commitment is unknown or spent (409, as after an
-// engine restart) or because it does not run one-shot (501), the same
-// proposal goes again without it, with a fresh nonce; a decision, or any other
-// failure, is returned as it came.
+// through the channel when it cannot. It sends each proposal once: a
+// decision, or any failure, is returned as it came, and nothing is proposed
+// a second time here. When the engine refuses the one-shot message because
+// its commitment is unknown or spent (409, as after an engine restart), the
+// key's commitments are forgotten, so the caller's next proposal is built
+// on fresh ones, and the engine's message comes back behind a sentence that
+// says so: "The engine did not take this order. Send it again."
 func (s *Signer) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decision, error) {
 	plain := p
 	if err := s.Prepare(ctx, &p); err != nil {
@@ -298,22 +299,20 @@ func (s *Signer) Propose(ctx context.Context, p api.ProposalSubmit) (api.Decisio
 	}
 	d, err := s.Client.Propose(ctx, p)
 	var e *Error
-	if errors.As(err, &e) && e.Status == http.StatusConflict && e.Details["venueKeyId"] != nil {
-		// Another of the agent's keys holds the trading key (contract
-		// 0.21.0): the channel would be refused the same way.
-		return d, err
-	}
-	if errors.As(err, &e) && (e.Status == http.StatusConflict || e.Status == http.StatusNotImplemented) {
-		if e.Status == http.StatusConflict {
-			s.forgetCommitments(p.VenueMessage.VenueKeyId)
+	if errors.As(err, &e) && e.Status == http.StatusConflict && e.Details["venueKeyId"] == nil {
+		// Not the conflict that names another key as the trading key's
+		// holder (contract 0.21.0): the commitment or slot this message was
+		// built on is gone at the engine, and so are the others it issued.
+		s.forgetCommitments(p.VenueMessage.VenueKeyId)
+		s.Logger.Info("signer: one-shot refused; the key's commitments are forgotten and the next proposal takes fresh ones", "status", e.Status, "code", e.Code, "message", e.Message)
+		// The caller reads what to do first, then the engine's own words.
+		what := "order"
+		if p.Kind == api.ProposalKindCancel {
+			what = "cancel"
 		}
-		s.Logger.Info("signer: one-shot refused, sending through the channel", "status", e.Status, "code", e.Code, "message", e.Message)
-		nonce, nerr := proposal.NewNonce()
-		if nerr != nil {
-			return api.Decision{}, nerr
-		}
-		plain.Nonce = nonce
-		return s.Client.Propose(ctx, plain)
+		again := *e
+		again.Message = "The engine did not take this " + what + ". Send it again. " + e.Message
+		return d, &again
 	}
 	return d, err
 }
