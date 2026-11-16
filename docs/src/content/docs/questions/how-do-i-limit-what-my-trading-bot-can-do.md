@@ -3,7 +3,7 @@ title: How do I limit what my trading bot can do?
 description: The eight limits you can put on a bot or agent (order size, gross and net exposure, leverage, concentration, drawdown, daily loss), what each does when crossed, where it applies, and why it has to be enforced outside the bot.
 sidebar:
   order: 2
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-16
 ---
 
 Put the limits outside the bot, in front of the exchange, where the bot cannot skip them, and give each limit one of two outcomes: block the order, or hold it until a person approves it. A limit inside the bot's own code is a suggestion: a bug, a bad prompt or whoever controls the machine can go around it. A limit enforced by the party that holds half of the trading key cannot be gone around, because without that half nothing gets signed.
@@ -73,3 +73,5 @@ The same limits apply to a model's orders. The `mishmar mcp` server gives a mode
 ## Set it up
 
 Rules live in the console, on the whole Mishmar account, a connection, an account or an agent. [Add an agent on Hyperliquid](/hyperliquid/add-an-agent/) and [on Binance](/binance/add-an-agent/) walk through the first rules, and [Where rules apply](/start/where-rules-apply/) through shared limits and an agent's capital.
+
+[Limiting a trading bot on Hyperliquid and Binance futures](/questions/limiting-a-trading-bot-on-hyperliquid-and-binance-futures/) has what each venue stops by itself, and what it leaves to you.
