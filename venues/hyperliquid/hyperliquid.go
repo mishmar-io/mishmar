@@ -31,9 +31,9 @@ import (
 // nonces further from its own, and a message older than this is not sent.
 const NonceWindow = time.Minute
 
-// Rules are one coin's rules as the engine serves them
-// (GET /agent/connected-accounts/{id}/venue-rules): the asset index an order
-// names instead of the symbol, and how many decimals a size may have.
+// Rules are one coin's rules as Hyperliquid's own list of perp markets
+// gives them (Markets): the asset index an order names instead of the
+// symbol, and how many decimals a size may have.
 // Hyperliquid states no tick: a price has at most five significant figures
 // and at most 6 - SizeDecimals decimals, and any integer is valid.
 type Rules struct {

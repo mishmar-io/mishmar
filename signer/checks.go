@@ -65,6 +65,11 @@ const (
 	// version it does not know, no room on the disk): no order is signed
 	// until it can be, so a lost record never lets a proposal be signed twice.
 	RefuseOrderRecord = "order_record_unavailable"
+	// RefuseVenueList is a Hyperliquid order refused because the signer's
+	// own copy of the venue's list of markets is missing or too old for it
+	// (hlmarkets.go): never read since the signer started, or older than
+	// HLListFresh for an order that is not reduce-only.
+	RefuseVenueList = "venue_list_unavailable"
 )
 
 // Policy is what the signer refuses before it signs, from what it knows
@@ -81,10 +86,13 @@ type Policy struct {
 	// in this session; nil means never. A request handed out again after it
 	// was answered is refused as a replay rather than signed twice.
 	Answered func(id string) bool
-	// Rules is the coin's Hyperliquid rules on a connected account, as the
-	// signer cached them (Signer.Handle fetches them first); false when
-	// unknown. Nil refuses every Hyperliquid order.
-	Rules func(connectedAccountID, symbol string) (hyperliquid.Rules, bool)
+	// Market is the coin as Hyperliquid itself last listed it to this signer
+	// on the network, with when that list was read (Signer.Handle reads it
+	// again first when it is older than HLListFresh). It never comes from the
+	// engine. ErrHLListUnread when the signer has not read the list since it
+	// started; another error when the list has no such coin. Nil refuses
+	// every Hyperliquid order.
+	Market func(network hyperliquid.Network, symbol string) (HLMarket, error)
 }
 
 // Check runs the checks in order and returns the first refusal, or nil with
@@ -196,8 +204,12 @@ func hlIntentOf(p api.ProposalSubmit) hyperliquid.Intent {
 // action and nonce it came from; the signer decodes them, recomputes the
 // digest for the key's network and compares, checks the nonce is fresh,
 // and checks the action is the proposal's order (hyperliquid.CheckOrder,
-// under the coin's rules) or the cancel of its target. A verify request has
-// nothing to sign: a Hyperliquid key is verified by its approval.
+// under the coin's rules) or the cancel of its target. The coin's rules are
+// the ones Hyperliquid listed to this signer (Policy.Market), and how old
+// that list is decides what may be signed (hlAgeRule): a cancel or a
+// reduce-only order against the venue's last answer, anything else only
+// against a fresh one. A verify request has nothing to sign: a Hyperliquid
+// key is verified by its approval.
 func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte, now time.Time) *Refusal {
 	if req.Purpose == api.SignRequestPurposeVerify {
 		return &Refusal{RefusePurpose, "a Hyperliquid key is verified by the master wallet's approval; there is nothing to sign"}
@@ -234,13 +246,14 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 	if prop == nil {
 		return &Refusal{RefuseNoProposal, "an order request must carry the agent's signed proposal"}
 	}
-	if p.Rules == nil {
-		return &Refusal{RefuseMalformed, "this signer has no venue rules to check Hyperliquid orders against"}
+	if p.Market == nil {
+		return &Refusal{RefuseMalformed, "this signer has no list of Hyperliquid's markets to check orders against"}
 	}
-	rules, ok := p.Rules(req.ConnectedAccountId, prop.Symbol)
-	if !ok {
-		return &Refusal{RefuseMalformed, fmt.Sprintf("no venue rules for %s on %s", prop.Symbol, req.ConnectedAccountId)}
+	market, err := p.Market(network, prop.Symbol)
+	if err != nil {
+		return hlMarketRefusal(err)
 	}
+	rules := market.Rules
 	switch req.Purpose {
 	case api.SignRequestPurposeCancel:
 		if prop.Kind != api.ProposalKindCancel || prop.TargetClientOrderId == nil {
@@ -250,7 +263,10 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 		if err != nil {
 			return refusalOf(err)
 		}
-		return refusalOf(hyperliquid.CheckCancel(c, *prop.TargetClientOrderId, rules.AssetIndex))
+		if r := refusalOf(hyperliquid.CheckCancel(c, *prop.TargetClientOrderId, rules.AssetIndex)); r != nil {
+			return r
+		}
+		return hlAgeRule(market, true, now)
 	default:
 		if req.ClientOrderId == nil || *req.ClientOrderId == "" {
 			return &Refusal{RefuseMalformed, "the request names no clientOrderId"}
@@ -262,7 +278,12 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 		if err != nil {
 			return refusalOf(err)
 		}
-		return refusalOf(hyperliquid.CheckOrder(o, hlIntentOf(*prop), rules, m.ClientOrderID))
+		if r := refusalOf(hyperliquid.CheckOrder(o, hlIntentOf(*prop), rules, m.ClientOrderID)); r != nil {
+			return r
+		}
+		// Reduce-only is the decoded order's own flag, which CheckOrder has
+		// just held to the agent's signed proposal.
+		return hlAgeRule(market, o.ReduceOnly, now)
 	}
 }
 
