@@ -57,12 +57,14 @@ together, and a signer from before this release no longer signs.
   each refuse a message with none, and one whose end is later than the
   proposal's `expiresAt` plus one minute (the clock difference a nonce is
   allowed). Orders, reduce-only orders and cancels alike.
-- `SignerPoll.signerVersion`: the signer names its version each time it
-  polls. An engine answers a signer older than it works with, and one
-  that names no version, with 426 `signer_too_old` and a message that
-  names the version to upgrade to. The version is for those words only:
-  what a signer signs is decided by its own checks, never by what version
-  either side names.
+- `Mishmar-Signer-Version`: a signer names its version in this header on
+  every call. An engine answers the poll (`signerPoll`), and a proposal
+  that carries a one-shot message (`venueMessage`), of a signer older than
+  it works with, or of one that names no version, with 426
+  `signer_too_old` and a message that names the version to upgrade to. So
+  a signer from before this release signs nothing, on either venue, and
+  says why. The version is for those words only: what a signer signs is
+  decided by its own checks, never by what version either side names.
 
 ## Decided on 2026-11-13 (0.21.0, in progress)
 

@@ -15,6 +15,7 @@ PREFIX = "/v1"
 
 class Stub(BaseHTTPRequestHandler):
     requests: list = []
+    versions: list = []  # the Mishmar-Signer-Version header of each POST, or None
     decisions: list = []  # what GET /agent/decisions/{id} answers, in order
 
     def log_message(self, *args):  # quiet
@@ -43,6 +44,7 @@ class Stub(BaseHTTPRequestHandler):
         )
 
     def do_POST(self):
+        Stub.versions.append(self.headers.get("Mishmar-Signer-Version"))
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length)
         body = json.loads(raw) if raw else None
@@ -183,8 +185,10 @@ def test_signer_channel(engine):
     client = Client(engine, KEY, "key_a")
     assert client.signer_poll(wait_seconds=1)[0]["id"] == "sr_1"
     assert Stub.requests[-1][3] == {"waitSeconds": 1}
+    assert Stub.versions[-1] is None
     client.signer_poll(wait_seconds=1, signer_version="v9.8.7")
-    assert Stub.requests[-1][3] == {"waitSeconds": 1, "signerVersion": "v9.8.7"}
+    assert Stub.requests[-1][3] == {"waitSeconds": 1}
+    assert Stub.versions[-1] == "v9.8.7"
     client.signer_answer(
         "sr_1", {"kind": "refusal", "refusal": {"reason": "not my order"}}
     )

@@ -2685,8 +2685,9 @@ type Error struct {
 	// `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
 	// `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
 	// `internal`, `not_implemented` (501: in the contract, not yet in this engine).
-	// `signer_too_old` (426): signerPoll, or a proposal's one-step Hyperliquid
-	// message, from a signer older than the engine works with. Nothing was
+	// `signer_too_old` (426): signerPoll, or a proposal with a one-shot
+	// message (`venueMessage`), from a signer older than the engine works
+	// with or naming no version (`Mishmar-Signer-Version`). Nothing was
 	// done. Upgrade the signer to the version the message names.
 	// `key_scope` (403): the request was signed with an agent key of scope
 	// `read`; proposing and the signer channel take a `trade` key. Nothing
@@ -3788,12 +3789,6 @@ type SignerAnswerKind string
 
 // SignerPoll defines model for SignerPoll.
 type SignerPoll struct {
-	// SignerVersion The version of the signer that polls, as `mishmar version` prints
-	// it (for example `v1.2.3`). An engine refuses the poll of a signer older than
-	// it works with, and of one that names no version, with 426
-	// `signer_too_old`; the message names the version to upgrade to.
-	SignerVersion *string `json:"signerVersion,omitempty"`
-
 	// WaitSeconds How long the engine may hold the poll open waiting for something to sign.
 	WaitSeconds *int `json:"waitSeconds,omitempty"`
 }
@@ -4430,6 +4425,9 @@ type WalletApprovalSignature struct {
 	Signature string `json:"signature"`
 }
 
+// SignerVersion defines model for SignerVersion.
+type SignerVersion = string
+
 // AgentId defines model for agentId.
 type AgentId = string
 
@@ -4519,6 +4517,18 @@ type AgentListDecisionsParams struct {
 type AgentGetPnlParams struct {
 	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
 	To   *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// SignerPollParams defines parameters for SignerPoll.
+type SignerPollParams struct {
+	// MishmarSignerVersion The version of the signer that sends the request, as `mishmar version`
+	// prints it (for example `v1.2.3`). A signer sends it with every call.
+	// An engine refuses the poll, and the one-shot message, of a signer
+	// older than it works with, and of one that names no version, with 426
+	// `signer_too_old`; the message names the version to upgrade to. The
+	// version is for those words only: what a signer signs is decided by
+	// its own checks.
+	MishmarSignerVersion *SignerVersion `json:"Mishmar-Signer-Version,omitempty"`
 }
 
 // ListAgentsParams defines parameters for ListAgents.
@@ -4617,6 +4627,18 @@ type GetPnlParams struct {
 type ListPositionsParams struct {
 	ScopeKind *ScopeKind `form:"scopeKind,omitempty" json:"scopeKind,omitempty"`
 	ScopeId   *string    `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+}
+
+// SubmitProposalParams defines parameters for SubmitProposal.
+type SubmitProposalParams struct {
+	// MishmarSignerVersion The version of the signer that sends the request, as `mishmar version`
+	// prints it (for example `v1.2.3`). A signer sends it with every call.
+	// An engine refuses the poll, and the one-shot message, of a signer
+	// older than it works with, and of one that names no version, with 426
+	// `signer_too_old`; the message names the version to upgrade to. The
+	// version is for those words only: what a signer signs is decided by
+	// its own checks.
+	MishmarSignerVersion *SignerVersion `json:"Mishmar-Signer-Version,omitempty"`
 }
 
 // ListRulesParams defines parameters for ListRules.

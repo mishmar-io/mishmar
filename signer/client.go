@@ -103,22 +103,25 @@ type DecisionQuery struct {
 	Limit              int
 }
 
-// Version is the version a signer names to the engine each time it polls
-// (SignerPoll.signerVersion). The mishmar binary sets it to its own when it
-// starts; a program that runs this package and sets nothing polls as "dev".
-// An engine refuses the poll of a signer older than it works with, and of
-// one that names no version (426 signer_too_old), and its message names the
-// version to upgrade to: Run logs it with every failed poll.
+// Version is the version a signer names to the engine with every call
+// (HeaderSignerVersion). The mishmar binary sets it to its own when it
+// starts; a program that runs this package and sets nothing calls as "dev".
+// An engine refuses the poll, and the one-shot message, of a signer older
+// than it works with or naming no version (426 signer_too_old), and its
+// message names the version to upgrade to: Run logs it with every failed
+// poll, and Propose returns it.
 var Version = "dev"
 
+// HeaderSignerVersion carries Version on every call the client makes.
+const HeaderSignerVersion = "Mishmar-Signer-Version"
+
 // Poll waits up to wait for requests this agent's signer must sign and
-// returns them, possibly none. It names this signer's Version.
+// returns them, possibly none.
 func (c *Client) Poll(ctx context.Context, wait time.Duration) ([]api.SignRequest, error) {
 	// The contract allows 0 to 30 seconds.
 	seconds := min(max(int(wait/time.Second), 0), 30)
 	var out []api.SignRequest
-	v := Version
-	err := c.agentCall(ctx, http.MethodPost, "/agent/signer/poll", nil, api.SignerPoll{WaitSeconds: &seconds, SignerVersion: &v}, &out, c.timeout()+wait)
+	err := c.agentCall(ctx, http.MethodPost, "/agent/signer/poll", nil, map[string]int{"waitSeconds": seconds}, &out, c.timeout()+wait)
 	return out, err
 }
 
@@ -347,6 +350,7 @@ func (c *Client) once(ctx context.Context, method, path, rawQuery string, raw []
 		return nil, nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set(HeaderSignerVersion, Version)
 	if raw != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

@@ -1427,6 +1427,13 @@ paths:
         again. That is what an SDK retrying the same body after a lost answer
         receives. The nonce is remembered for twice the proposal age limit
         (two minutes); past that the proposal is stale anyway (401).
+
+        A proposal that carries a one-shot message (`venueMessage`) comes
+        from a signer, which names its version (`Mishmar-Signer-Version`); a
+        signer older than the engine works with, or naming none, is answered
+        426 `signer_too_old` before anything is read or spent.
+      parameters:
+        - $ref: '#/components/parameters/SignerVersion'
       requestBody:
         required: true
         content:
@@ -1443,6 +1450,14 @@ paths:
             Unknown or revoked key, bad signature, stale `proposedAt`, or a `nonce` already
             spent whose decision the engine no longer holds (the same body again gets its
             decision, 200, while it does).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '426':
+          description: |
+            `signer_too_old`: the proposal carries a one-shot message from a
+            signer older than this engine works with, or naming no version.
+            Nothing was done. The message names the version to upgrade to.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1909,6 +1924,8 @@ paths:
         one-shot commitments in memory only, so a signer that sees a new
         instance drops the commitments it holds and takes a fresh batch
         rather than finding out from a refused proposal.
+      parameters:
+        - $ref: '#/components/parameters/SignerVersion'
       requestBody:
         required: false
         content:
@@ -1931,8 +1948,8 @@ paths:
         '426':
           description: |
             `signer_too_old`: the signer is older than this engine works with,
-            or named no `signerVersion`. Nothing is handed out. The message
-            names the version to upgrade to.
+            or named no version (`Mishmar-Signer-Version`). Nothing is handed
+            out. The message names the version to upgrade to.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -2141,6 +2158,19 @@ components:
         SDKs sign this way themselves. `POST /proposals` keeps its signature
         inside the body.
   parameters:
+    SignerVersion:
+      name: Mishmar-Signer-Version
+      in: header
+      required: false
+      schema: { type: string }
+      description: |
+        The version of the signer that sends the request, as `mishmar version`
+        prints it (for example `v1.2.3`). A signer sends it with every call.
+        An engine refuses the poll, and the one-shot message, of a signer
+        older than it works with, and of one that names no version, with 426
+        `signer_too_old`; the message names the version to upgrade to. The
+        version is for those words only: what a signer signs is decided by
+        its own checks.
     agentId:
       name: agentId
       in: path
@@ -2199,8 +2229,9 @@ components:
             `forbidden`, `unavailable`, `rate_limited`, `too_large`, `approval_expired`,
             `venue_rejected`, `limit_reached`, `signer_unreachable`, `evaluation_changed`,
             `internal`, `not_implemented` (501: in the contract, not yet in this engine).
-            `signer_too_old` (426): signerPoll, or a proposal's one-step Hyperliquid
-            message, from a signer older than the engine works with. Nothing was
+            `signer_too_old` (426): signerPoll, or a proposal with a one-shot
+            message (`venueMessage`), from a signer older than the engine works
+            with or naming no version (`Mishmar-Signer-Version`). Nothing was
             done. Upgrade the signer to the version the message names.
             `key_scope` (403): the request was signed with an agent key of scope
             `read`; proposing and the signer channel take a `trade` key. Nothing
@@ -4367,13 +4398,6 @@ components:
     SignerPoll:
       type: object
       properties:
-        signerVersion:
-          type: string
-          description: |
-            The version of the signer that polls, as `mishmar version` prints
-            it (for example `v1.2.3`). An engine refuses the poll of a signer older than
-            it works with, and of one that names no version, with 426
-            `signer_too_old`; the message names the version to upgrade to.
         waitSeconds:
           type: integer
           minimum: 0
