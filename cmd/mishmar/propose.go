@@ -39,17 +39,19 @@ acknowledgement.
 The key comes from --config (the signer's config: its keyId, secret and
 engine), or from --key with the secret in MISHMAR_AGENT_SECRET.
 
-With --config, an order or a cancel on a Binance connected account goes
-one-shot: this command builds the venue's own request from the engine's
-rules for the symbol and signs the agent's half of it with the share in the
-config, so the engine can forward an allowed order without asking the
-signer. Anything else, or --channel, leaves the venue request to the engine,
-which asks the agent's signer for its half: "mishmar signer run" must be
-running then, and for any order that waits for a person. A market order is
-priced at the engine's mark. --cancel pulls a resting order this agent
-placed, by the clientOrderId its decision carries. --valid-for is the
-deadline the agent sets: an order still waiting for a person past it
-expires, and nothing is forwarded after it.`,
+With --config, a limit order or a cancel on a Binance or Hyperliquid
+connected account goes one-shot, and so does an exit (a reduce-only market
+order) on Binance: this command builds the venue's own request from the
+symbol's rules (the engine's for Binance, Hyperliquid's own list for
+Hyperliquid) and signs the agent's half of it with the share in the config,
+so the engine can forward an allowed order without asking the signer.
+Anything else, or --channel, leaves the venue request to the engine, which
+asks the agent's signer for its half: "mishmar signer run" must be running
+then, and for any order that waits for a person. A market order is priced
+at the engine's mark. --cancel pulls a resting order this agent placed, by
+the clientOrderId its decision carries, which this command prints.
+--valid-for is the deadline the agent sets: an order still waiting for a
+person past it expires, and nothing is forwarded after it.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.engineSet = cmd.Flags().Changed("engine")
@@ -193,7 +195,23 @@ func propose(ctx context.Context, o proposeOptions, out io.Writer) error {
 		fmt.Fprintln(out)
 	}
 	if d.VenueAck != nil {
-		fmt.Fprintf(out, "  venue: %s order %s at %s\n", d.VenueAck.Status, d.VenueAck.OrderId, d.VenueAck.ReceivedAt.Format(time.RFC3339))
+		// A cancel's acknowledgement can carry no order id: name the order
+		// by the clientOrderId it was cancelled by, or by nothing.
+		at, order := d.VenueAck.ReceivedAt.Format(time.RFC3339), d.VenueAck.OrderId
+		if order == "" && d.Proposal.Kind == api.ProposalKindCancel {
+			order = o.cancel
+			if d.Proposal.TargetClientOrderId != nil && *d.Proposal.TargetClientOrderId != "" {
+				order = *d.Proposal.TargetClientOrderId
+			}
+		}
+		if order != "" {
+			fmt.Fprintf(out, "  venue: %s order %s at %s\n", d.VenueAck.Status, order, at)
+		} else {
+			fmt.Fprintf(out, "  venue: %s at %s\n", d.VenueAck.Status, at)
+		}
+	}
+	if d.Proposal.Kind == api.ProposalKindOrder && d.Proposal.ClientOrderId != "" && (d.VenueAck != nil || d.ApprovalId != nil) {
+		fmt.Fprintf(out, "  clientOrderId: %s  (pass it to --cancel)\n", d.Proposal.ClientOrderId)
 	}
 	if d.ApprovalId != nil {
 		fmt.Fprintf(out, "  parked for approval %s\n", *d.ApprovalId)
