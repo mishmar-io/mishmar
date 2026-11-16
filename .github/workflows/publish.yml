@@ -9,6 +9,9 @@
 # `ref` says `version`. A version already out is skipped, so it is safe to run again.
 # The registry checks server.json against npm and PyPI, so it goes last, and first waits
 # until both show the version.
+#
+# The three publishing jobs run in the environment `release`, which this repository's settings
+# open to the main branch only.
 name: Publish
 
 on:
@@ -64,6 +67,8 @@ jobs:
   npm:
     name: TypeScript SDK to npm
     needs: check
+    # The environment is open to the main branch only.
+    environment: release
     if: inputs.npm
     runs-on: ubuntu-latest
     permissions:
@@ -96,6 +101,8 @@ jobs:
   pypi:
     name: Python SDK to PyPI
     needs: check
+    # The environment is open to the main branch only.
+    environment: release
     if: inputs.pypi
     runs-on: ubuntu-latest
     permissions:
@@ -122,6 +129,8 @@ jobs:
   registry:
     name: server.json to the MCP registry
     needs: [npm, pypi]
+    # The environment is open to the main branch only.
+    environment: release
     if: always() && inputs.registry && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     permissions:
