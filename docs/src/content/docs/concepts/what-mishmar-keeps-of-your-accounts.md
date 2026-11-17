@@ -3,7 +3,7 @@ title: What Mishmar keeps of your accounts
 description: Mishmar reads every account you connect every minute, with or without an agent, and keeps its balances, positions, value over time and transactions, each trade marked with who placed it. How often, how far back, how long, who can read it and how every agent read is logged, and what happens while a free Mishmar account sleeps.
 sidebar:
   order: 2
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-17
 ---
 
 Once you connect an account ([on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/)), Mishmar reads it on its own and keeps what it reads. You see it in the console, on the account's page, and the agents you give the account read it with their Mishmar API key. None of it needs an agent or a trading key: Mishmar reads a Hyperliquid account by its address and a Binance account with a read-only key.
@@ -82,4 +82,4 @@ On the free plan, a Mishmar account that has been quiet for a few hours (three, 
 
 Reading goes on while it is stopped. Mishmar keeps reading its connections' accounts on the same timer, so nothing it shows is stale when it wakes. It answers an agent's reads of this data straight away, without waking the Mishmar account, and those reads don't keep it awake.
 
-A free Mishmar account not used for 90 days is removed, with its agents, keys, rules, ledger and what Mishmar kept of its accounts, and its owner and admins are emailed 7, 2 and 1 days before. An agent reading its accounts counts as use: a Mishmar account whose agents still read them is not removed.
+A free Mishmar account not used for 90 days is removed, with its agents, keys, rules, ledger and what Mishmar kept of its accounts, and its owner and admins are emailed 7, 2 and 1 days before. On testnet it is 14 days, with one email the day before. An agent reading its accounts counts as use: a Mishmar account whose agents still read them is not removed.
