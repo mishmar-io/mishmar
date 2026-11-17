@@ -217,6 +217,18 @@ type Decision struct {
 
 	// Signature Base64, the engine key's Ed25519 signature over `record`.
 	Signature string `json:"signature"`
+
+	// Terms The engine's statement of the venue side of a decision for a
+	// Hyperliquid action: the trading key and network the action is for,
+	// the asset the proposal's coin is at the venue, and a market order's
+	// price bound. When a request carries it, the service verifies it,
+	// requires it to be for this decision, this key, this network and this
+	// kind of action, and checks the action against it with the same
+	// public check the agent's signer runs (asset, size and price format,
+	// a limit price within 1 % of the proposal's on its passive side, a
+	// market price within the bound). Terms that do not verify or do not
+	// match are refused; they are never passed over.
+	Terms *VenueTermsProof `json:"terms,omitempty"`
 }
 
 // Error defines model for Error.
@@ -400,6 +412,32 @@ type VenueAction struct {
 
 // VenueActionVenue defines model for VenueAction.Venue.
 type VenueActionVenue string
+
+// VenueTermsProof The engine's statement of the venue side of a decision for a
+// Hyperliquid action: the trading key and network the action is for,
+// the asset the proposal's coin is at the venue, and a market order's
+// price bound. When a request carries it, the service verifies it,
+// requires it to be for this decision, this key, this network and this
+// kind of action, and checks the action against it with the same
+// public check the agent's signer runs (asset, size and price format,
+// a limit price within 1 % of the proposal's on its passive side, a
+// market price within the bound). Terms that do not verify or do not
+// match are refused; they are never passed over.
+type VenueTermsProof struct {
+	// Record Base64 of canonical JSON: `kind` (always "venue_terms"),
+	// `decisionId`, `venueKeyId`, `venue` (always "hyperliquid"),
+	// `network`, `purpose` ("order" or "cancel"), `assetIndex` and
+	// `sizeDecimals` (whole numbers as strings), and for an order
+	// `side`, `reduceOnly` and, for a market order, `priceBound`
+	// (a buy is priced at most this, a sell at least).
+	Record string `json:"record"`
+
+	// Signature Base64, the engine key's Ed25519 signature over the line
+	// "mishmar venue terms v1" and a line feed, followed by `record`.
+	// The line keeps the signature from verifying as a decision's or
+	// an approval's, and theirs from verifying as terms.
+	Signature string `json:"signature"`
+}
 
 // KeyId defines model for keyId.
 type KeyId = string
