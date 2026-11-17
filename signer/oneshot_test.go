@@ -40,6 +40,7 @@ type oneShotEngine struct {
 	plain    int
 	conflict bool // answer the next one-shot proposal 409, as after a restart
 	holder   bool // answer every proposal 409 naming the trading key: another key holds it
+	notTaken bool // answer every one-shot proposal 501: the connected account takes none
 	refused  int  // one-shot proposals answered 409
 	instance string
 	keys     []api.VenueKey // what GET /agent/venue-keys answers
@@ -160,6 +161,16 @@ func (e *oneShotEngine) handler() http.Handler {
 			e.plain++
 			e.mu.Unlock()
 			writeJSON(w, http.StatusOK, api.Decision{Id: "dec_plain", Verdict: api.VerdictAllow})
+			return
+		}
+		e.mu.Lock()
+		notTaken := e.notTaken
+		e.mu.Unlock()
+		if notTaken {
+			e.mu.Lock()
+			e.refused++
+			e.mu.Unlock()
+			writeJSON(w, http.StatusNotImplemented, api.Error{Code: "not_implemented", Message: "This connected account does not take one-shot venue messages"})
 			return
 		}
 		e.mu.Lock()
@@ -301,6 +312,14 @@ func TestOneShotCancel(t *testing.T) {
 	if err != nil || c.ClientOrderID != target || c.Symbol != "BTCUSDT" {
 		t.Fatalf("%+v %v", c, err)
 	}
+
+	// A cancel the engine does not take says so of a cancel.
+	eng.conflict = true
+	p.Nonce = "n3"
+	var refusal *Error
+	if _, err := s.Propose(context.Background(), p); !errors.As(err, &refusal) || refusal.Message != "The engine did not take this cancel. Send it again. Commitment unknown or spent" {
+		t.Fatalf("a cancel after a 409: %v", err)
+	}
 }
 
 // TestOneShotFallsBack: without an agent id, a venue key or a commitment the
@@ -327,14 +346,47 @@ func TestOneShotFallsBack(t *testing.T) {
 	s, eng = newOneShot(t, nil)
 	s.CommitmentBatch = 4
 	eng.conflict = true
-	if _, err := s.Propose(context.Background(), limitProposal()); err != nil {
-		t.Fatal(err)
+	// The engine does not know the commitment (409, as after its restart):
+	// the error goes back to the caller and nothing is proposed a second
+	// time. The key's commitments are forgotten, so the caller's next
+	// proposal is built on fresh ones and goes one-shot.
+	var refusal *Error
+	if _, err := s.Propose(context.Background(), limitProposal()); !errors.As(err, &refusal) || refusal.Status != http.StatusConflict {
+		t.Fatalf("after a 409: %v, want the engine's conflict", err)
 	}
-	if eng.plain != 1 || len(eng.sigs) != 0 {
-		t.Fatalf("after a 409: one-shot %d, plain %d", len(eng.sigs), eng.plain)
+	if eng.plain != 0 || len(eng.sigs) != 0 || eng.refused != 1 {
+		t.Fatalf("after a 409: one-shot %d, plain %d, refused %d; want nothing sent again", len(eng.sigs), eng.plain, eng.refused)
+	}
+	// The caller reads what to do, then the engine's own words.
+	if want := "The engine did not take this order. Send it again. Commitment unknown or spent"; refusal.Message != want {
+		t.Fatalf("after a 409: %q, want %q", refusal.Message, want)
 	}
 	if left := s.oneShot().commitments["vk_1"]; len(left) != 0 {
 		t.Fatalf("%d commitments kept after the engine said it did not know them", len(left))
+	}
+	if _, err := s.Propose(context.Background(), limitProposal()); err != nil {
+		t.Fatalf("the caller's next proposal: %v", err)
+	}
+	if eng.plain != 0 || len(eng.sigs) != 1 {
+		t.Fatalf("the caller's next proposal: one-shot %d, plain %d", len(eng.sigs), eng.plain)
+	}
+}
+
+// TestOneShotNotTakenByTheEngine: an engine that takes no one-shot message for
+// the connected account (501) is answered to the caller as it came, and
+// nothing is proposed a second time.
+func TestOneShotNotTakenByTheEngine(t *testing.T) {
+	s, eng := newOneShot(t, nil)
+	eng.notTaken = true
+	var refusal *Error
+	if _, err := s.Propose(context.Background(), limitProposal()); !errors.As(err, &refusal) || refusal.Status != http.StatusNotImplemented {
+		t.Fatalf("after a 501: %v, want the engine's answer", err)
+	}
+	if refusal.Message != "This connected account does not take one-shot venue messages" {
+		t.Fatalf("after a 501: %q, want the engine's message as it came", refusal.Message)
+	}
+	if eng.plain != 0 || len(eng.sigs) != 0 || eng.refused != 1 {
+		t.Fatalf("after a 501: one-shot %d, plain %d, refused %d; want nothing sent again", len(eng.sigs), eng.plain, eng.refused)
 	}
 }
 
