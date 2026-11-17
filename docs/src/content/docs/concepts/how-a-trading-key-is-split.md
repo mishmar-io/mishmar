@@ -88,7 +88,7 @@ It answers each request once, and when Mishmar asks it for an order, it signs on
 
 ## What a trading key can't do
 
-A trading key places and cancels orders. On Hyperliquid, an API wallet cannot withdraw or move funds: only your master wallet can, and Mishmar never has its key. On Binance, a key can do what you allow when you register it: allow trading and leave withdrawals off. Mishmar does not check that setting for you yet.
+A trading key places and cancels orders. On Hyperliquid, an API wallet cannot withdraw: only your master wallet can, and Mishmar never has its key. Hyperliquid's [API page](https://app.hyperliquid.xyz/API) says: "API wallets (also known as agent wallets) can perform actions on behalf of an account without having withdrawal permissions." On Binance, a key can do what you allow when you register it: allow trading and leave withdrawals off. Mishmar does not check that setting for you yet.
 
 ## If something goes wrong
 
