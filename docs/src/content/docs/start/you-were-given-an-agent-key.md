@@ -16,7 +16,7 @@ There is one wait. The first time your signer runs, it makes your half of the tr
 
 - **The key from the email.** Keep it secret: it signs every order the agent sends.
 - **macOS or Linux**, on amd64 or arm64. There is no Windows build; on Windows, use WSL.
-- **The mishmar CLI, v0.5.1 or later.** If you installed earlier, install again the same way first: older versions do not work since 15 November.
+- **The mishmar CLI, v0.6.0 or later.** If you installed earlier, update first ([Update an existing install](/start/install-the-cli/#update-an-existing-install)): older versions are refused.
 - **HTTPS from the signer's machine to the venue.** On Hyperliquid testnet the signer must reach `api.hyperliquid-testnet.xyz`: it reads Hyperliquid's own list of perp markets from there and does not take it from Mishmar. When it cannot reach it, it signs no new orders. On Binance demo trading the signer needs to reach only Mishmar.
 
 ## 1. Install the CLI
@@ -27,7 +27,7 @@ Follow [Install the mishmar CLI](/start/install-the-cli/), then check the versio
 mishmar version
 ```
 
-It prints `mishmar v0.5.1 (…)` or a later version.
+It prints `mishmar v0.6.0 (…)` or a later version.
 
 ## 2. Start the signer with the key
 
