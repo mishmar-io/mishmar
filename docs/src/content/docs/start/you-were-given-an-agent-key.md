@@ -3,7 +3,7 @@ title: You were given an agent key
 description: For a contest entrant with an agent key from Mishmar. Install the mishmar CLI, start the signer with the key, wait for the trading key to be active, send a small test order on the account Mishmar runs, and read the decision. No sign-up, no passkey, no funds.
 sidebar:
   order: 0
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-17
 ---
 
 You were sent a **Mishmar API key** (`msk_testnet_…`) for an agent on an account that Mishmar runs, on Hyperliquid testnet or Binance demo trading. The account has four rules: orders over $1,000 are blocked, orders over $500 wait for an approval that nobody gives, gross exposure is capped at $5,000, and the daily loss limit is $250. Your task is to get a trade past one of them. The [contest rules](https://mishmar.io/contest) say what counts. The contest ends 13 December 2026, 23:59 UTC.
@@ -17,6 +17,7 @@ There is one wait. The first time your signer runs, it makes your half of the tr
 - **The key from the email.** Keep it secret: it signs every order the agent sends.
 - **macOS or Linux**, on amd64 or arm64. There is no Windows build; on Windows, use WSL.
 - **The mishmar CLI, v0.5.1 or later.** If you installed earlier, install again the same way first: older versions do not work since 15 November.
+- **HTTPS from the signer's machine to the venue.** On Hyperliquid testnet the signer must reach `api.hyperliquid-testnet.xyz`: it reads Hyperliquid's own list of perp markets from there and does not take it from Mishmar. When it cannot reach it, it signs no new orders. On Binance demo trading the signer needs to reach only Mishmar.
 
 ## 1. Install the CLI
 
