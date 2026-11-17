@@ -1,9 +1,9 @@
 ---
 title: Install the mishmar CLI
-description: Download the mishmar binary for macOS or Linux, check it against the release's checksums, and put it on the PATH of the machine your agent runs on.
+description: Download the mishmar binary for macOS or Linux, check it against the release's checksums, and put it on the PATH of the machine your agent runs on. Update an existing install the same way.
 sidebar:
   order: 1
-lastUpdated: 2026-11-10
+lastUpdated: 2026-11-17
 ---
 
 The `mishmar` binary is the agent's side of Mishmar. It writes the agent's signer config, makes the agent's half of each trading key with Mishmar, runs the signer, and can propose orders from the command line. The Python and TypeScript SDKs run the same binary as a child process.
@@ -59,6 +59,31 @@ mishmar version
 ```
 
 It prints the version you downloaded. `mishmar --help` lists every command, grouped by who runs them.
+
+## Update an existing install
+
+See which version you have:
+
+```sh
+mishmar version
+```
+
+It prints the version, then the Go version and the platform it was built for: `mishmar v… (go… darwin/arm64)`.
+
+To update, do steps 1 to 4 again. Step 1 names the newest release, {{MISHMAR_VERSION}}, and step 4 moves the new binary over the old one in `/usr/local/bin`. If you put the old one somewhere else, put the new one at the same path. Then `mishmar version` prints the new version.
+
+Updating does not touch `~/.mishmar/agent.json`, which holds the agent's key and its half of each trading key. The new version reads the same file.
+
+A signer that is running keeps running the old version: nothing restarts it. Stop it (Ctrl-C in its terminal) and start it again:
+
+```sh
+mishmar signer run
+```
+
+If something else starts the binary for you:
+
+- **The Python and TypeScript SDKs** run the first binary they find: `$MISHMAR_BIN`, then the one on the PATH, then the newest under `~/.mishmar/bin/`. Upgrading the SDK package does not replace a binary they already find. After steps 1 to 4, restart your bot, and the signer it starts is the new version.
+- **The AI apps' `npx -y mishmar@0.5 mcp --app …`** (and `uvx`) runs the mishmar on your PATH when there is one. After steps 1 to 4, restart the app: the first Mishmar tool it uses then replaces the older background signer by itself. `npx -y mishmar@0.5 daemon status` prints the version that runs.
 
 ## When something goes wrong
 
