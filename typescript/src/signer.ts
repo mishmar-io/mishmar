@@ -39,7 +39,7 @@ import { execFile, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
-import { access, chmod, mkdir, mkdtemp, open, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, open, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import * as http from "node:http";
 import * as net from "node:net";
 import { arch, homedir, platform, tmpdir } from "node:os";
@@ -63,11 +63,13 @@ export function platformName(): string {
   return `${os}_${cpu}`;
 }
 
-function exe(name: string): string {
+/** `name` with `.exe` on Windows. */
+export function exe(name: string): string {
   return platform() === "win32" ? name + ".exe" : name;
 }
 
-async function executable(p: string | undefined): Promise<boolean> {
+/** Whether `p` is set and this process may execute it. */
+export async function executable(p: string | undefined): Promise<boolean> {
   if (!p) return false;
   try {
     await access(p, fsConstants.X_OK);
@@ -94,6 +96,8 @@ export interface FindBinaryOptions {
   skipScripts?: boolean;
   /** Real paths never to return: a wrapper's own, so it does not run itself. */
   exclude?: string[];
+  /** Look no further than the PATH: never return a release under `~/.mishmar/bin` (the npm bin runs only its pinned one). */
+  skipDownloaded?: boolean;
 }
 
 /**
@@ -111,14 +115,16 @@ export async function findBinary(explicit?: string, options: FindBinaryOptions =
     if (options.exclude?.length && options.exclude.includes(await realpath(c).catch(() => c))) continue;
     return c;
   }
-  const home = path.join(homedir(), ".mishmar", "bin");
-  try {
-    for (const version of (await readdir(home)).sort().reverse()) {
-      const c = path.join(home, version, name);
-      if (await executable(c)) return c;
+  if (!options.skipDownloaded) {
+    const home = path.join(homedir(), ".mishmar", "bin");
+    try {
+      for (const version of (await readdir(home)).sort().reverse()) {
+        const c = path.join(home, version, name);
+        if (await executable(c)) return c;
+      }
+    } catch {
+      // no downloads yet
     }
-  } catch {
-    // no downloads yet
   }
   throw new Error(
     "no mishmar binary: install it from https://github.com/mishmar-io/mishmar/releases (or call downloadBinary(version)), put it on the PATH or in MISHMAR_BIN",
@@ -149,17 +155,21 @@ export async function downloadBinary(version: string, destDir?: string, fetchImp
   const dir = destDir ?? path.join(homedir(), ".mishmar", "bin", version);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const work = await mkdtemp(path.join(tmpdir(), "mishmar-"));
+  // Unpacked beside the final path and renamed into it, so an interrupted download leaves no partial binary there.
+  const staging = await mkdtemp(path.join(dir, ".download-"));
+  const out = path.join(dir, exe("mishmar"));
   try {
     const file = path.join(work, `${name}.tar.gz`);
     await writeFile(file, archive);
     await new Promise<void>((resolve, reject) =>
-      execFile("tar", ["-xzf", file, "-C", dir, exe("mishmar")], (err) => (err ? reject(err) : resolve())),
+      execFile("tar", ["-xzf", file, "-C", staging, exe("mishmar")], (err) => (err ? reject(err) : resolve())),
     );
+    await chmod(path.join(staging, exe("mishmar")), 0o755);
+    await rename(path.join(staging, exe("mishmar")), out);
   } finally {
     await rm(work, { recursive: true, force: true });
+    await rm(staging, { recursive: true, force: true });
   }
-  const out = path.join(dir, exe("mishmar"));
-  await chmod(out, 0o755);
   return out;
 }
 

@@ -36,6 +36,7 @@ from GitHub and checks it against the release's checksums.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import http.client
 import io
@@ -97,6 +98,7 @@ def find_binary(
     *,
     skip_scripts: bool = False,
     exclude: Iterable[str] = (),
+    skip_downloaded: bool = False,
 ) -> str:
     """Where the ``mishmar`` binary is: the argument, ``MISHMAR_BIN``, the
     PATH, or a release ``download_binary`` fetched. Raises FileNotFoundError
@@ -105,7 +107,9 @@ def find_binary(
     The argument and ``MISHMAR_BIN`` are taken as given. On the PATH,
     ``skip_scripts`` passes over a ``mishmar`` that is a script (starts with
     ``#!``: a wrapper such as the PyPI or npm one, never the binary), and
-    ``exclude`` lists real paths never to return, a wrapper's own."""
+    ``exclude`` lists real paths never to return, a wrapper's own.
+    ``skip_downloaded`` looks no further than the PATH: never a release under
+    ``~/.mishmar/bin`` (the console script runs only its pinned one)."""
     for c in (explicit, os.environ.get(ENV_BINARY)):
         if _executable(c):
             return c  # type: ignore[return-value]
@@ -123,7 +127,7 @@ def find_binary(
             continue
         return c
     home = os.path.join(os.path.expanduser("~"), ".mishmar", "bin")
-    if os.path.isdir(home):
+    if not skip_downloaded and os.path.isdir(home):
         for version in sorted(os.listdir(home), reverse=True):
             c = os.path.join(home, version, name)
             if _executable(c):
@@ -180,16 +184,28 @@ def download_binary(
     )
     os.makedirs(dest_dir, mode=0o700, exist_ok=True)
     path = os.path.join(dest_dir, _exe("mishmar"))
-    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
-        member = tar.getmember(_exe("mishmar"))
-        extracted = tar.extractfile(member)
-        if extracted is None:
-            raise RuntimeError("the archive holds no mishmar binary")
-        with open(path, "wb") as f:
+    # Written beside the final path and renamed into it, so an interrupted
+    # download leaves no partial binary there.
+    fd, staging = tempfile.mkstemp(prefix=".download-", dir=dest_dir)
+    try:
+        with (
+            os.fdopen(fd, "wb") as f,
+            tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar,
+        ):
+            member = tar.getmember(_exe("mishmar"))
+            extracted = tar.extractfile(member)
+            if extracted is None:
+                raise RuntimeError("the archive holds no mishmar binary")
             shutil.copyfileobj(extracted, f)
-    os.chmod(
-        path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
-    )
+        os.chmod(
+            staging,
+            stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH,
+        )
+        os.replace(staging, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(staging)
+        raise
     return path
 
 
