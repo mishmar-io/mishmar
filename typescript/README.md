@@ -15,10 +15,13 @@ npm install mishmar
 
 The package also puts `mishmar` on the path, so `npx -y mishmar mcp` runs
 the MCP server and `npx -y mishmar signer run` the signer without the CLI
-installed: the command runs the binary found through `MISHMAR_BIN`, the
-PATH or `~/.mishmar/bin`, and when there is none fetches the pinned release
-(v0.5.4) into `~/.mishmar/bin` first, checked against the release's
-checksums.
+installed: the command runs the binary in `MISHMAR_BIN` or on the PATH,
+and otherwise the release this package pins (v0.5.4), which it fetches into
+that release's folder under `~/.mishmar/bin` first when it is not there,
+checked against the release's checksums. A newer package therefore brings
+its newer release; other releases under `~/.mishmar/bin` are not used. When
+the binary in `MISHMAR_BIN` or on the PATH is older than the pinned release,
+the command says so in one line and runs it.
 
 ```ts
 import { AgentKey, Client } from "mishmar";

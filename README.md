@@ -344,9 +344,10 @@ snippet and a Cursor rule).
 
 The npm and PyPI packages put the same command on the path, so a client
 needs no install step: `npx -y mishmar mcp` (Node 20 or later) or `uvx
-mishmar mcp` runs the binary found through `MISHMAR_BIN`, the PATH or
-`~/.mishmar/bin`, and when there is none fetches the pinned release into
-`~/.mishmar/bin` first, checked against the release's checksums. The MCP
+mishmar mcp` runs the binary in `MISHMAR_BIN` or on the PATH, and
+otherwise the release the package pins, fetched into `~/.mishmar/bin` first
+when it is not there and checked against the release's checksums. A newer
+package brings its newer release. The MCP
 registry lists the server as `io.github.mishmar-io/mishmar` (`server.json`).
 
 ### Reading connected accounts
