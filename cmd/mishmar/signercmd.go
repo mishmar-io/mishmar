@@ -45,6 +45,9 @@ type serveOptions struct {
 	listen, store, engineKey, tlsCert, tlsKey, clientCA, level string
 	schemes                                                    []string
 	sync                                                       time.Duration
+	// withoutDecisionChecks starts the service with no engine key, for
+	// development: it then verifies no decision.
+	withoutDecisionChecks bool
 }
 
 func newSignerServeCmd() *cobra.Command {
@@ -81,8 +84,9 @@ order waits on the store; --sync is how often a replica reconciles with a
 shared backend.
 
 --engine-key is the engine's Ed25519 public key (base64, GET /ledger/head),
-with which the decisions are verified; without it they are not, which is for
-development only.
+with which the decisions are verified. The service does not start without
+it. For development only, --without-decision-checks starts it with no key:
+it then verifies no decision.
 
 GET /metrics, in the Prometheus text format, is on a plain HTTP listener of
 its own: ` + service.MetricsListenEnv + ` (default ` + service.DefaultMetricsListen + `; set it
@@ -97,7 +101,8 @@ are in flight and the oldest one's age, and the build's version; never a key.`,
 	f.StringVar(&o.listen, "listen", "127.0.0.1:8091", "host:port, or unix:/path/to/socket")
 	f.StringVar(&o.store, "store", "", "where the sealed shares are kept: a file path (default ~/.mishmar/signer-keys.json), file:<path>, s3://… or gs://…")
 	f.DurationVar(&o.sync, "sync", time.Minute, "how often to reconcile with a shared backend; 0 never")
-	f.StringVar(&o.engineKey, "engine-key", "", "the engine's public key, base64, to verify decisions with")
+	f.StringVar(&o.engineKey, "engine-key", "", "the engine's public key, base64, to verify decisions with; required")
+	f.BoolVar(&o.withoutDecisionChecks, "without-decision-checks", false, "for development only: start with no --engine-key; the service then verifies no decision and signs whatever it is asked")
 	f.StringVar(&o.tlsCert, "tls-cert", "", "the service's certificate (PEM); with --tls-key and --client-ca, mTLS")
 	f.StringVar(&o.tlsKey, "tls-key", "", "the service's private key (PEM)")
 	f.StringVar(&o.clientCA, "client-ca", "", "the CA that issues the engine's client certificate (PEM)")
@@ -132,6 +137,12 @@ func serve(ctx context.Context, o serveOptions) error {
 		return err
 	}
 	opts := service.Options{Store: store, Logger: log}
+	switch {
+	case o.engineKey == "" && !o.withoutDecisionChecks:
+		return errors.New("--engine-key is required: without the engine's public key the service verifies no decision (for development only, --without-decision-checks starts it that way)")
+	case o.engineKey != "" && o.withoutDecisionChecks:
+		return errors.New("--engine-key and --without-decision-checks cannot be given together")
+	}
 	if o.engineKey != "" {
 		pub, err := agentkey.ParsePublicKey(o.engineKey)
 		if err != nil {

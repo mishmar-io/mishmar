@@ -434,7 +434,12 @@ and this service, and asks it to finish one signature per order. The service
 signs only an order or a cancel it decoded itself and that matches a
 decision the engine signed with its own key (`--engine-key`, the public key
 `GET /v1/ledger/head` shows), rebuilding the venue digest from the action,
-its nonce and its end time. Like the agent's signer, it refuses a
+its nonce and its end time. With each decision for a Hyperliquid action the
+engine sends the venue terms it signed (the trading key, the network, the
+asset, a market order's price bound), and the service checks the action
+against them with the check the agent's signer runs; a decision without
+terms is refused. The service does not start without `--engine-key`. Like
+the agent's signer, it refuses a
 Hyperliquid action that carries no end time (`expiresAfter`) or one later
 than the proposal's `expiresAt` plus a minute.
 Reach it from the engine alone: a Unix socket when the two share a machine,

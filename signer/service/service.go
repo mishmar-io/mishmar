@@ -830,11 +830,16 @@ func (s *Service) checkApproval(p *signerapi.ApprovalProof, decisionID string) e
 // signer ran when it built or took the action, here with the asset the
 // engine names: the asset, the format of size and price, a limit price
 // within 1 % of the proposal's, and a market order's price within the
-// engine's bound. Terms that do not verify or do not match are refused,
-// never passed over. A request without terms is not checked here.
+// engine's bound. A decision without terms is refused, and so are terms that
+// do not verify or do not match.
 func (s *Service) checkTerms(d *signerapi.Decision, rec *decisionRecord, keyID string, network hyperliquid.Network, action hyperliquid.Action, purpose string) error {
-	if d == nil || d.Terms == nil {
+	if d == nil {
+		// No decision at all: decision has refused that already, unless the
+		// service runs without the engine's key (development only).
 		return nil
+	}
+	if d.Terms == nil {
+		return refused("the request carries no venue terms for its decision")
 	}
 	record, err := decodeB64(&d.Terms.Record)
 	if err != nil {
@@ -893,8 +898,7 @@ func (s *Service) checkTerms(d *signerapi.Decision, rec *decisionRecord, keyID s
 // matchHyperliquid checks the action is the decision's order or cancel:
 // the cloid derives from the decision's client order id (or the cancel's
 // target), the side, size, reduce-only and limit price are the proposal's.
-// The asset index is not checked here: the agent's signer checked it when
-// it built the action, and its message binds the action.
+// The asset index is checked against the engine's venue terms (checkTerms).
 func matchHyperliquid(action hyperliquid.Action, m hyperliquid.Message, rec *decisionRecord, purpose string) error {
 	if rec == nil {
 		return nil
