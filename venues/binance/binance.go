@@ -66,6 +66,13 @@ type Cancel struct {
 	RecvWindow            int
 }
 
+// Read is a decoded read parameter string: the one read the signer co-signs,
+// to prove a key (verify).
+type Read struct {
+	Timestamp  time.Time
+	RecvWindow int
+}
+
 // Mismatch is why a message is not what it should be. Anything else this
 // package returns is a problem with the caller's input.
 type Mismatch struct{ Detail string }
@@ -83,9 +90,9 @@ func IsMismatch(err error) bool {
 var (
 	orderParams  = set("symbol", "side", "type", "quantity", "price", "timeInForce", "reduceOnly", "newClientOrderId", "newOrderRespType", "timestamp", "recvWindow")
 	cancelParams = set("symbol", "origClientOrderId", "timestamp", "recvWindow")
-	// orderOnly are the parameters that make a request an order; a read the
-	// signer co-signs to prove the key carries none of them.
-	orderOnly = []string{"symbol", "side", "type", "quantity", "price", "newClientOrderId", "origClientOrderId"}
+	// readParams are all the read the signer co-signs to prove a key may
+	// carry: when it was built and how long the venue takes it.
+	readParams = set("timestamp", "recvWindow")
 )
 
 // BuildOrder is the order parameter string for an intent: the size floored
@@ -364,19 +371,36 @@ func DecodeCancel(message []byte) (Cancel, error) {
 	return c, nil
 }
 
-// CheckRead checks that a message is a read and not an order or a cancel: a
-// parameter string without any of the parameters that make one.
-func CheckRead(message []byte) error {
-	p, err := params(message, nil)
+// DecodeRead reads the parameter string of the read that proves a key: a
+// timestamp and, when given, a recvWindow. Like DecodeOrder and DecodeCancel
+// it refuses any parameter outside the set, so the message says nothing but
+// when it was built and how long the venue takes it. A read has no proposal
+// to be compared with, so it must also be written the one way net/url
+// writes those two numbers (keys sorted, plain digits): the engine's form.
+func DecodeRead(message []byte) (Read, error) {
+	p, err := params(message, readParams)
 	if err != nil {
-		return err
+		return Read{}, err
 	}
-	for _, k := range orderOnly {
-		if _, ok := p[k]; ok {
-			return mismatch("a read carries no order, but the message has %s", k)
-		}
+	var r Read
+	if r.Timestamp, r.RecvWindow, err = times(p); err != nil {
+		return Read{}, err
 	}
-	return nil
+	plain := url.Values{"timestamp": {strconv.FormatInt(r.Timestamp.UnixMilli(), 10)}}
+	if _, ok := p["recvWindow"]; ok {
+		plain.Set("recvWindow", strconv.Itoa(r.RecvWindow))
+	}
+	if string(message) != plain.Encode() {
+		return Read{}, mismatch("a read is written %s, not %s", plain.Encode(), message)
+	}
+	return r, nil
+}
+
+// CheckRead checks that a message is the read that proves a key and nothing
+// else (DecodeRead).
+func CheckRead(message []byte) error {
+	_, err := DecodeRead(message)
+	return err
 }
 
 // ClientOrderID is a fresh client order id for an agent, in the shape the

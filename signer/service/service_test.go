@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -413,7 +414,8 @@ func TestFrost(t *testing.T) {
 		t.Fatal("the signature does not verify")
 	}
 	// A read for verify needs no decision; an order without one is refused.
-	read := []byte("recvWindow=5000&timestamp=1761825600000")
+	stamp := func(at time.Time) string { return strconv.FormatInt(at.UnixMilli(), 10) }
+	read := []byte("recvWindow=10000&timestamp=" + stamp(h.now))
 	party2, _ := agentShare.Party()
 	ac2 := party2.Commit()
 	ec2, _ := frost.ParseCommitment(decode(t, commitments[1].Commitment))
@@ -425,6 +427,32 @@ func TestFrost(t *testing.T) {
 	})
 	if err != nil || r2.JSON200 == nil {
 		t.Fatalf("verify sign: %v %s", err, r2.Body)
+	}
+	// The read is a timestamp and a window, built now, and nothing else.
+	for name, message := range map[string]string{
+		"a parameter of any name": "recvWindow=10000&timestamp=" + stamp(h.now) + "&x=1",
+		"another order of keys":   "timestamp=" + stamp(h.now) + "&recvWindow=10000",
+		"no timestamp":            "recvWindow=10000",
+		"built a day ago":         "recvWindow=10000&timestamp=" + stamp(h.now.Add(-24*time.Hour)),
+		"its window just closed":  "recvWindow=10000&timestamp=" + stamp(h.now.Add(-10*time.Second)),
+		"stamped a minute ahead":  "recvWindow=10000&timestamp=" + stamp(h.now.Add(time.Minute)),
+		"a window of an hour":     "recvWindow=3600000&timestamp=" + stamp(h.now),
+	} {
+		csv, err := h.client.IssueCommitmentsWithResponse(ctx, "vk_bn", signerapi.IssueCommitmentsJSONRequestBody{Count: 1})
+		if err != nil || csv.JSON200 == nil || len(*csv.JSON200) != 1 {
+			t.Fatalf("%s: commitments: %v %s", name, err, csv.Body)
+		}
+		pv, _ := agentShare.Party()
+		acv := pv.Commit()
+		ecv, _ := frost.ParseCommitment(decode(t, (*csv.JSON200)[0].Commitment))
+		asv, _ := pv.Sign([]byte(message), ecv, acv)
+		rv, err := h.client.FrostSignWithResponse(ctx, "vk_bn", signerapi.FrostSignRequest{
+			CommitmentId: (*csv.JSON200)[0].Id, AgentCommitment: b64(acv.Bytes()), AgentShare: b64(asv.Bytes()), Purpose: &verify,
+			VenueAction: signerapi.VenueAction{Venue: signerapi.VenueActionVenueBinance, Action: b64([]byte(message))},
+		})
+		if err != nil || rv.JSON200 != nil || rv.JSONDefault == nil || rv.JSONDefault.Code != signerapi.ErrorCodeRefused {
+			t.Errorf("a verify read with %s (%q) was not refused: %v %s", name, message, err, rv.Body)
+		}
 	}
 	cs2, _ := h.client.IssueCommitmentsWithResponse(ctx, "vk_bn", signerapi.IssueCommitmentsJSONRequestBody{Count: 1})
 	r3, _ := h.client.FrostSignWithResponse(ctx, "vk_bn", signerapi.FrostSignRequest{

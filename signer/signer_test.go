@@ -237,7 +237,8 @@ func TestSignerEndToEnd(t *testing.T) {
 	order.IssuedAt, order.ExpiresAt = time.Now(), time.Now().Add(10*time.Second)
 
 	verifyRound, verifyEngine := f.engineRound(t)
-	verify := verifyRequest(readMessage)
+	read := readAt(time.Now())
+	verify := verifyRequest(read)
 	verify.Id, verify.SessionId, verify.Engine = "sr_verify", "sr_verify", verifyEngine
 	verify.IssuedAt, verify.ExpiresAt = time.Now(), time.Now().Add(10*time.Second)
 
@@ -273,7 +274,7 @@ func TestSignerEndToEnd(t *testing.T) {
 	}
 
 	f.finish(t, "order", answers["sr_order"], orderRound, []byte(orderMsg))
-	f.finish(t, "verify", answers["sr_verify"], verifyRound, []byte(readMessage))
+	f.finish(t, "verify", answers["sr_verify"], verifyRound, []byte(read))
 	if a := answers["sr_foreign"]; a.Kind != api.SignerAnswerKindRefusal || a.Refusal == nil || !strings.HasPrefix(a.Refusal.Reason, RefuseForeignProposal+": ") {
 		t.Fatalf("the foreign proposal was answered %+v, want a refusal", a)
 	}

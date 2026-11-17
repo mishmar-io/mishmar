@@ -134,7 +134,13 @@ func verifyRequest(message string) api.SignRequest {
 	}
 }
 
-const readMessage = "recvWindow=5000&timestamp=1761480000000"
+// readMessage is the read the engine asks to be signed to prove a key:
+// its window and its clock, here the tests' now.
+var readMessage = readAt(now)
+
+func readAt(at time.Time) string {
+	return "recvWindow=10000&timestamp=" + strconv.FormatInt(at.UnixMilli(), 10)
+}
 
 // cancelRequest is the request the engine makes to pull an order, for the
 // agent's cancel proposal, with the message given.
@@ -318,7 +324,19 @@ func TestPolicyCheck(t *testing.T) {
 		}(), ""},
 		{"verify accepted", verifyRequest(readMessage), ""},
 		{"verify with an order inside", verifyRequest(binanceOrder(limit, cid, nil)), RefuseMessage},
-		{"verify with a symbol", verifyRequest("recvWindow=5000&symbol=BTCUSDT&timestamp=1761480000000"), RefuseMessage},
+		{"verify with a symbol", verifyRequest(readMessage + "&symbol=BTCUSDT"), RefuseMessage},
+		{"verify written another way", verifyRequest("timestamp=" + strconv.FormatInt(now.UnixMilli(), 10) + "&recvWindow=10000"), RefuseMessage},
+		{"verify with a parameter of any other name", verifyRequest(readMessage + "&x=1"), RefuseMessage},
+		{"verify without a timestamp", verifyRequest("recvWindow=10000"), RefuseMessage},
+		{"verify without a window takes Binance's default", verifyRequest("timestamp=" + strconv.FormatInt(now.UnixMilli(), 10)), ""},
+		{"verify built within the clock tolerance, behind", verifyRequest(readAt(now.Add(-BinanceClockTolerance))), ""},
+		{"verify built within the clock tolerance, ahead", verifyRequest(readAt(now.Add(BinanceClockTolerance))), ""},
+		{"verify built before the clock tolerance", verifyRequest(readAt(now.Add(-BinanceClockTolerance - time.Second))), RefuseMessageTime},
+		{"verify built a day ago", verifyRequest(readAt(now.Add(-24 * time.Hour))), RefuseMessageTime},
+		{"verify stamped past the clock tolerance", verifyRequest(readAt(now.Add(BinanceClockTolerance + time.Second))), RefuseMessageTime},
+		{"verify stamped a year ahead", verifyRequest(readAt(now.AddDate(1, 0, 0))), RefuseMessageTime},
+		{"verify with a window Binance does not take", verifyRequest("recvWindow=60001&timestamp=" + strconv.FormatInt(now.UnixMilli(), 10)), RefuseMessageTime},
+		{"verify with no window at all", verifyRequest("recvWindow=0&timestamp=" + strconv.FormatInt(now.UnixMilli(), 10)), RefuseMessageTime},
 		{"verify as a POST", func() api.SignRequest {
 			r := verifyRequest(readMessage)
 			r.VenueRequest = &api.VenueRequest{Method: "POST", Url: "/fapi/v1/order"}

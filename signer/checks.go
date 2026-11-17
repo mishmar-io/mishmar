@@ -110,13 +110,15 @@ type Policy struct {
 //     key, verifying with it, for this connected account, not yet expired;
 //  6. the message, decoded, is the order the proposal describes (Binance:
 //     checkBinanceOrder), the cancel it names (checkBinanceCancel) or, for
-//     verify, no order at all; a Hyperliquid digest is recomputed from the
+//     verify, a timestamp and a recvWindow and no other parameter
+//     (checkBinanceRead); a Hyperliquid digest is recomputed from the
 //     action in the request's body, which must be the proposal's order or
 //     cancel (checkHyperliquid);
 //  7. the message can be used only now and within the proposal's life: a
-//     Binance order's or cancel's timestamp is this machine's now within
-//     BinanceClockTolerance, and its window at the venue (timestamp plus
-//     recvWindow) ends by the proposal's expiresAt plus that tolerance
+//     Binance message's timestamp, a verify read's included, is this
+//     machine's now within BinanceClockTolerance, and an order's or a
+//     cancel's window at the venue (timestamp plus recvWindow) ends by the
+//     proposal's expiresAt plus that tolerance
 //     (checkBinanceTime); a Hyperliquid nonce is this machine's now within
 //     hyperliquid.NonceWindow (checkHyperliquid).
 func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
@@ -171,7 +173,7 @@ func (p Policy) Check(req api.SignRequest) ([]byte, *Refusal) {
 		default:
 			r = checkBinanceOrder(req, message)
 		}
-		if r == nil && req.Purpose != api.SignRequestPurposeVerify {
+		if r == nil {
 			r = checkBinanceTime(req, message, now)
 		}
 		if r != nil {
@@ -327,22 +329,28 @@ const BinanceClockTolerance = hyperliquid.NonceWindow
 // binanceMaxRecvWindow is the longest recvWindow Binance takes, in ms.
 const binanceMaxRecvWindow = 60000
 
-// binanceTimes is a Binance order's or cancel's timestamp and recvWindow.
+// binanceTimes is the timestamp and recvWindow of a Binance order, cancel or
+// verify read.
 func binanceTimes(purpose api.SignRequestPurpose, message []byte) (time.Time, time.Duration, error) {
-	if purpose == api.SignRequestPurposeCancel {
+	switch purpose {
+	case api.SignRequestPurposeCancel:
 		c, err := binance.DecodeCancel(message)
 		return c.Timestamp, time.Duration(c.RecvWindow) * time.Millisecond, err
+	case api.SignRequestPurposeVerify:
+		r, err := binance.DecodeRead(message)
+		return r.Timestamp, time.Duration(r.RecvWindow) * time.Millisecond, err
 	}
 	o, err := binance.DecodeOrder(message)
 	return o.Timestamp, time.Duration(o.RecvWindow) * time.Millisecond, err
 }
 
-// checkBinanceTime is the signer's own bound on when a Binance order or
-// cancel it signs can be used: built now (its timestamp within
-// BinanceClockTolerance of this machine's clock, either way), with a
-// recvWindow Binance takes, and good at the venue no later than the
-// proposal's expiresAt plus that tolerance. An approved order that waited
-// for this signer passes: the engine builds its message when it sends.
+// checkBinanceTime is the signer's own bound on when a Binance message it
+// signs can be used: built now (its timestamp within BinanceClockTolerance
+// of this machine's clock, either way), with a recvWindow Binance takes,
+// and, for an order or a cancel, good at the venue no later than the
+// proposal's expiresAt plus that tolerance (a verify read has no proposal).
+// An approved order that waited for this signer passes: the engine builds
+// its message when it sends.
 func checkBinanceTime(req api.SignRequest, message []byte, now time.Time) *Refusal {
 	ts, window, err := binanceTimes(req.Purpose, message)
 	if err != nil {
@@ -412,9 +420,10 @@ func checkBinanceCancel(req api.SignRequest, message []byte) *Refusal {
 	return nil
 }
 
-// checkBinanceRead checks that what a verify request asks to sign is a read
-// and not an order: a parameter string without symbol, side, type,
-// quantity, price or a client order id, for a GET.
+// checkBinanceRead checks that what a verify request asks to sign is the
+// read that proves a key and nothing else: a parameter string of a
+// timestamp and a recvWindow, with no other parameter (binance.DecodeRead),
+// for a GET.
 func checkBinanceRead(req api.SignRequest, message []byte) *Refusal {
 	if err := binance.CheckRead(message); err != nil {
 		return refusalOf(err)

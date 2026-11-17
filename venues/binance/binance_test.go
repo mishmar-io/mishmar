@@ -255,6 +255,41 @@ func TestCancel(t *testing.T) {
 	}
 }
 
+func TestDecodeRead(t *testing.T) {
+	// What the engine asks to be signed to prove a key: its window and its clock.
+	r, err := DecodeRead([]byte("recvWindow=10000&timestamp=1793178000000"))
+	if err != nil || !r.Timestamp.Equal(time.UnixMilli(1793178000000)) || r.RecvWindow != RecvWindow {
+		t.Fatalf("the engine's read: %+v %v", r, err)
+	}
+	if r, err := DecodeRead([]byte("timestamp=1793178000000")); err != nil || r.RecvWindow != 5000 {
+		t.Errorf("a read without a window takes Binance's default: %+v %v", r, err)
+	}
+	for name, message := range map[string]string{
+		"empty":                    "",
+		"no timestamp":             "recvWindow=10000",
+		"a timestamp that is none": "recvWindow=10000&timestamp=now",
+		"a window that is none":    "recvWindow=long&timestamp=1793178000000",
+		"the timestamp twice":      "timestamp=1793178000000&timestamp=1793178000001",
+		"a symbol":                 "recvWindow=10000&symbol=BTCUSDT&timestamp=1793178000000",
+		"a parameter of any name":  "recvWindow=10000&timestamp=1793178000000&x=1",
+		"a parameter with no name": "=1&recvWindow=10000&timestamp=1793178000000",
+		"a name in another case":   "recvWindow=10000&timestamp=1793178000000&Timestamp=1",
+		"an escaped name":          "recvWindow=10000&%74imestamp=1793178000000",
+		"an escaped value":         "recvWindow=10000&timestamp=%31793178000000",
+		"a padded number":          "recvWindow=10000&timestamp=01793178000000",
+		"a signed number":          "recvWindow=%2B10000&timestamp=1793178000000",
+		"another order of keys":    "timestamp=1793178000000&recvWindow=10000",
+		"a trailing separator":     "recvWindow=10000&timestamp=1793178000000&",
+	} {
+		if _, err := DecodeRead([]byte(message)); !IsMismatch(err) {
+			t.Errorf("%s: DecodeRead(%q) = %v, want a mismatch", name, message, err)
+		}
+		if err := CheckRead([]byte(message)); !IsMismatch(err) {
+			t.Errorf("%s: CheckRead(%q) = %v, want a mismatch", name, message, err)
+		}
+	}
+}
+
 func TestClientOrderID(t *testing.T) {
 	id := ClientOrderID("agt_gqmhszuwurpr")
 	if !strings.HasPrefix(id, "msh-gqmhszuwurpr-") || len(id) != len("msh-gqmhszuwurpr-")+6 || !IsClientOrderIDOf(id, "agt_gqmhszuwurpr") {
