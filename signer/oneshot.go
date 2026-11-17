@@ -193,7 +193,7 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 		return noOneShot("the config names no network for %s", vkID)
 	}
 	now := s.now()
-	nonce := hyperliquid.Nonce(now)
+	nonce, expiresAfter := hyperliquid.Nonce(now), hyperliquid.ExpiresAfter(now, p.ExpiresAt)
 	// The coin's index and decimals are Hyperliquid's own (hlmarkets.go),
 	// never the engine's. A coin the venue's list cannot answer for, or a
 	// list too old for this order, is refused here: the channel would be
@@ -218,7 +218,7 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 		if p.TargetClientOrderId == nil {
 			return noOneShot("the cancel names no targetClientOrderId")
 		}
-		if message, err = hyperliquid.BuildCancel(rules.AssetIndex, *p.TargetClientOrderId, nonce); err != nil {
+		if message, err = hyperliquid.BuildCancel(rules.AssetIndex, *p.TargetClientOrderId, nonce, expiresAfter); err != nil {
 			return noOneShot("%v", err)
 		}
 		req.Purpose = api.SignRequestPurposeCancel
@@ -227,7 +227,7 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 			return noOneShot("a %s order is priced by the engine at its mark and signed through the channel", p.OrderType)
 		}
 		clientOrderID := hyperliquid.ClientOrderID(s.Config.AgentID)
-		if message, err = hyperliquid.BuildOrder(hlIntentOf(*p), rules, clientOrderID, nonce); err != nil {
+		if message, err = hyperliquid.BuildOrder(hlIntentOf(*p), rules, clientOrderID, nonce, expiresAfter); err != nil {
 			return noOneShot("%v", err)
 		}
 		_, action, err := hyperliquid.Decode(message)
@@ -250,7 +250,7 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 	if err != nil {
 		return fmt.Errorf("signer: the message built for the proposal does not decode: %w", err)
 	}
-	digest, err := hyperliquid.Digest(action, nonce, network)
+	digest, err := hyperliquid.Digest(action, nonce, expiresAfter, network)
 	if err != nil {
 		return err
 	}

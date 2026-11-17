@@ -284,10 +284,15 @@ export class Client {
 
   // The signer channel
 
-  /** Wait up to waitSeconds for requests this agent's signer must sign. */
-  async signerPoll(waitSeconds = 25): Promise<SignRequest[]> {
+  /**
+   * Wait up to waitSeconds for requests this agent's signer must sign.
+   * signerVersion is the version of the signer that polls, sent as the Mishmar-Signer-Version header:
+   * an engine refuses a poll that names none, or one older than it works with (426 signer_too_old).
+   */
+  async signerPoll(waitSeconds = 25, signerVersion?: string): Promise<SignRequest[]> {
     const timeoutMs = (this.#options.timeoutMs ?? 10_000) + waitSeconds * 1000;
-    return (await this.#agentCall("POST", "/agent/signer/poll", { body: { waitSeconds }, timeoutMs })) as SignRequest[];
+    const headers = signerVersion === undefined ? undefined : { "Mishmar-Signer-Version": signerVersion };
+    return (await this.#agentCall("POST", "/agent/signer/poll", { body: { waitSeconds }, timeoutMs, headers })) as SignRequest[];
   }
 
   /** Answer a sign request: a share, a signature, a venue response or a refusal. */
@@ -304,13 +309,18 @@ export class Client {
 
   // Plumbing
 
-  async #agentCall(method: string, path: string, { query, body, timeoutMs }: { query?: Query; body?: unknown; timeoutMs?: number } = {}): Promise<unknown> {
+  async #agentCall(
+    method: string,
+    path: string,
+    { query, body, timeoutMs, headers }: { query?: Query; body?: unknown; timeoutMs?: number; headers?: Record<string, string> } = {},
+  ): Promise<unknown> {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) params.set(k, String(v));
     const queryText = params.toString();
     const bodyText = body === undefined ? undefined : JSON.stringify(body);
     // Each attempt is signed anew, with its own nonce and time, so a retry is never a replay.
-    const sign = () => this.agentKey.signRequest({ keyId: this.keyId, method, path, query: queryText, body: bodyText });
+    // Headers given by the caller ride beside the signature's; they are not part of what is signed.
+    const sign = () => ({ ...headers, ...this.agentKey.signRequest({ keyId: this.keyId, method, path, query: queryText, body: bodyText }) });
     return this.#call(method, path + (queryText ? "?" + queryText : ""), body, sign, timeoutMs);
   }
 

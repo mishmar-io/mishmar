@@ -376,13 +376,26 @@ class Client:
 
     # The signer channel
 
-    def signer_poll(self, wait_seconds: int = 25) -> list[dict[str, Any]]:
-        """Wait up to wait_seconds for requests this agent's signer must sign."""
+    def signer_poll(
+        self, wait_seconds: int = 25, signer_version: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Wait up to wait_seconds for requests this agent's signer must sign.
+
+        signer_version is the version of the signer that polls, sent as the
+        Mishmar-Signer-Version header: an engine refuses a poll that names
+        none, or one older than it works with (426 signer_too_old).
+        """
+        headers = (
+            None
+            if signer_version is None
+            else {"Mishmar-Signer-Version": signer_version}
+        )
         return self._agent_call(
             "POST",
             "/agent/signer/poll",
             body={"waitSeconds": wait_seconds},
             timeout=self.timeout + wait_seconds,
+            headers=headers,
         )
 
     def signer_commitments(
@@ -414,6 +427,7 @@ class Client:
         query: dict[str, Any] | None = None,
         body: Any = None,
         timeout: float | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Any:
         params = {k: v for k, v in (query or {}).items() if v is not None}
         query_text = urllib.parse.urlencode(params)
@@ -421,10 +435,15 @@ class Client:
 
         # Each attempt is signed anew, with its own nonce and time, so a
         # retry is never a replay.
+        # Headers given by the caller ride beside the signature's; they are
+        # not part of what is signed.
         def sign() -> dict[str, str]:
-            return self.agent_key.sign_request(
-                self.key_id, method, path, query=query_text, body=data
-            )
+            return {
+                **(headers or {}),
+                **self.agent_key.sign_request(
+                    self.key_id, method, path, query=query_text, body=data
+                ),
+            }
 
         return self._call(
             method,

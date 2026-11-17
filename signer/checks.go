@@ -54,7 +54,10 @@ const (
 	RefuseNoSlot                   = "no_presigned_slot"
 	// RefuseMessageTime is a Binance message whose timestamp is not this
 	// machine's now, within BinanceClockTolerance, or whose window at the
-	// venue reaches past the proposal's end (checkBinanceTime).
+	// venue reaches past the proposal's end (checkBinanceTime); or a
+	// Hyperliquid action whose end time at the venue (expiresAfter) is
+	// later than the proposal's end plus hyperliquid.NonceWindow
+	// (hyperliquid.CheckExpiry).
 	RefuseMessageTime = "message_time"
 	// RefuseOrderSigned is an order for a proposal this signer signed an
 	// order for already, under another request id: one proposal, one order
@@ -234,7 +237,7 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 	if err != nil {
 		return refusalOf(err)
 	}
-	want, err := hyperliquid.Digest(action, m.Nonce, network)
+	want, err := hyperliquid.Digest(action, m.Nonce, m.ExpiresAfter, network)
 	if err != nil {
 		return &Refusal{RefuseMalformed, err.Error()}
 	}
@@ -247,6 +250,12 @@ func checkHyperliquid(p Policy, req api.SignRequest, key VenueKey, digest []byte
 	prop := req.Proposal
 	if prop == nil {
 		return &Refusal{RefuseNoProposal, "an order request must carry the agent's signed proposal"}
+	}
+	// The venue takes the signed action no later than the agent's own
+	// proposal lasts, plus the clock tolerance; nothing the engine sends
+	// widens that.
+	if err := hyperliquid.CheckExpiry(m.ExpiresAfter, prop.ExpiresAt); err != nil {
+		return &Refusal{RefuseMessageTime, trimVenue(err)}
 	}
 	if p.Market == nil {
 		return &Refusal{RefuseMalformed, "this signer has no list of Hyperliquid's markets to check orders against"}

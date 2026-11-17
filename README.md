@@ -123,10 +123,14 @@ key and, for each request, refuses unless, in this order:
   the engine writes them (`recvWindow=10000&timestamp=<ms>`), with the
   timestamp checked as an order's is. On Hyperliquid the
   message is the EIP-712 digest, which cannot be read, so the request's body
-  carries the action and nonce it came from: the signer decodes them with
-  `venues/hyperliquid`, recomputes the digest for the key's network and
-  compares, checks the nonce is fresh, and checks the action is the
-  proposal's order (asset, side, size, a limit price on the tick rules within
+  carries what it came from:
+  `{"action": …, "nonce": …, "expiresAfter": …, "clientOrderId": …}`.
+  `expiresAfter` is the time, in milliseconds, after which the venue no
+  longer takes the action, and it is part of the digest. The signer decodes
+  the body with `venues/hyperliquid`, recomputes the digest for the key's
+  network and compares, checks the nonce is fresh, checks the end time is
+  there and no later than the proposal's `expiresAt` plus a minute, and
+  checks the action is the proposal's order (asset, side, size, a limit price on the tick rules within
   1 % on the passive side, reduce-only, the cloid of the request's client
   order id) or the cancel of its target. The asset is the coin's position in
   Hyperliquid's own list of perp markets, which the signer reads from the
@@ -165,7 +169,9 @@ the venue request and the signer's half travel inside the proposal
 (`venueMessage`), so an allowed order needs no round trip back. That is
 limit orders, cancels and, on Binance, exits (reduce-only market orders);
 any other market order is bounded by the engine from the venue's order book
-and signed over the channel. A refusal is
+and signed over the channel. A one-shot Hyperliquid message ends at the
+proposal's `expiresAt`, or a minute after the signer builds it when that
+comes first. A refusal is
 `{"kind":"refusal","refusal":{"reason":…}}` with a stable code first
 (`message_mismatch: side "SELL" is not the proposed BUY`), which the engine
 records on the decision's `signing`. Decimals are compared exactly; no float
@@ -426,7 +432,10 @@ secret; it relays key generation and presigning between the agent's signer
 and this service, and asks it to finish one signature per order. The service
 signs only an order or a cancel it decoded itself and that matches a
 decision the engine signed with its own key (`--engine-key`, the public key
-`GET /v1/ledger/head` shows), rebuilding the venue digest from the action.
+`GET /v1/ledger/head` shows), rebuilding the venue digest from the action,
+its nonce and its end time. Like the agent's signer, it refuses a
+Hyperliquid action that carries no end time (`expiresAfter`) or one later
+than the proposal's `expiresAt` plus a minute.
 Reach it from the engine alone: a Unix socket when the two share a machine,
 else mTLS; plain HTTP is for localhost. The shares are sealed at rest
 (AES-256-GCM, the key id bound as associated data) under the master key in

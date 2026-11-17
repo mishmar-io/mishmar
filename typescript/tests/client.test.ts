@@ -140,6 +140,11 @@ test("the signer channel", async () => {
   const client = new Client(base, KEY, "key_a");
   const requests = await client.signerPoll(1);
   assert.equal(requests[0]?.id, "sr_1");
+  assert.deepEqual(seen.at(-1)?.body, { waitSeconds: 1 });
+  assert.equal(seen.at(-1)?.headers["mishmar-signer-version"], undefined);
+  await client.signerPoll(1, "v9.8.7");
+  assert.deepEqual(seen.at(-1)?.body, { waitSeconds: 1 });
+  assert.equal(seen.at(-1)?.headers["mishmar-signer-version"], "v9.8.7");
   await client.signerAnswer("sr_1", { kind: "refusal", refusal: { reason: "not my order" } });
   const last = seen.at(-1);
   assert.equal(last?.path, `${PREFIX}/agent/signer/requests/sr_1/answer`);

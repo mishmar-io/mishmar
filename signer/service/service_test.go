@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -257,24 +258,208 @@ var btc = hyperliquid.Rules{AssetIndex: 0, SizeDecimals: 5}
 // proposal the engine's decision would carry for it.
 func (h *harness) hlOrder(clientOrderID string) (message []byte, digest []byte, proposal api.Proposal) {
 	h.t.Helper()
+	end := h.now.Add(time.Minute)
+	return h.hlOrderEnding(clientOrderID, hyperliquid.ExpiresAfter(h.now, end), end)
+}
+
+// hlOrderEnding is hlOrder with the message's end time (expiresAfter, in
+// milliseconds) and the proposal's end given apart.
+func (h *harness) hlOrderEnding(clientOrderID string, expiresAfter uint64, end time.Time) (message []byte, digest []byte, proposal api.Proposal) {
+	h.t.Helper()
 	in := hyperliquid.Intent{Symbol: "BTC", Side: "buy", OrderType: "limit", Size: "0.0015", Price: "65000.5"}
 	nonce := hyperliquid.Nonce(h.now)
-	msg, err := hyperliquid.BuildOrder(in, btc, clientOrderID, nonce)
+	msg, err := hyperliquid.BuildOrder(in, btc, clientOrderID, nonce, expiresAfter)
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	_, action, err := hyperliquid.Decode(msg)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	d, err := hyperliquid.Digest(action, nonce, hyperliquid.Testnet)
-	if err != nil {
-		h.t.Fatal(err)
-	}
+	d := h.hlDigest(msg, expiresAfter)
 	price := "65000.5"
 	return msg, d, api.Proposal{
 		Kind: api.ProposalKindOrder, Venue: api.VenueHyperliquid, Symbol: "BTC", Side: api.SideBuy, OrderType: api.ProposalOrderTypeLimit,
-		Size: "0.0015", Price: &price, ClientOrderId: clientOrderID, NotionalUsd: "97.5", ExpiresAt: h.now.Add(time.Minute),
+		Size: "0.0015", Price: &price, ClientOrderId: clientOrderID, NotionalUsd: "97.5", ExpiresAt: end,
+	}
+}
+
+// hlCancelEnding builds the cancel of the order placed under target as the
+// agent's signer would, with its end time, and the cancel proposal ending
+// at end.
+func (h *harness) hlCancelEnding(target string, expiresAfter uint64, end time.Time) (message []byte, digest []byte, proposal api.Proposal) {
+	h.t.Helper()
+	msg, err := hyperliquid.BuildCancel(btc.AssetIndex, target, hyperliquid.Nonce(h.now), expiresAfter)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return msg, h.hlDigest(msg, expiresAfter), api.Proposal{
+		Kind: api.ProposalKindCancel, Venue: api.VenueHyperliquid, Symbol: "BTC", ClientOrderId: target, TargetClientOrderId: &target, ExpiresAt: end,
+	}
+}
+
+// hlDigest is the digest of the message's action and nonce with the end
+// time given, which need not be the one the message carries.
+func (h *harness) hlDigest(msg []byte, expiresAfter uint64) []byte {
+	h.t.Helper()
+	m, action, err := hyperliquid.Decode(msg)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	d, err := hyperliquid.Digest(action, m.Nonce, expiresAfter, hyperliquid.Testnet)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return d
+}
+
+// hlFinish asks the service to finish the slot for the Hyperliquid message,
+// with the agent's last message and the engine's decision.
+func (h *harness) hlFinish(keyID string, slot signerapi.Slot, m4, msg []byte, d *signerapi.Decision, purpose signerapi.FinishRequestPurpose) *signerapi.FinishResponse {
+	h.t.Helper()
+	network := "testnet"
+	r, err := h.client.FinishWithResponse(context.Background(), keyID, signerapi.FinishRequest{
+		SlotId: slot.Id, AgentMessage: b64(m4), Decision: d, Purpose: &purpose,
+		VenueAction: signerapi.VenueAction{Venue: signerapi.VenueActionVenueHyperliquid, Network: &network, Action: b64(msg)},
+	})
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return r
+}
+
+// wantRefused fails the test unless the service refused, saying want.
+func wantRefused(t *testing.T, name string, r *signerapi.FinishResponse, want string) {
+	t.Helper()
+	if r.JSON200 != nil {
+		t.Fatalf("%s: signed", name)
+	}
+	if r.JSONDefault == nil || r.JSONDefault.Code != signerapi.ErrorCodeRefused || !strings.Contains(r.JSONDefault.Message, want) {
+		t.Fatalf("%s: got %s, want a refusal with %q", name, r.Body, want)
+	}
+}
+
+// An action the service signs is good at the venue no later than the
+// decision's proposal lasts, plus the clock tolerance, for an order and for
+// a cancel alike.
+func TestHyperliquidActionEndsNoLaterThanTheProposal(t *testing.T) {
+	h := newHarness(t)
+	key := h.keygen("vk_hl", "ks_1")
+	end := h.now.Add(time.Minute)
+	at := func(d time.Duration) uint64 { return uint64(end.Add(d).UnixMilli()) }
+	cases := []struct {
+		name         string
+		expiresAfter uint64
+		refused      bool
+	}{
+		{"built now for the proposal", hyperliquid.ExpiresAfter(h.now, end), false},
+		{"ten seconds from now", uint64(h.now.Add(10 * time.Second).UnixMilli()), false},
+		{"at the proposal's end", at(0), false},
+		{"at the end plus the tolerance", at(hyperliquid.NonceWindow), false},
+		{"a millisecond past the tolerance", at(hyperliquid.NonceWindow + time.Millisecond), true},
+		{"an hour past the proposal's end", at(time.Hour), true},
+		{"the largest time there is", math.MaxInt64, true},
+		{"too large to be a time", math.MaxInt64 + 1, true},
+		{"the largest count there is", math.MaxUint64, true},
+	}
+	kinds := []struct {
+		name    string
+		purpose signerapi.FinishRequestPurpose
+		build   func(expiresAfter uint64) ([]byte, []byte, api.Proposal)
+	}{
+		{"order", signerapi.FinishRequestPurposeOrder, func(e uint64) ([]byte, []byte, api.Proposal) {
+			return h.hlOrderEnding(hyperliquid.ClientOrderID("agt_test"), e, end)
+		}},
+		{"cancel", signerapi.FinishRequestPurposeCancel, func(e uint64) ([]byte, []byte, api.Proposal) {
+			return h.hlCancelEnding(hyperliquid.ClientOrderID("agt_test"), e, end)
+		}},
+	}
+	presig, slots := h.presign("vk_hl", "ps_1", key, len(cases)*len(kinds))
+	i := 0
+	for _, kind := range kinds {
+		for _, tc := range cases {
+			name := kind.name + ", " + tc.name
+			msg, digest, proposal := kind.build(tc.expiresAfter)
+			m4, err := key.Complete(presig, i, digest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := h.hlFinish("vk_hl", slots[i], m4, msg, h.decision(proposal), kind.purpose)
+			i++
+			if tc.refused {
+				want := "past the proposal's end"
+				if tc.expiresAfter > math.MaxInt64 {
+					want = "too large to be a time"
+				}
+				wantRefused(t, name, r, want)
+				continue
+			}
+			if r.JSON200 == nil {
+				t.Fatalf("%s: refused: %s", name, r.Body)
+			}
+			sig := hyperliquid.Signature{R: r.JSON200.Signature.R, S: r.JSON200.Signature.S, V: uint8(r.JSON200.Signature.V)}
+			if addr, err := hyperliquid.RecoverAddress(digest, sig); err != nil || addr != key.Address() {
+				t.Fatalf("%s: the signature recovers %s, want %s (%v)", name, addr, key.Address(), err)
+			}
+		}
+	}
+}
+
+// There is no signing without an end time: a body that carries none is
+// refused, and so is an agent's half signed over a digest computed without
+// the body's end time or with another one, since the service computes the
+// digest from the body itself.
+func TestHyperliquidActionIsSignedWithItsEndTime(t *testing.T) {
+	h := newHarness(t)
+	key := h.keygen("vk_hl", "ks_1")
+	presig, slots := h.presign("vk_hl", "ps_1", key, 4)
+	msg, digest, proposal := h.hlOrder(hyperliquid.ClientOrderID("agt_test"))
+	m, action, err := hyperliquid.Decode(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, err := hyperliquid.ActionHash(action, m.Nonce, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	without, err := hyperliquid.L1TypedData(hyperliquid.Testnet, hash).Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The body without its end time, the agent's half over either digest.
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(msg, &fields); err != nil {
+		t.Fatal(err)
+	}
+	delete(fields, "expiresAfter")
+	bare, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := 0
+	for _, c := range []struct {
+		name   string
+		digest []byte
+	}{{"the digest with the end time", digest}, {"the digest of the action and nonce alone", without}} {
+		m4, err := key.Complete(presig, i, c.digest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := h.hlFinish("vk_hl", slots[i], m4, bare, h.decision(proposal), signerapi.FinishRequestPurposeOrder)
+		i++
+		wantRefused(t, "a body with no end time, "+c.name, r, "no expiresAfter")
+	}
+
+	// The body with its end time, the agent's half over a digest computed
+	// without it or with a later one.
+	for _, c := range []struct {
+		name   string
+		digest []byte
+	}{{"without the end time", without}, {"with a later end time", h.hlDigest(msg, m.ExpiresAfter+1)}} {
+		m4, err := key.Complete(presig, i, c.digest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := h.hlFinish("vk_hl", slots[i], m4, msg, h.decision(proposal), signerapi.FinishRequestPurposeOrder)
+		i++
+		wantRefused(t, "the agent's half over the digest "+c.name, r, "ecdsa2p: finish")
 	}
 }
 

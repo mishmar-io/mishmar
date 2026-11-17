@@ -71,6 +71,9 @@ type hlFixture struct {
 	key   *agentkey.Key
 	venue *hlVenue
 	clock time.Time
+	// end, when not zero, is the end time (expiresAfter) request gives its
+	// action, in place of the one a message built now for the proposal has.
+	end uint64
 }
 
 func newHLFixture(t *testing.T) *hlFixture {
@@ -126,7 +129,10 @@ func hlCancel(p *api.ProposalSubmit) {
 // (or the cancel of its target) built on the asset index the engine chose.
 func (f *hlFixture) request(t *testing.T, p api.ProposalSubmit, index int, mod func(in *hyperliquid.Intent)) api.SignRequest {
 	t.Helper()
-	nonce := hyperliquid.Nonce(f.clock)
+	nonce, expiresAfter := hyperliquid.Nonce(f.clock), hyperliquid.ExpiresAfter(f.clock, p.ExpiresAt)
+	if f.end != 0 {
+		expiresAfter = f.end
+	}
 	req := api.SignRequest{
 		Id: "sr_1", AgentId: "agt_1", ConnectedAccountId: "rt_hl", VenueKeyId: "vk_hl", Venue: api.VenueHyperliquid,
 		Scheme: api.SigningSchemeEcdsa2p, Proposal: &p, IssuedAt: f.clock, ExpiresAt: f.clock.Add(time.Minute),
@@ -135,14 +141,14 @@ func (f *hlFixture) request(t *testing.T, p api.ProposalSubmit, index int, mod f
 	var err error
 	if p.Kind == api.ProposalKindCancel {
 		req.Purpose = api.SignRequestPurposeCancel
-		message, err = hyperliquid.BuildCancel(index, *p.TargetClientOrderId, nonce)
+		message, err = hyperliquid.BuildCancel(index, *p.TargetClientOrderId, nonce, expiresAfter)
 	} else {
 		req.Purpose, req.ClientOrderId = api.SignRequestPurposeOrder, ptr("agt_1-order")
 		in := hlIntentOf(p)
 		if mod != nil {
 			mod(&in)
 		}
-		message, err = hyperliquid.BuildOrder(in, hyperliquid.Rules{AssetIndex: index, SizeDecimals: 4}, "agt_1-order", nonce)
+		message, err = hyperliquid.BuildOrder(in, hyperliquid.Rules{AssetIndex: index, SizeDecimals: 4}, "agt_1-order", nonce, expiresAfter)
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +157,7 @@ func (f *hlFixture) request(t *testing.T, p api.ProposalSubmit, index int, mod f
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest, err := hyperliquid.Digest(action, nonce, hyperliquid.Testnet)
+	digest, err := hyperliquid.Digest(action, nonce, expiresAfter, hyperliquid.Testnet)
 	if err != nil {
 		t.Fatal(err)
 	}

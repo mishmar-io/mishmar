@@ -35,6 +35,12 @@ type fakeEngine struct {
 	calls      atomic.Int32
 	authFailed atomic.Int32
 	proposals  atomic.Int32
+	// polledAs and proposedAs are the version the last poll and the last
+	// proposal named (HeaderSignerVersion); tooOld, when set, makes every
+	// poll answer 426 signer_too_old with this message.
+	polledAs   atomic.Value
+	proposedAs atomic.Value
+	tooOld     atomic.Value
 }
 
 type answered struct {
@@ -94,6 +100,11 @@ func (f *fakeEngine) poll(w http.ResponseWriter, r *http.Request, body []byte) {
 		writeJSON(w, http.StatusUnprocessableEntity, api.Error{Code: "validation", Message: "waitSeconds"})
 		return
 	}
+	f.polledAs.Store(r.Header.Get(HeaderSignerVersion))
+	if msg, _ := f.tooOld.Load().(string); msg != "" {
+		writeJSON(w, http.StatusUpgradeRequired, api.Error{Code: "signer_too_old", Message: msg})
+		return
+	}
 	f.mu.Lock()
 	out := f.pending
 	f.pending = nil
@@ -129,6 +140,7 @@ func (f *fakeEngine) answer(w http.ResponseWriter, r *http.Request, body []byte)
 
 func (f *fakeEngine) propose(w http.ResponseWriter, r *http.Request) {
 	f.proposals.Add(1)
+	f.proposedAs.Store(r.Header.Get(HeaderSignerVersion))
 	var p api.ProposalSubmit
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, api.Error{Code: "validation", Message: err.Error()})
@@ -349,6 +361,55 @@ func TestClientAgainstFakeEngine(t *testing.T) {
 	}
 	if fake.authFailed.Load() != 1 {
 		t.Fatalf("%d auth failures, want the one", fake.authFailed.Load())
+	}
+}
+
+// A poll and a proposal name the signer's version (HeaderSignerVersion), and
+// an engine that finds the signer too old says so in words that reach
+// whoever runs it: the error of the poll carries the engine's message whole.
+func TestAPollNamesTheSignersVersion(t *testing.T) {
+	key := agentkey.FromSeed(testSeed(1))
+	fake := newFakeEngine(key.PublicKeyB64(), "key_a")
+	srv := httptest.NewServer(fake.handler())
+	defer srv.Close()
+	c := NewClient(srv.URL+"/v1", "key_a", key)
+	ctx := context.Background()
+
+	if _, err := c.Poll(ctx, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := fake.polledAs.Load().(string); got != "dev" {
+		t.Fatalf("a signer that was given no version polled as %q, want dev", got)
+	}
+	was := Version
+	Version = "v9.8.7"
+	defer func() { Version = was }()
+	if _, err := c.Poll(ctx, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := fake.polledAs.Load().(string); got != "v9.8.7" {
+		t.Fatalf("polled as %q, want v9.8.7", got)
+	}
+	price := "60000"
+	if _, err := c.Propose(ctx, api.ProposalSubmit{
+		ConnectedAccountId: "rt_1", Kind: api.ProposalKindOrder, Symbol: "BTCUSDT", Side: api.SideBuy, Size: "0.5", Price: &price,
+		OrderType: api.ProposalSubmitOrderTypeLimit, Nonce: "n1", ProposedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := fake.proposedAs.Load().(string); got != "v9.8.7" {
+		t.Fatalf("proposed as %q, want v9.8.7", got)
+	}
+
+	const words = "This signer is too old for this engine. Upgrade to v9.9.0."
+	fake.tooOld.Store(words)
+	_, err := c.Poll(ctx, 0)
+	var e *Error
+	if !errors.As(err, &e) || e.Status != http.StatusUpgradeRequired || e.Code != "signer_too_old" || e.Message != words {
+		t.Fatalf("a poll the engine refused as too old: %v", err)
+	}
+	if !strings.Contains(err.Error(), words) {
+		t.Fatalf("the error %q does not carry the engine's words", err)
 	}
 }
 

@@ -214,12 +214,16 @@ func ActionHash(action Action, nonce uint64, vaultAddress string, expiresAfter *
 	return Keccak256(data), nil
 }
 
-// Digest is what the API wallet signs for a message's action and nonce, on
-// the network: the EIP-712 digest of the phantom agent. Both the signer and
-// the engine compute it from the action themselves, never trusting a digest
-// they were handed.
-func Digest(action Action, nonce uint64, network Network) ([]byte, error) {
-	h, err := ActionHash(action, nonce, "", nil)
+// Digest is what the API wallet signs for a message's action, nonce and end
+// time, on the network: the EIP-712 digest of the phantom agent. Both the
+// signer and the engine compute it from the action themselves, never
+// trusting a digest they were handed. There is no digest without an end
+// time: the venue takes a signed action only until then.
+func Digest(action Action, nonce, expiresAfter uint64, network Network) ([]byte, error) {
+	if expiresAfter == 0 {
+		return nil, errors.New("hyperliquid: an action is signed with its end time (expiresAfter)")
+	}
+	h, err := ActionHash(action, nonce, "", &expiresAfter)
 	if err != nil {
 		return nil, err
 	}
