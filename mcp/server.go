@@ -632,7 +632,7 @@ func (s *Server) toolTable() []tool {
 				if err != nil {
 					return "", err
 				}
-				return asJSON(page)
+				return asJSON(showDecisionPage(page))
 			},
 		},
 		{
@@ -690,7 +690,7 @@ func (s *Server) toolTable() []tool {
 				if err != nil {
 					return "", err
 				}
-				return asJSON(out)
+				return asJSON(showApprovals(out))
 			},
 		},
 		{
@@ -1015,8 +1015,9 @@ func Resolved(d api.Decision) bool {
 	return false
 }
 
-// describeDecision is one line a model reads at a glance, then the decision
-// as JSON for the details.
+// describeDecision is one line a model reads at a glance, then the chosen
+// fields of the decision as JSON for the details (showDecision), never the
+// record itself.
 func describeDecision(d api.Decision) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Decision %s: %s", d.Id, d.Verdict)
@@ -1053,7 +1054,7 @@ func describeDecision(d api.Decision) (string, error) {
 		}
 		fmt.Fprint(&b, ".")
 	}
-	js, err := asJSON(d)
+	js, err := asJSON(showDecision(d))
 	if err != nil {
 		return "", err
 	}
