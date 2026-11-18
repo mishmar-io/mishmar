@@ -1,8 +1,9 @@
 ---
 /**
- * /no-count/, for people at the company (MIS-90): opening it leaves this browser out of the
- * docs' visit counts, and one button counts it again. Umami's own opt-out is a key in
- * localStorage, `umami.disabled`, which its script reads before it sends anything.
+ * /no-count/, for people at the company (MIS-90): opening it changes nothing and says whether this
+ * browser is counted in the docs' visits now; one button leaves it out, the other counts it again.
+ * Umami's own opt-out is a key in localStorage, `umami.disabled`, which its script reads before it
+ * sends anything.
  *
  * The page is outside Starlight on purpose: Starlight's <head> is where src/analytics.ts loads
  * Umami, so this page never loads the script at all, and it is not in the sidebar, the search
@@ -18,19 +19,11 @@ const WEBSITE_PAGE = 'https://mishmar.io/no-count'
 <!doctype html>
 <html lang="en">
   <head>
-    <script is:inline>
-      // First thing, before anything else on the page: leave this browser out of the counts.
-      // The page loads no Umami script either. A browser that refuses localStorage throws here;
-      // the script at the end of the page reads back what was kept and says so.
-      try {
-        localStorage.setItem('umami.disabled', '1')
-      } catch (e) {}
-    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <meta name="color-scheme" content="light dark" />
-    <title>Visits from this browser are not counted · Mishmar docs</title>
+    <title>Visit counting in this browser · Mishmar docs</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <style>
       :root {
@@ -98,7 +91,8 @@ const WEBSITE_PAGE = 'https://mishmar.io/no-count'
         <p>
           This browser is now left out of Mishmar’s visit counts on <span id="host"></span>. It
           stays that way until you clear this site’s data. Each browser and device needs one visit
-          to this page, and the website and the docs each have their own.
+          to this page and one press of the button, and the website and the docs each have their
+          own.
         </p>
         <button type="button" id="count">Count this browser again</button>
       </section>
@@ -145,10 +139,9 @@ const WEBSITE_PAGE = 'https://mishmar.io/no-count'
           }
           show()
         }
-        // The write in <head> may have thrown; make it again here to learn whether it did.
-        write(function () {
-          localStorage.setItem(KEY, '1')
-        })
+        // Opening the page changes nothing: it only says what localStorage holds now. The page
+        // loads no Umami script, so neither the visit nor a press is counted.
+        show()
         document.getElementById('count').addEventListener('click', function () {
           write(function () {
             localStorage.removeItem(KEY)

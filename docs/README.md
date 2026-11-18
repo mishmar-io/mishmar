@@ -77,11 +77,12 @@ docs alone. Umami records page views with their referrer and query string, and o
 The privacy policy (`mishmar-site/src/privacy.tsx`) lists these; change it with this table.
 `.md` copies and `llms.txt` run no script, so agents reading them are not counted.
 
-`/no-count/` (`src/pages/no-count.astro`) is for people at the company: opening it sets
+`/no-count/` (`src/pages/no-count.astro`) is for people at the company: opening it changes
+nothing and says whether this browser is counted; "Stop counting this browser" sets
 `localStorage['umami.disabled']`, Umami's own opt-out, so that browser is left out of the docs'
-counts, and a button counts it again. It is outside Starlight, so it loads no Umami script and is
-not in the sidebar or the search; the sitemap's filter in `astro.config.mjs` leaves it out, and
-nothing links to it. mishmar.io has its own at `/no-count`.
+counts, and "Count this browser again" removes it. It is outside Starlight, so it loads no Umami
+script and is not in the sidebar or the search; the sitemap's filter in `astro.config.mjs` leaves
+it out, and nothing links to it. mishmar.io has its own at `/no-count`.
 
 ## Deploy
 
