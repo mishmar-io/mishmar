@@ -29,9 +29,9 @@ It takes about ten minutes.
 
 In the console, open **Agents** and click **Add agent**. The dialog has four steps and moves on by itself as the agent and the venue do their part.
 
-- **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Trade**. Nothing is picked until you choose.
 - Under **How it trades**, choose **A bot of your own**. The fields below appear after you choose.
+- **Name**: what you call the agent everywhere in Mishmar.
 - **Trades on**: the account the agent gets its trading key on. Pick your Binance **USDⓈ-M Futures** account if you connected it already (the only one there is is picked for you; accounts Mishmar only reads, such as Spot, are left out), or click **Connect an account**, which opens [the same steps as connecting one](/binance/connect-an-account/) without leaving the dialog, read-only key included, and picks the USDⓈ-M Futures account when it is done.
 - **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside those of the whole Mishmar account, the connection and the account.
 - **Description** (optional): what it trades and how.
