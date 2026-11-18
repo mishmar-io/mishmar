@@ -24,7 +24,7 @@ import (
 // same version) pinned to a minor release, so patch releases arrive by
 // themselves. Bumped with each minor release of the CLI; an installed
 // app keeps the pin it was added with.
-const Package = "mishmar@0.5"
+const Package = "mishmar@0.6"
 
 // ServerName is the name the trading server is added under in every app.
 const ServerName = "mishmar-trade"
@@ -86,7 +86,7 @@ func Args(app App, env string) []string {
 	return append([]string{"-y", Package, "mcp"}, Flags(app, env)...)
 }
 
-// PythonRequirement is Package as a pip requirement (mishmar>=0.5,<0.6),
+// PythonRequirement is Package as a pip requirement (mishmar>=0.6,<0.7),
 // for uvx.
 func PythonRequirement() string {
 	name, ver, _ := strings.Cut(Package, "@")

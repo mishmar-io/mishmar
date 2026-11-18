@@ -102,7 +102,7 @@ signer/      the agent's signer as a library: config.go (the 0600 file, validati
              handshake; no login item, so it does not survive a restart; on Windows the Manager runs in the
              MCP server's process)
 appsetup/    the setup text for trading from an AI app (what the hosted set_up_trading tool answers), the
-             package pin mishmar@0.5 as one constant; stdlib only, pinned in spec/vectors/app-setup.json
+             package pin mishmar@0.6 as one constant; stdlib only, pinned in spec/vectors/app-setup.json
 mcp/         the MCP server (JSON-RPC 2.0 over stdio, no dependency): sixteen tools over a Backend the signer implements,
              seven of them the reads of connected-account data (the calls a hosted collector answers; accountdata_test.go
              checks they call nothing else); app.go is `mcp --app`'s Backend over the background signer, which signs the

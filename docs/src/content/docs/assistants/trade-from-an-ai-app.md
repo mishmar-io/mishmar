@@ -34,25 +34,25 @@ Ask the app to set up trading with Mishmar, and it walks you through this step. 
 **Claude Code.** In a terminal:
 
 ```sh
-claude mcp add --scope user mishmar-trade -- npx -y mishmar@0.5 mcp --app claude-code
+claude mcp add --scope user mishmar-trade -- npx -y mishmar@0.6 mcp --app claude-code
 ```
 
 Claude Code starts new servers only when it starts. Type `/exit`, then run `claude --continue` in the same folder to pick the conversation up again. If `claude` is not a command where you are (Claude Code inside an editor), put this in `.mcp.json` in the project folder instead, then reload the editor window and allow the new server when Claude Code asks:
 
 ```json
-{"mcpServers":{"mishmar-trade":{"command":"npx","args":["-y","mishmar@0.5","mcp","--app","claude-code"]}}}
+{"mcpServers":{"mishmar-trade":{"command":"npx","args":["-y","mishmar@0.6","mcp","--app","claude-code"]}}}
 ```
 
 **Cursor.** Add the server to `~/.cursor/mcp.json` (keep any servers already there), then reload Cursor's servers under **Settings → MCP**, or restart Cursor, and start a new chat:
 
 ```json
-{"mcpServers":{"mishmar-trade":{"command":"npx","args":["-y","mishmar@0.5","mcp","--app","cursor"]}}}
+{"mcpServers":{"mishmar-trade":{"command":"npx","args":["-y","mishmar@0.6","mcp","--app","cursor"]}}}
 ```
 
 **VS Code.** In a terminal:
 
 ```sh
-code --add-mcp '{"name":"mishmar-trade","type":"stdio","command":"npx","args":["-y","mishmar@0.5","mcp","--app","vscode"]}'
+code --add-mcp '{"name":"mishmar-trade","type":"stdio","command":"npx","args":["-y","mishmar@0.6","mcp","--app","vscode"]}'
 ```
 
 VS Code may ask you to trust the server. The server is there from your next message, not in the one that added it.
@@ -60,18 +60,18 @@ VS Code may ask you to trust the server. The server is there from your next mess
 **Claude Desktop.** Open **Settings → Developer → Edit Config**, add this under `mcpServers`, save, then quit Claude completely (not only the window) and open it again:
 
 ```json
-"mishmar-trade": {"command":"npx","args":["-y","mishmar@0.5","mcp","--app","claude-desktop"]}
+"mishmar-trade": {"command":"npx","args":["-y","mishmar@0.6","mcp","--app","claude-desktop"]}
 ```
 
 Claude in a browser or on a phone can only read your accounts through Mishmar: trading needs the signer on a computer you own.
 
-**Any other app.** Add a local (stdio) MCP server named `mishmar-trade` that runs `npx -y mishmar@0.5 mcp --app <your-app>`, with a short lowercase name for the app (`windsurf`). Restart the app if it does not load new servers by itself.
+**Any other app.** Add a local (stdio) MCP server named `mishmar-trade` that runs `npx -y mishmar@0.6 mcp --app <your-app>`, with a short lowercase name for the app (`windsurf`). Restart the app if it does not load new servers by itself.
 
-On Mishmar's testnet, add `--env testnet` at the end of the arguments (`"--env","testnet"` in JSON). Without Node.js, use `uvx --from "mishmar>=0.5,<0.6" mishmar mcp --app <your-app>` in the same place.
+On Mishmar's testnet, add `--env testnet` at the end of the arguments (`"--env","testnet"` in JSON). Without Node.js, use `uvx --from "mishmar>=0.6,<0.7" mishmar mcp --app <your-app>` in the same place.
 
 In every app, the new server can be used only after the app has restarted, or the conversation continues in a new session: tools added during a conversation never reach it.
 
-The command runs `mishmar@0.5` rather than one exact version, so a new 0.5 release reaches the signer on your computer, and on everyone else's, the next time npx starts it: fixes arrive without a step on your side, and a bad release would arrive the same way. Mishmar publishes the packages only from the release workflow in its public repository, through npm's and PyPI's trusted publishing, so there is no long-lived publishing token that someone could steal.
+The command runs `mishmar@0.6` rather than one exact version, so a new 0.6 release reaches the signer on your computer, and on everyone else's, the next time npx starts it: fixes arrive without a step on your side, and a bad release would arrive the same way. Mishmar publishes the packages only from the release workflow in its public repository, through npm's and PyPI's trusted publishing, so there is no long-lived publishing token that someone could steal.
 
 ## 2. Ask the app to set up trading
 
@@ -104,7 +104,7 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 ## Check it worked
 
 - Ask the app for its Mishmar trading status. It answers `Ready to trade on …`, names the agent, this computer's key code and full fingerprint and when the key expires, and says the signer runs in the background.
-- In a terminal, `npx -y mishmar@0.5 daemon status` prints the background signer's version and each app's state.
+- In a terminal, `npx -y mishmar@0.6 daemon status` prints the background signer's version and each app's state.
 
 ## What you see when you trade
 
@@ -114,7 +114,7 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 
 ## Stop or disconnect
 
-- **Stop the signer for now:** `npx -y mishmar@0.5 daemon stop`. It finishes what it is signing, then exits. The next Mishmar tool any app uses starts it again.
+- **Stop the signer for now:** `npx -y mishmar@0.6 daemon stop`. It finishes what it is signing, then exits. The next Mishmar tool any app uses starts it again.
 - **End the app's trading for good:** disconnect this computer in the console. Its key stops working at once, and its trading keys with it. The app's next Mishmar tool says Mishmar no longer takes this computer's key; signing in again makes a new key, which you approve again.
 
 ## Not supported yet
@@ -138,4 +138,4 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 
 **An approved order ends `Not forwarded: the agent's signer refused: order_already_signed: …`**: the signer on your computer had signed this order once already, and its answer did not reach Mishmar (a dropped connection, say). It never signs a second order for one proposal, because it cannot tell whether the first one went out. Check the exchange, then ask the app to propose the order again if it is not there.
 
-**An order ends `… order_record_unavailable: the record of signed orders … cannot be read`**: the signer's record of the orders it signed (`agent.signed.json` in the app's folder) is damaged, so the signer signs no order until it is fixed; cancels still go. Stop the signer with `npx -y mishmar@0.5 daemon stop`, wait until a day has passed since the last order the app proposed (no proposal lives longer), move the file aside, and ask the app again.
+**An order ends `… order_record_unavailable: the record of signed orders … cannot be read`**: the signer's record of the orders it signed (`agent.signed.json` in the app's folder) is damaged, so the signer signs no order until it is fixed; cancels still go. Stop the signer with `npx -y mishmar@0.6 daemon stop`, wait until a day has passed since the last order the app proposed (no proposal lives longer), move the file aside, and ask the app again.

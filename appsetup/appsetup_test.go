@@ -71,13 +71,13 @@ func TestTexts(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(mustText(t, ClaudeCode, "prod"), "claude mcp add --scope user mishmar-trade -- npx -y mishmar@0.5 mcp --app claude-code`") {
+	if !strings.Contains(mustText(t, ClaudeCode, "prod"), "claude mcp add --scope user mishmar-trade -- npx -y mishmar@0.6 mcp --app claude-code`") {
 		t.Fatal("the Claude Code command")
 	}
-	if !strings.Contains(mustText(t, Other, "prod"), "npx -y mishmar@0.5 mcp --app <your-app>") {
+	if !strings.Contains(mustText(t, Other, "prod"), "npx -y mishmar@0.6 mcp --app <your-app>") {
 		t.Fatal("the placeholder for another app")
 	}
-	if PythonRequirement() != "mishmar>=0.5,<0.6" {
+	if PythonRequirement() != "mishmar>=0.6,<0.7" {
 		t.Fatalf("python requirement %s", PythonRequirement())
 	}
 	if _, err := Text("windsurf", "prod"); err == nil {
