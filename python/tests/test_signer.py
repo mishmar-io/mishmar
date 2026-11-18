@@ -215,6 +215,48 @@ def test_find_binary_order(fake_binary, tmp_path, monkeypatch):
     assert find_binary() == str(installed)
 
 
+def release_found_among(tmp_path, monkeypatch, *folders):
+    """The folder find_binary takes from a HOME of its own holding ``folders``
+    under .mishmar/bin, each with an executable mishmar, and no binary in
+    MISHMAR_BIN or on the PATH."""
+    home_bin = tmp_path / "home" / ".mishmar" / "bin"
+    for f in folders:
+        (home_bin / f).mkdir(parents=True)
+        (home_bin / f / "mishmar").write_text("#!/bin/sh\n")
+        (home_bin / f / "mishmar").chmod(0o755)
+    monkeypatch.delenv("MISHMAR_BIN", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "nowhere"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    return os.path.relpath(os.path.dirname(find_binary()), home_bin)
+
+
+def test_find_binary_takes_the_newest_release_by_number(tmp_path, monkeypatch):
+    assert release_found_among(tmp_path, monkeypatch, "v0.5.9", "v0.5.10") == "v0.5.10"
+
+
+def test_unchanged_find_binary_takes_a_newer_minor_over_a_higher_patch(
+    tmp_path, monkeypatch
+):
+    assert release_found_among(tmp_path, monkeypatch, "v0.5.10", "v0.6.0") == "v0.6.0"
+
+
+def test_find_binary_takes_a_release_over_its_pre_release(tmp_path, monkeypatch):
+    assert (
+        release_found_among(tmp_path, monkeypatch, "v0.6.0-rc1", "v0.6.0") == "v0.6.0"
+    )
+
+
+def test_find_binary_takes_a_release_over_a_name_later_by_text(tmp_path, monkeypatch):
+    assert release_found_among(tmp_path, monkeypatch, "work", "v0.5.1") == "v0.5.1"
+
+
+def test_unchanged_with_no_release_find_binary_takes_the_last_name_by_text(
+    tmp_path, monkeypatch
+):
+    folders = ("custom", "latest", "Zed", "build-2")
+    assert release_found_among(tmp_path, monkeypatch, *folders) == "latest"
+
+
 def test_download_binary_checks_the_release_checksum(tmp_path):
     archive = io.BytesIO()
     with tarfile.open(fileobj=archive, mode="w:gz") as tar:

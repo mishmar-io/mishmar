@@ -157,6 +157,48 @@ test("findBinary looks in the right places", async () => {
   }
 });
 
+/** The folder findBinary takes from a home of its own holding `folders` under .mishmar/bin, each with an executable mishmar, and no binary in MISHMAR_BIN or on the PATH. */
+async function releaseFoundAmong(name: string, folders: string[]): Promise<string> {
+  const home = path.join(dir, name);
+  for (const f of folders) {
+    await mkdir(path.join(home, ".mishmar", "bin", f), { recursive: true });
+    await writeFile(path.join(home, ".mishmar", "bin", f, "mishmar"), "#!/bin/sh\n");
+    await chmod(path.join(home, ".mishmar", "bin", f, "mishmar"), 0o755);
+  }
+  const saved = { bin: process.env.MISHMAR_BIN, path: process.env.PATH, home: process.env.HOME };
+  try {
+    delete process.env.MISHMAR_BIN;
+    process.env.PATH = path.join(dir, "nowhere");
+    process.env.HOME = home;
+    return path.relative(path.join(home, ".mishmar", "bin"), path.dirname(await findBinary()));
+  } finally {
+    for (const [k, v] of [["MISHMAR_BIN", saved.bin], ["PATH", saved.path], ["HOME", saved.home]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
+test("findBinary takes the newest release under ~/.mishmar/bin by number: v0.5.10 over v0.5.9", async () => {
+  assert.equal(await releaseFoundAmong("home-patch", ["v0.5.9", "v0.5.10"]), "v0.5.10");
+});
+
+test("unchanged: findBinary takes a newer minor release over a higher patch number: v0.6.0 over v0.5.10", async () => {
+  assert.equal(await releaseFoundAmong("home-minor", ["v0.5.10", "v0.6.0"]), "v0.6.0");
+});
+
+test("findBinary takes a release over its pre-release: v0.6.0 over v0.6.0-rc1", async () => {
+  assert.equal(await releaseFoundAmong("home-rc", ["v0.6.0-rc1", "v0.6.0"]), "v0.6.0");
+});
+
+test("findBinary takes a release over a folder whose name is not a release, even one later by text: v0.5.1 over work", async () => {
+  assert.equal(await releaseFoundAmong("home-other", ["work", "v0.5.1"]), "v0.5.1");
+});
+
+test("unchanged: with no release among the folders, findBinary takes the last name by text", async () => {
+  assert.equal(await releaseFoundAmong("home-none", ["custom", "latest", "Zed", "build-2"]), "latest");
+});
+
 test("downloadBinary checks the release checksum", async () => {
   const src = path.join(dir, "release");
   await mkdir(src, { recursive: true });

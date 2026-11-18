@@ -100,9 +100,38 @@ export interface FindBinaryOptions {
   skipDownloaded?: boolean;
 }
 
+/** A folder name under `~/.mishmar/bin` that is a release: `v1.2.3`, the `v` optional, then nothing or `-…` or `+…`. */
+const RELEASE_FOLDER = /^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+][\s\S]*)?$/;
+
+/**
+ * Newest first, for the folders under `~/.mishmar/bin`: releases by their
+ * numbers (v0.5.10 before v0.5.9), a release before its pre-release, two
+ * suffixes by text; then every name that is not a release, by text, last
+ * first. Text is compared as `sort()` compares it, never by locale.
+ */
+function newestFirst(a: string, b: string): number {
+  const x = RELEASE_FOLDER.exec(a);
+  const y = RELEASE_FOLDER.exec(b);
+  if (x && !y) return -1;
+  if (y && !x) return 1;
+  if (x && y) {
+    for (let i = 1; i <= 3; i++) {
+      const m = BigInt(x[i] as string);
+      const n = BigInt(y[i] as string);
+      if (m !== n) return m > n ? -1 : 1;
+    }
+    const [s, t] = [x[4], y[4]];
+    if (s === undefined && t !== undefined) return -1;
+    if (t === undefined && s !== undefined) return 1;
+    if (s !== undefined && t !== undefined && s !== t) return s > t ? -1 : 1;
+  }
+  return a === b ? 0 : a > b ? -1 : 1;
+}
+
 /**
  * Where the mishmar binary is: the argument, `MISHMAR_BIN`, the PATH, or a
- * release `downloadBinary` fetched. Throws with what to do when there is none.
+ * release `downloadBinary` fetched (the newest by version). Throws with what
+ * to do when there is none.
  */
 export async function findBinary(explicit?: string, options: FindBinaryOptions = {}): Promise<string> {
   for (const c of [explicit, process.env[ENV_BINARY]]) if (await executable(c)) return c as string;
@@ -118,7 +147,7 @@ export async function findBinary(explicit?: string, options: FindBinaryOptions =
   if (!options.skipDownloaded) {
     const home = path.join(homedir(), ".mishmar", "bin");
     try {
-      for (const version of (await readdir(home)).sort().reverse()) {
+      for (const version of (await readdir(home)).sort(newestFirst)) {
         const c = path.join(home, version, name);
         if (await executable(c)) return c;
       }

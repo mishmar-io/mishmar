@@ -44,6 +44,7 @@ import json
 import logging
 import os
 import platform
+import re
 import secrets
 import shutil
 import socket
@@ -93,6 +94,22 @@ def _is_script(path: str) -> bool:
         return f.read(2) == b"#!"
 
 
+# A folder name under ~/.mishmar/bin that is a release: v1.2.3, the v optional,
+# then nothing or -… or +….
+_RELEASE_FOLDER = re.compile(r"v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?", re.DOTALL)
+
+
+def _newest_first(name: str) -> tuple[bool, int, int, int, bool, str, str]:
+    """The sort key, with ``reverse=True``, for the folders under
+    ``~/.mishmar/bin``: releases by their numbers (v0.5.10 before v0.5.9), a
+    release before its pre-release, two suffixes by text; then every name that
+    is not a release, by text, last first."""
+    m = _RELEASE_FOLDER.fullmatch(name)
+    if m is None:
+        return (False, 0, 0, 0, False, "", name)
+    return (True, int(m[1]), int(m[2]), int(m[3]), m[4] is None, m[4] or "", name)
+
+
 def find_binary(
     explicit: str | None = None,
     *,
@@ -101,8 +118,8 @@ def find_binary(
     skip_downloaded: bool = False,
 ) -> str:
     """Where the ``mishmar`` binary is: the argument, ``MISHMAR_BIN``, the
-    PATH, or a release ``download_binary`` fetched. Raises FileNotFoundError
-    with what to do when there is none.
+    PATH, or a release ``download_binary`` fetched (the newest by version).
+    Raises FileNotFoundError with what to do when there is none.
 
     The argument and ``MISHMAR_BIN`` are taken as given. On the PATH,
     ``skip_scripts`` passes over a ``mishmar`` that is a script (starts with
@@ -128,7 +145,7 @@ def find_binary(
         return c
     home = os.path.join(os.path.expanduser("~"), ".mishmar", "bin")
     if not skip_downloaded and os.path.isdir(home):
-        for version in sorted(os.listdir(home), reverse=True):
+        for version in sorted(os.listdir(home), key=_newest_first, reverse=True):
             c = os.path.join(home, version, name)
             if _executable(c):
                 return c
