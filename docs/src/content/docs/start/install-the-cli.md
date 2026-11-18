@@ -3,12 +3,68 @@ title: Install the mishmar CLI
 description: Download the mishmar binary for macOS or Linux, check it against the release's checksums, and put it on the PATH of the machine your agent runs on. Update an existing install the same way.
 sidebar:
   order: 1
-lastUpdated: 2026-11-17
+lastUpdated: 2026-11-19
 ---
 
 The `mishmar` binary is the agent's side of Mishmar. It writes the agent's signer config, makes the agent's half of each trading key with Mishmar, runs the signer, and can propose orders from the command line. The Python and TypeScript SDKs run the same binary as a child process.
 
 Install it on the machine your agent runs on. That machine holds the agent's half of every trading key, so it should be one you control.
+
+## v0.6.0 pre-release (testnet only)
+
+Mishmar's testnet now accepts only mishmar v0.6.0 or later. Production still accepts v0.5.4 until v0.6.0 is released there, planned for 20 or 21 November. If you use production only, change nothing yet.
+
+v0.6.0 is a pre-release, for testnet only. It is not marked as the latest release on GitHub, so the steps further down this page still install {{MISHMAR_VERSION}}. Do not use v0.6.0 with production or with real funds until it is released for production.
+
+Install only from this page. We never send a file or a download link by email or chat.
+
+1. Download the archive for your machine, and the checksums. Inside WSL 2, your machine is Linux.
+
+   ```sh
+   OS=$(uname -s | tr '[:upper:]' '[:lower:]')            # darwin or linux
+   ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')  # amd64 or arm64
+   NAME=mishmar_v0.6.0_${OS}_${ARCH}.tar.gz
+   curl -fsSLO https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/$NAME
+   curl -fsSLO https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/SHA256SUMS
+   ```
+
+   The same files as links: [macOS, Apple silicon](https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/mishmar_v0.6.0_darwin_arm64.tar.gz), [macOS, Intel](https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/mishmar_v0.6.0_darwin_amd64.tar.gz), [Linux, x86_64](https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/mishmar_v0.6.0_linux_amd64.tar.gz), [Linux, arm64](https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/mishmar_v0.6.0_linux_arm64.tar.gz) and [SHA256SUMS](https://github.com/mishmar-io/mishmar/releases/download/v0.6.0/SHA256SUMS). They are the files of the [v0.6.0 release](https://github.com/mishmar-io/mishmar/releases/tag/v0.6.0) on GitHub.
+
+2. Check the archive against the checksums. Do not run it if this does not print `OK`.
+
+   On macOS:
+
+   ```sh
+   grep " $NAME\$" SHA256SUMS | shasum -a 256 -c -
+   ```
+
+   On Linux, and inside WSL 2:
+
+   ```sh
+   grep " $NAME\$" SHA256SUMS | sha256sum -c -
+   ```
+
+   ```text
+   mishmar_v0.6.0_darwin_arm64.tar.gz: OK
+   ```
+
+3. Unpack it and put the binary on your PATH, over the older one if there is one.
+
+   ```sh
+   tar -xzf $NAME
+   sudo mv mishmar /usr/local/bin/
+   ```
+
+4. Check it worked, then start the signer as usual. A signer that is running still runs the older version: stop it (Ctrl-C in its terminal) first.
+
+   ```sh
+   mishmar version
+   mishmar signer run
+   ```
+
+   The first command prints `mishmar v0.6.0 (…)`.
+
+AI apps (Claude Code, Cursor and the others): the package your app runs, `mishmar@0.6`, is published on the day production moves. Until then your AI app cannot trade on testnet. It keeps working on production, so use production in the meantime.
 
 ## What you need
 
