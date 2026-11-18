@@ -226,11 +226,15 @@ func (r *goneRun) refusedText(msg string) string {
 	return "signer: stopped. " + r.s.Client.Engine + " refused this key (" + msg + "). Issue a new key in the console, then start the signer with it."
 }
 
-// nothingAfter checks no call reaches the engine once Run has returned.
+// nothingAfter checks the signer sends the engine nothing once Run has
+// returned.
 func (r *goneRun) nothingAfter(t *testing.T) {
 	t.Helper()
+	// A call sent just before Run returned (the key sync's first, cancelled
+	// in flight) can still be on its way to the engine: let it land first.
+	time.Sleep(100 * time.Millisecond)
 	_, _, before := r.g.counts()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	if _, _, after := r.g.counts(); after != before {
 		r.g.mu.Lock()
 		defer r.g.mu.Unlock()
