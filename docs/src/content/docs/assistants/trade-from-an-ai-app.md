@@ -3,11 +3,12 @@ title: Trade from Claude Code, Cursor or another AI app
 description: Let an AI app on your own computer propose orders through Mishmar. Add Mishmar's trading server to the app, approve your computer in the browser after comparing a code, and authorise the trading key at the exchange. Your half of each trading key stays on your computer, and every order is checked against your limits.
 sidebar:
   order: 3
-lastUpdated: 2026-11-17
-draft: true
+lastUpdated: 2026-11-18
 ---
 
 When you are done, an AI app on your computer (Claude Code, Cursor, VS Code, Claude Desktop or any app that runs MCP servers) can propose orders on one of your accounts. Mishmar checks every order against your rules before it reaches the exchange; an order over your approval threshold waits for you in the console. The app never sees a key.
+
+This works on a computer with a screen: your own Mac, Linux desktop, or Windows with WSL. A machine without a display (a server reached over SSH, a container, a cloud workspace, a Linux machine with no desktop) cannot trade this way yet. [On such a machine, add a trade agent with the CLI instead.](/hyperliquid/add-an-agent/)
 
 Trading needs Mishmar's signer on your computer. It holds your half of each trading key; Mishmar holds the other half and never sees yours, so an order goes out only when both have signed it. The app starts the signer itself the first time it needs it, and it keeps running in the background after you close the app, so an order you approve later still goes out.
 
@@ -73,12 +74,12 @@ In every app, the new server can be used only after the app has restarted, or th
 
 The command runs `mishmar@0.6` rather than one exact version, so a new 0.6 release reaches the signer on your computer, and on everyone else's, the next time npx starts it: fixes arrive without a step on your side (unless you installed `mishmar` yourself; then update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes), and a bad release would arrive the same way. Mishmar publishes the packages only from the release workflow in its public repository, through npm's and PyPI's trusted publishing, so there is no long-lived publishing token that someone could steal.
 
-## 2. Ask the app to set up trading
+## 2. Ask the app for your accounts
 
-Say **set up trading with Mishmar**. The app calls one of Mishmar's tools, which starts Mishmar's signer on your computer, makes this computer's key and opens Mishmar in your browser. In the app you see something like:
+Say **Show my Mishmar accounts**. The first request opens Mishmar in your browser, so you can approve this computer. Before it does, the tool the app calls starts Mishmar's signer on your computer and makes this computer's key. In the app you see something like:
 
 ```text
-This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: https://api.mishmar.io/oauth/authorize?…. Check the page shows this code: AS3N-N9TM. Approve only if it matches and you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until 09:40 UTC.
+This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: https://api.mishmar.io/oauth/authorize?…. Check the page shows this code: AS3N-N9TM. Approve only if it matches and you asked me to use Mishmar on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until 09:40 UTC.
 The key's full fingerprint, to compare all of it on the page: AS3N-N9TM-CD3M-R0M5
 ```
 
@@ -86,7 +87,7 @@ If no browser opened, open the link yourself. It works for ten minutes, and only
 
 ## 3. Approve this computer
 
-Mishmar's page shows the app's name and your computer's name, as the program gave them, a code, and the key's full fingerprint. **Approve only if the code is the one the app showed, and you asked the app on this computer to set up trading in the last few minutes.** Nobody from Mishmar will send you this link or a code, so decline a link that reached you any other way. A code that differs means the page is not for the key your app made: decline it. A code that matches shows only that the page is for that key, not who started the request, which is why the second condition matters. For a closer check, compare the whole fingerprint too; the app shows it on the line after the code.
+Mishmar's page shows the app's name and your computer's name, as the program gave them, a code, and the key's full fingerprint. **Approve only if the code is the one the app showed, and you asked the app on this computer to use Mishmar in the last few minutes.** Nobody from Mishmar will send you this link or a code, so decline a link that reached you any other way. A code that differs means the page is not for the key your app made: decline it. A code that matches shows only that the page is for that key, not who started the request, which is why the second condition matters. For a closer check, compare the whole fingerprint too; the app shows it on the line after the code.
 
 On the same page you choose the agent the app trades as (or a new one) and the account it trades on, and confirm with your passkey or wallet. Approving a computer for an app that already trades from another computer replaces that computer: its key stops working, and so do the trading keys it made.
 
@@ -119,14 +120,14 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 
 ## Not supported yet
 
-- **Remote machines.** A machine you reach over SSH, a container, a dev container or a cloud workspace (Codespaces, Gitpod, a cloud shell) cannot sign in to trade yet: the app says so and starts nothing. Signing in by typing a code on another device will come later. You can still read your accounts from anywhere through Mishmar's hosted address.
+- **Remote machines, and machines without a display.** A machine you reach over SSH, a container, a dev container or a cloud workspace (Codespaces, Gitpod, a cloud shell) cannot sign in to trade yet, and neither can a Linux machine with no desktop (neither `DISPLAY` nor `WAYLAND_DISPLAY` is set; WSL is not counted as one): the app says so and starts nothing. Signing in by typing a code on another device will come later. You can still read your accounts from anywhere through Mishmar's hosted address.
 - **Windows.** Mishmar's signer has no Windows release yet. Inside WSL, the Linux steps work.
 - **Surviving a restart.** Nothing starts the signer when the computer starts. After a restart it runs again with the next Mishmar tool any app uses; orders you approve in between wait for it until their deadline.
 - **The system keychain.** Keys are files only you can read, as for a bot's signer.
 
 ## When something goes wrong
 
-**`Trading through Mishmar from this machine is not supported yet: it looks like an SSH session (SSH_CONNECTION).`** (or a container, or a cloud machine): the app runs on a machine you are not sitting at. Trade from an app on your own computer.
+**`Trading through Mishmar from this machine is not supported yet: it looks like an SSH session (SSH_CONNECTION).`** (or a container, a cloud machine, or a machine without a display for a browser): the app runs on a machine you are not sitting at, or one with no screen. Trade from an app on your own computer.
 
 **`The person declined this computer's sign-in to Mishmar, so nothing was set up.`**: the request was declined on the page. Ask the app again to start a new one.
 
