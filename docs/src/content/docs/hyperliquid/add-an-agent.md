@@ -3,7 +3,7 @@ title: Add an agent on Hyperliquid
 description: Add an agent that trades on a Hyperliquid account you connected. Give it its Mishmar API key, start it with that one key, and approve the API wallet its signer generates at Hyperliquid's own API page. Four steps in one dialog, one command on the agent's machine, nothing signed in the console.
 sidebar:
   order: 2
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-18
 ---
 
 When you are done, the agent has two keys:
@@ -35,6 +35,7 @@ In the console, open **Agents** and click **Add agent**. The dialog has four ste
 
 - **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Trade**. Nothing is picked until you choose.
+- Under **How it trades**, choose **A bot of your own**. The fields below appear after you choose.
 - **Trades on**: the account the agent gets its trading key on. Pick your Hyperliquid **Perps** account if you connected it already (the only one there is is picked for you; accounts Mishmar only reads, such as Spot, are left out), or click **Connect an account**, which opens [the same steps as connecting one](/hyperliquid/connect-an-account/) without leaving the dialog and picks the Perps account when it is done.
 - **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside those of the whole Mishmar account, the connection and the account.
 - **Description** (optional): what it trades and how.
@@ -85,7 +86,7 @@ On that page, connected with your master account:
 2. Paste the name into **The name for the API wallet**. Another name works too, but uses up another of the account's three named slots when the key is later replaced.
 3. Click **Authorize API Wallet** and sign in your wallet.
 
-Mishmar asks Hyperliquid about the wallet every ten seconds while the dialog is open, and once a minute otherwise. When Hyperliquid lists it under your account, the dialog says **Approved. The key is active.** A connection that was still pending is verified at the same time (its three checks run, and its accounts turn **Active**).
+Mishmar asks Hyperliquid about the wallet every ten seconds while the dialog is open, and once a minute otherwise. When Hyperliquid lists it under your account, the dialog says **Approved. The key is active.** A connection that was still pending is verified at the same time (its two checks run, and its accounts turn **Active**).
 
 The key expires 100 days after it becomes active, or when Hyperliquid's own expiry for the wallet comes first. [When the key expires](#when-the-key-expires) has the replacement.
 
