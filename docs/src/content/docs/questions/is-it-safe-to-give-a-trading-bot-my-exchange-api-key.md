@@ -55,4 +55,4 @@ A stolen bot's half is useless on its own: it signs nothing without Mishmar's ha
 3. Add an agent [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). Its trading key is made split, and you approve or register the public half at the exchange.
 4. Set the limits, then point the bot at the SDK's `Signer`, so the bot's process holds no key at all.
 
-The hosted testnet is free: one agent and one connection on Hyperliquid testnet or Binance demo trading.
+The free plan covers one agent and one connection, with real money or on testnet.

@@ -10,6 +10,8 @@ lastUpdated: 2026-11-15
 
 ## Before you start
 
+There is no Windows build of the CLI yet, so a client that runs on Windows itself cannot start the local `mishmar mcp` server. On Windows, an app that only needs to read your accounts can use Mishmar's hosted address, `https://mcp.mishmar.io`, which needs nothing installed: [add a read agent](/start/add-a-read-agent/).
+
 1. [Install the mishmar CLI](/start/install-the-cli/) on the machine the model's client runs on.
 2. Add an agent and make its trading key, [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). That leaves the signer config at `~/.mishmar/agent.json`.
 3. Set the rules first. [How do I let an AI agent trade for me safely?](/questions/how-do-i-let-an-ai-agent-trade-for-me-safely/) has a first set.
@@ -35,7 +37,6 @@ Or, for everyone who opens the repo, a `.mcp.json` at its root:
 Add the same `mcpServers` entry to the config file and restart the app:
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 ```json

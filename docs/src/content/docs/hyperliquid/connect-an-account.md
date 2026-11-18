@@ -3,7 +3,7 @@ title: Connect a Hyperliquid account
 description: Connect your Hyperliquid master account to Mishmar by its address, which is all Mishmar needs to read it. Mishmar checks it, reads the balances, positions, value and the last 90 days of transactions of its Perps and Spot accounts, and keeps reading them every minute. Nothing here can trade or move funds; agents are given the accounts afterwards.
 sidebar:
   order: 1
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-18
 ---
 
 When you are done, your Hyperliquid master account's address is a **connection** in Mishmar, and it holds two **accounts**, **Perps** and **Spot**, as Hyperliquid keeps them: each one pool of money that Mishmar can read. Mishmar reads them by the address, which takes no key, so nothing you enter here can place an order or move funds. From then on it reads both accounts every minute and keeps what it reads: each one's balances, positions, value over time and transactions. The connection's value is the sum of the two, and a transfer between them shows on both. [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) has the details.
@@ -16,7 +16,7 @@ It takes about two minutes.
 
 ## What you need
 
-- **Your Hyperliquid master address**, or the browser wallet that holds it. It is the address you trade from on Hyperliquid, not an API wallet. On mainnet ([app.hyperliquid.xyz](https://app.hyperliquid.xyz)) for app.mishmar.io, or testnet ([app.hyperliquid-testnet.xyz](https://app.hyperliquid-testnet.xyz)) for the testnet console, with USDC in it: the master account has to have margin to pass verification.
+- **Your Hyperliquid master address**, or the browser wallet that holds it. It is the address you trade from on Hyperliquid, not an API wallet. On mainnet ([app.hyperliquid.xyz](https://app.hyperliquid.xyz)) for app.mishmar.io, or testnet ([app.hyperliquid-testnet.xyz](https://app.hyperliquid-testnet.xyz)) for the testnet console. An account that Mishmar only reads needs no USDC in it; one an agent will trade on does, and that is checked when the agent's trading key is verified, not here.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot connect accounts.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before a change like this one. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
 - **Room on your plan.** The free plan holds one connection, on any venue, with all its accounts.
@@ -40,13 +40,14 @@ Click **Connect**. The console may ask you to confirm with your passkey or walle
 
 ## 3. Mishmar checks it
 
-The dialog asks Hyperliquid about the master account at once and shows three checks:
+The dialog asks Hyperliquid about the master account at once and shows two checks:
 
 - **Master account found on the network**, with the address.
-- **Master account has margin**, with the amount available. For an account in Hyperliquid's unified-account or portfolio-margin mode, this is the account's USDC balance, and the mode is named after the amount.
 - **Network matches**: `mainnet` on app.mishmar.io, `testnet` on the testnet.
 
-When all three pass, the connection is verified, its accounts turn **Active** and the dialog moves on by itself. If one fails, fix it at Hyperliquid and click **Check again**. The connection is saved either way: **Finish later** closes the dialog, and **Verify** on the connection's page runs the checks again. Until every check passes, the connection and its accounts stay **Pending**: Mishmar does not read them yet, and an agent's orders on one are blocked with `The connection of … is not verified`.
+Margin is not checked here: **Master account has margin** is a check on an agent's trading key, made when you add an agent that trades on the account.
+
+When both pass, the connection is verified, its accounts turn **Active** and the dialog moves on by itself. If one fails, fix it at Hyperliquid and click **Check again**. The connection is saved either way: **Finish later** closes the dialog, and **Verify** on the connection's page runs the checks again. Until every check passes, the connection and its accounts stay **Pending**: Mishmar does not read them yet, and an agent's orders on one are blocked with `The connection of … is not verified`.
 
 ## 4. The first read
 
@@ -59,7 +60,7 @@ From now on Mishmar reads both accounts every minute, whether or not an agent us
 ## Check it worked
 
 - **Connected accounts** lists the connection with its two accounts under it, **Perps** and **Spot**, each **Active**. The connection's row says **Verified** under **Status**, and the time of its last read under **Data**.
-- On the connection's page, under its **Setup** tab, **Setup** shows the **Master address** and the **Network**, **Verification** lists the three checks, all passed, and **Data** lists balances, positions, value and transactions as **Up to date**, each with how far back its history goes. **Connection**, beside them, says **Master account** under **Type** and **Its address** under **Reached with**.
+- On the connection's page, under its **Setup** tab, **Setup** shows the **Master address** and the **Network**, **Verification** lists the two checks, both passed, and **Data** lists balances, positions, value and transactions as **Up to date**, each with how far back its history goes. **Connection**, beside them, says **Master account** under **Type** and **Its address** under **Reached with**.
 - Open an account from the connection's **Overview**, under **Accounts**. Its **Balances**, **Positions**, **Transactions** and **Value** tabs show what Mishmar read.
 - Copy the Perps account's **Id** (`ta_…`) from its **Overview**: an agent proposes orders to it, and reads it by it.
 
@@ -79,8 +80,8 @@ Next, give the account to an agent: [add an agent on Hyperliquid](/hyperliquid/a
 - **Use my wallet's address is greyed out**: the console found no browser wallet in this browser. Paste the address instead, or install Rabby or MetaMask and reload the page.
 - **`Couldn't tell which network. Reload and try again.`** next to **Network**: the console couldn't ask Mishmar which network it trades, and **Connect** stays greyed out. Reload the page.
 - **`This needs a passkey or a wallet. Add one under your profile, then try again.`**: your Mishmar login has neither. Open **Profile**, add a passkey or link a wallet, then click **Connect** again.
-- **Master account has margin fails, with `$0 available`**: the account holds no USDC on this network. Deposit some on that network at Hyperliquid, then click **Check again** (or **Verify** on the connection's page).
-- **The toast says `… of 3 checks still failing`**: the failing checks are marked in red with what Hyperliquid answered. Fix them at Hyperliquid, then click **Verify** again.
+- **Master account has margin fails, with `$0 available`**, when you add an agent that trades on the account: the account holds no USDC on this network. Deposit some on that network at Hyperliquid, then run the agent's check again.
+- **The toast says `… of 2 checks still failing`**: the failing checks are marked in red with what Hyperliquid answered. Fix them at Hyperliquid, then click **Verify** again.
 - **The account's page says `Mishmar can't read this account's … right now`**: the last reads of that kind failed, with the reason after it, and what you see is as of the time it gives. Mishmar keeps trying every minute; tell us if it doesn't clear.
 - **You entered the wrong address.** A connection's address can't be changed. On the connection's page, click the bin icon (**Delete connection**), then connect it again. Deleting removes the connection with all its accounts: Mishmar stops reading them, and the agents given them lose access. Mishmar refuses with `Agents still hold venue keys on this connection's accounts; revoke them first` while an agent has a trading key on one of them: revoke those keys on each agent's **Keys** tab first.
 - **`The Mishmar account's plan holds 1 connection; delete one or move to a larger plan`**, or **Connect account** is greyed out with the reason beside it: the free plan holds one connection, on Hyperliquid and Binance together, whatever the number of accounts under it. Delete one, or move to a larger plan.
