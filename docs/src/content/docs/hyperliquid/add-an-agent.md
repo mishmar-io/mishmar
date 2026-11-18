@@ -19,7 +19,7 @@ It takes about five minutes.
 
 ## What you need
 
-- **Your Hyperliquid master account** with USDC in it: the address you trade from on Hyperliquid, not an API wallet. On mainnet ([app.hyperliquid.xyz](https://app.hyperliquid.xyz)) for real funds, or testnet ([app.hyperliquid-testnet.xyz](https://app.hyperliquid-testnet.xyz)) for the testnet console: the console sets the network from the Mishmar it is connected to, mainnet on app.mishmar.io and testnet on app.testnet.mishmar.io. You don't need to have connected it to Mishmar yet: the dialog can.
+- **Your Hyperliquid master account** with USDC in it: the address you trade from on Hyperliquid, not an API wallet. On mainnet ([app.hyperliquid.xyz](https://app.hyperliquid.xyz)) for real funds, or testnet ([app.hyperliquid-testnet.xyz](https://app.hyperliquid-testnet.xyz)) for the testnet console: the console sets the network from the Mishmar it is connected to, mainnet on app.mishmar.io and testnet on app.testnet.mishmar.io. You don't need to have connected it to Mishmar yet: the dialog can. On testnet the USDC comes from Hyperliquid's faucet; see [What you need](/hyperliquid/connect-an-account/#what-you-need) on the page about connecting the account.
 - **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
