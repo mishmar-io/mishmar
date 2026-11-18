@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import sitemap from '@astrojs/sitemap'
 import { analyticsHead } from './src/analytics'
 import { satteri } from '@astrojs/markdown-satteri'
 import { cliVersion, cliVersionPlugin } from './src/lib/cli-version.mjs'
@@ -26,6 +27,9 @@ export default defineConfig({
     '/start/portfolios': '/start/where-rules-apply/',
   },
   integrations: [
+    // Starlight adds this sitemap itself, with no filter, unless one is already here. It is here
+    // to leave out /no-count/ (src/pages/no-count.astro), which is for people at the company.
+    sitemap({ filter: (page) => new URL(page).pathname !== '/no-count/' }),
     starlight({
       title: 'Mishmar docs',
       description:
