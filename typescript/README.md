@@ -1,9 +1,10 @@
 # mishmar (TypeScript)
 
-[Mishmar](https://mishmar.io) is a risk management layer for trading bots
-and AI agents: every order is checked against your limits before it reaches
-the exchange, large orders wait for your approval, and no key can trade
-alone.
+Give AI agents your trading accounts, on your terms. Connect an exchange
+account once, then decide which agent can see it, which can trade on it, and
+within what limits. Every read and every order is on the record.
+
+More at [mishmar.io](https://mishmar.io).
 
 This is the TypeScript client: build a proposal, sign it with the agent's
 key, send it to the engine, read the decision; and read the connected

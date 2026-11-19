@@ -26,7 +26,7 @@ export const GET: APIRoute = async ({ site }) => {
     .filter(Boolean)
   const text = [
     '# Mishmar docs',
-    '> Mishmar is a risk management layer for trading bots and AI agents: every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.',
+    '> Give AI agents your trading accounts, on your terms. Connect an exchange account once, then decide which agent can see it, which can trade on it, and within what limits. Every read and every order is on the record.',
     'How to set up Mishmar, step by step: connections and their accounts, the agents that read them or trade on them, and the split keys they trade with. Each page below is plain Markdown. All of them in one file: ' +
       new URL('/llms-full.txt', site).href,
     `## ${assistant.data.title}\n\nThe steps, yours and your user's, in order: ${new URL(markdownPath(assistant.id), site).href}\n\nThree rules before anything else:\n\n${rules}`,
