@@ -3,7 +3,7 @@ title: Is there an MCP server for trading on Hyperliquid or Binance with limits?
 description: Yes. mishmar mcp trades Hyperliquid perpetuals and Binance USD-M futures within limits you set (order size, exposure, leverage, concentration, drawdown, daily loss), holds large orders for your approval, and never gives the model a key. How it works, how to set it up, and how it compares with the other trading MCP servers for these exchanges.
 sidebar:
   order: 7
-lastUpdated: 2026-11-14
+lastUpdated: 2026-11-19
 ---
 
 Yes. `mishmar mcp` is an MCP server that trades Hyperliquid perpetuals and Binance USD-M futures within limits you set: every order the model proposes is checked against your order size, exposure, leverage, concentration, drawdown and daily loss limits before it is signed, orders over a threshold wait for your approval, and the model never holds a key. It works with Claude Code, Claude Desktop, Cursor, VS Code and any other MCP client.
@@ -76,4 +76,4 @@ Found an error here? [Edit this page on GitHub](https://github.com/mishmar-io/mi
 
 ## Try it
 
-The free plan covers one agent and one connection, with real money or on testnet.
+The free plan covers one trading agent and one connection, with real money or on testnet.
