@@ -711,6 +711,9 @@ func (s *Service) Finish(_ context.Context, r signerapi.FinishRequestObject) (si
 	if err := matchHyperliquid(action, m, rec, string(purpose)); err != nil {
 		return fail(err)
 	}
+	if err := s.checkTerms(r.Body.Decision, rec, r.KeyId, network, action, string(purpose)); err != nil {
+		return fail(err)
+	}
 	digest, err := hyperliquid.Digest(action, m.Nonce, m.ExpiresAfter, network)
 	if err != nil {
 		return fail(err)
@@ -815,6 +818,74 @@ func (s *Service) checkApproval(p *signerapi.ApprovalProof, decisionID string) e
 	}
 	if decisionID == "" || rec.DecisionID != decisionID {
 		return refused("the approval is for another decision")
+	}
+	return nil
+}
+
+// checkTerms checks the action against the venue terms the engine signed for
+// the decision, when the request carries them: the terms verify under the
+// engine's key, are for this decision, this key and this network, and the
+// action passes the terms' own check (hyperliquid.Terms.CheckOrder or
+// CheckCancel) for the decision's proposal. That is the check the agent's
+// signer ran when it built or took the action, here with the asset the
+// engine names: the asset, the format of size and price, a limit price
+// within 1 % of the proposal's, and a market order's price within the
+// engine's bound. Terms that do not verify or do not match are refused,
+// never passed over. A request without terms is not checked here.
+func (s *Service) checkTerms(d *signerapi.Decision, rec *decisionRecord, keyID string, network hyperliquid.Network, action hyperliquid.Action, purpose string) error {
+	if d == nil || d.Terms == nil {
+		return nil
+	}
+	record, err := decodeB64(&d.Terms.Record)
+	if err != nil {
+		return invalid("decision.terms.record: %v", err)
+	}
+	sig, err := decodeB64(&d.Terms.Signature)
+	if err != nil {
+		return invalid("decision.terms.signature: %v", err)
+	}
+	if s.opts.EnginePublicKey != nil && !ed25519.Verify(s.opts.EnginePublicKey, hyperliquid.TermsSigningBytes(record), sig) {
+		return refused("the terms' engine signature does not verify")
+	}
+	t, err := hyperliquid.DecodeTerms(record)
+	if err != nil {
+		return refused("%v", err)
+	}
+	switch {
+	case rec == nil || rec.Id == "" || t.DecisionID != rec.Id:
+		return refused("the terms are for another decision")
+	case t.VenueKeyID != keyID:
+		return refused("the terms are for another key")
+	case t.Network != string(network):
+		return refused("the terms are for %s, the action is for %s", t.Network, network)
+	}
+	p := rec.Proposal
+	if purpose == "cancel" {
+		if p.Kind != api.ProposalKindCancel || p.TargetClientOrderId == nil {
+			return refused("the decision is not a cancel")
+		}
+		c, err := hyperliquid.DecodeCancel(action)
+		if err != nil {
+			return refused("%v", err)
+		}
+		if err := t.CheckCancel(c, *p.TargetClientOrderId); err != nil {
+			return refused("%v", err)
+		}
+		return nil
+	}
+	if p.Kind != api.ProposalKindOrder {
+		return refused("the decision is a %s, not an order", p.Kind)
+	}
+	o, err := hyperliquid.DecodeOrder(action)
+	if err != nil {
+		return refused("%v", err)
+	}
+	in := hyperliquid.Intent{Symbol: p.Symbol, Side: string(p.Side), OrderType: string(p.OrderType), Size: p.Size, ReduceOnly: p.ReduceOnly}
+	if p.OrderType == api.ProposalOrderTypeLimit && p.Price != nil {
+		in.Price = *p.Price
+	}
+	if err := t.CheckOrder(o, in, p.ClientOrderId); err != nil {
+		return refused("%v", err)
 	}
 	return nil
 }

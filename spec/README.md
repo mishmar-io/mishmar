@@ -40,6 +40,25 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-17 (signer service 0.14.0)
+
+The engine can state the venue terms of a decision, and the signer service
+checks a Hyperliquid action against them (Ishai, 17 Nov 2026).
+
+- `signer-service.yaml`: `Decision.terms` (`VenueTermsProof`), optional. The
+  record names the decision, the trading key, the network, whether the
+  action is an order or a cancel, the asset's index and size decimals, an
+  order's side and reduce-only, and a market order's price bound. The engine
+  signs it under a line of its own ("mishmar venue terms v1"), so the
+  signature cannot be read as a decision or an approval.
+- When a request carries terms, the service verifies them and checks the
+  action with `hyperliquid.Terms.CheckOrder` or `CheckCancel`, the public
+  check the agent's signer and the engine already run. Terms that do not
+  verify or do not match are refused. A request without terms is handled as
+  before.
+- The contract (`openapi.yaml`), the decision record, the agent's signer,
+  the CLI and the SDKs do not change.
+
 ## Decided on 2026-11-16 (0.22.0)
 
 Every Hyperliquid action has an end time, and a signer names its version
