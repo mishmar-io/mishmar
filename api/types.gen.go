@@ -1142,19 +1142,22 @@ func (e SyncStateStatus) Valid() bool {
 
 // Defines values for Tier.
 const (
-	TierEnterprise Tier = "enterprise"
-	TierFree       Tier = "free"
-	TierPro        Tier = "pro"
+	TierFree Tier = "free"
+	TierPlus Tier = "plus"
+	TierPro  Tier = "pro"
+	TierTeam Tier = "team"
 )
 
 // Valid indicates whether the value is a known member of the Tier enum.
 func (e Tier) Valid() bool {
 	switch e {
-	case TierEnterprise:
-		return true
 	case TierFree:
 		return true
+	case TierPlus:
+		return true
 	case TierPro:
+		return true
+	case TierTeam:
 		return true
 	default:
 		return false
@@ -1899,7 +1902,10 @@ type AgentUpdate struct {
 	Name        *string  `json:"name,omitempty"`
 
 	// Permission read to trade lets the agent get trading keys from then on; each
-	// still needs its own setup at the venue. trade to read is refused
+	// still needs its own setup at the venue. It makes the agent count
+	// against `Entitlements.maxAgents`, and is refused with
+	// `limit_reached` when the plan holds no more trade agents; the
+	// agent goes on reading. trade to read is refused
 	// with 409 `conflict` while the agent holds an unrevoked trading key.
 	Permission *AgentPermission `json:"permission,omitempty"`
 
@@ -2618,9 +2624,13 @@ type Entitlements struct {
 	// FailoverCell A standby cell in another availability zone takes over when the account's cell fails (the uptime guarantee).
 	FailoverCell bool `json:"failoverCell"`
 
-	// MaxAgents The most agents the account may have, stopped ones and read agents
-	// included. Absent means no limit. An account already over it keeps what it has;
-	// createAgent is refused with `limit_reached` until one is deleted.
+	// MaxAgents The most trade agents the account may have, stopped ones included.
+	// Read agents are not counted. Absent means no limit. An account
+	// already over it keeps what it has; adding a trade agent
+	// (createAgent), and turning a read agent into a trade agent
+	// (updateAgent), are refused with `limit_reached` until a trade
+	// agent is deleted or made a read agent. Before contract 0.23.0
+	// this counted every agent.
 	MaxAgents *int `json:"maxAgents,omitempty"`
 
 	// MaxVenueConnections The most venue connections the account may have, on every venue
@@ -2638,8 +2648,9 @@ type Entitlements struct {
 	// SignerTransports The transports the signer channel may use. long_poll is in every tier.
 	SignerTransports []SignerTransport `json:"signerTransports"`
 
-	// Tier The account's plan: free, pro, or enterprise (by contact; billing never
-	// puts an account on it by itself). There is no team plan (7 November 2026).
+	// Tier The account's plan: free, plus, pro, or team (by agreement; billing
+	// never puts an account on it by itself). Before contract 0.23.0 there
+	// was no plus, and team was `enterprise`.
 	Tier Tier `json:"tier"`
 
 	// VenueBudgets The account's share of each venue's request budget. A venue limits
@@ -2704,6 +2715,8 @@ type Error struct {
 	// `limit_reached` (403) means the account's plan holds no more of what
 	// the request would add (`Entitlements.maxAgents`, `maxVenueConnections`).
 	// Sending it again changes nothing: delete one, or move to a larger plan.
+	// It also answers a read agent past the 50 an account may have on any
+	// plan; there a larger plan changes nothing. `details.limit` is the limit.
 	// `unavailable` (503) means the request did nothing: the engine cannot read its
 	// state, it is starting or waiting for its account, or it is stopping. Send the
 	// same request again after the seconds in the `Retry-After` header (one, while
@@ -3981,8 +3994,9 @@ type SyncState struct {
 // failing: the last reads were refused or failed; `error` says why.
 type SyncStateStatus string
 
-// Tier The account's plan: free, pro, or enterprise (by contact; billing never
-// puts an account on it by itself). There is no team plan (7 November 2026).
+// Tier The account's plan: free, plus, pro, or team (by agreement; billing
+// never puts an account on it by itself). Before contract 0.23.0 there
+// was no plus, and team was `enterprise`.
 type Tier string
 
 // TransactionOrigin Who placed a trade, so that an agent can tell its own activity from the rest.
