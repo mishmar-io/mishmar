@@ -40,6 +40,24 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-19 (0.23.3)
+
+An agent whose signer the engine turned away as too old says so, where until
+now it only showed as not connected (Product, 16 Nov 2026; MIS-142).
+
+- `SignerPresence.tooOld`, new and optional: `refusedAt` and `minVersion`,
+  present from the moment the engine refuses the key's poll with 426
+  `signer_too_old` until a poll of that key is taken. `connected` is false
+  meanwhile, as before.
+- Only a refused poll sets it: the poll is signed with the agent key and the
+  key is checked first. The same refusal of a one-shot proposal, which comes
+  before the key is checked, sets nothing.
+- `minVersion` is the engine's own number, the one its refusal names. Nothing
+  a signer sent is stored or shown.
+- It is for display. No decision, hold or signature depends on it, and it is
+  kept in memory with the rest of the presence, so a restart forgets it.
+- No other field, code or status changes.
+
 ## Decided on 2026-11-19 (0.23.2)
 
 An approved order that came with a one-shot venue message is sent no sooner

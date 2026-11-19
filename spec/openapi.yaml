@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.23.2
+  version: 0.23.3
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -2579,7 +2579,8 @@ components:
         minute. `lastSeenAt` is its last signer call since the engine started;
         absent when there was none. Kept in memory, so an engine restart
         forgets it until the signer polls again, which a running signer does
-        within seconds.
+        within seconds. `tooOld` says the signer did reach the engine and was
+        turned away for its version.
       required: [connected]
       properties:
         connected: { type: boolean }
@@ -2589,6 +2590,30 @@ components:
           description: |
             The agent key whose signer this is: the one holding the agent's
             trading keys' shares, when the agent has several keys.
+        tooOld:
+          type: object
+          description: |
+            Present when the engine refused this key's last poll with 426
+            `signer_too_old`, and until a poll of the key is taken. Such a
+            signer is not `connected`; this says why, so a client can tell
+            the person to upgrade instead of showing a signer that is only
+            away. Set by a poll alone, after the key that signed it was
+            checked. Kept in memory with the rest, so an engine restart
+            forgets it until the old signer polls again. Nothing reads it to
+            decide, hold or sign anything. An engine from before this field
+            sends none.
+          required: [refusedAt, minVersion]
+          properties:
+            refusedAt:
+              type: string
+              format: date-time
+              description: When the engine last refused the key's poll, by the engine's clock.
+            minVersion:
+              type: string
+              description: |
+                The oldest signer version this engine works with, as the
+                refusal's message names it (for example `v0.6.0`). It is the
+                engine's own number, never something the signer sent.
     Agent:
       type: object
       required: [id, name, permission, status, keys, venueKeys, connectedAccountIds, createdAt, updatedAt]

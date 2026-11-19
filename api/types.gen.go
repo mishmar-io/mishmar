@@ -3815,7 +3815,8 @@ type SignerPoll struct {
 // minute. `lastSeenAt` is its last signer call since the engine started;
 // absent when there was none. Kept in memory, so an engine restart
 // forgets it until the signer polls again, which a running signer does
-// within seconds.
+// within seconds. `tooOld` says the signer did reach the engine and was
+// turned away for its version.
 type SignerPresence struct {
 	Connected bool `json:"connected"`
 
@@ -3823,6 +3824,25 @@ type SignerPresence struct {
 	// trading keys' shares, when the agent has several keys.
 	KeyId      *string    `json:"keyId,omitempty"`
 	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
+
+	// TooOld Present when the engine refused this key's last poll with 426
+	// `signer_too_old`, and until a poll of the key is taken. Such a
+	// signer is not `connected`; this says why, so a client can tell
+	// the person to upgrade instead of showing a signer that is only
+	// away. Set by a poll alone, after the key that signed it was
+	// checked. Kept in memory with the rest, so an engine restart
+	// forgets it until the old signer polls again. Nothing reads it to
+	// decide, hold or sign anything. An engine from before this field
+	// sends none.
+	TooOld *struct {
+		// MinVersion The oldest signer version this engine works with, as the
+		// refusal's message names it (for example `v0.6.0`). It is the
+		// engine's own number, never something the signer sent.
+		MinVersion string `json:"minVersion"`
+
+		// RefusedAt When the engine last refused the key's poll, by the engine's clock.
+		RefusedAt time.Time `json:"refusedAt"`
+	} `json:"tooOld,omitempty"`
 }
 
 // SignerTransport How the engine reaches an agent's signer. The messages are the same on every transport.
