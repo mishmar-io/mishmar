@@ -111,7 +111,7 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 
 - The app proposes an order; Mishmar answers with a decision: sent, blocked by a rule (the rule is named), or waiting for your approval.
 - A proposal from an app stands 15 minutes unless the app sets another time (up to a day). That is how long you have to approve one that waits for you.
-- Once you approve, the order goes out as soon as the signer on your computer signs it, even if the app is closed by then. If the signer is not running (the computer restarted), the order waits for it until the proposal's deadline, and goes out when it is back, if your rules still allow it then.
+- Once you approve, the order goes out when the signer on your computer signs it, even if the app is closed by then. A limit order, or an exit on Binance, goes out no sooner than 70 seconds after the app proposed it (up to 2 minutes on Hyperliquid); the approval shows the time. If the signer is not running (the computer restarted), the order waits for it until the proposal's deadline, and goes out when it is back, if your rules still allow it then.
 
 ## Stop or disconnect
 

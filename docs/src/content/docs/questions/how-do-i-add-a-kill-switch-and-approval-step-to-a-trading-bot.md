@@ -39,9 +39,9 @@ What happens to a held order:
 2. The order shows in the console and the Mishmar account's owner gets an email.
 3. You approve or reject it in the console, and approving takes a passkey, so an injected "approve it" in a model's context goes nowhere.
 4. At the moment you approve, the rules run again against the account as it is then. If a rule now blocks it, or a pause or stop is on, the approval is refused and the order stays held. If the numbers moved enough to change a rule's outcome since you looked, you are asked to confirm again.
-5. Approved, the order is signed by both halves and sent. Rejected or expired, it is dropped.
+5. Approved, the order is signed by both halves and sent. A limit order, or an exit on Binance, is sent no sooner than 70 seconds after the bot proposed it (up to 2 minutes on Hyperliquid); the approval shows the time. Rejected or expired, it is dropped.
 
-A held order expires at the bot's own deadline for it or after 30 minutes, whichever comes first. The SDKs set that deadline to 60 seconds unless you say otherwise, so an order that may wait for a person needs a longer one: `valid_for` in Python, `validForSeconds` in TypeScript, and in the MCP server's `propose_order`.
+A held order expires at the bot's own deadline for it or after 30 minutes, whichever comes first. The SDKs set that deadline to 60 seconds unless you say otherwise, so an order that may wait for a person needs a longer one, at least 3 minutes: an approved order whose deadline passes before it can be sent is not sent, and its decision says so. Set it with `valid_for` in Python, `validForSeconds` in TypeScript, and in the MCP server's `propose_order`.
 
 ## In the bot
 
