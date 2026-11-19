@@ -197,7 +197,7 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 		return noOneShot("the config names no network for %s", vkID)
 	}
 	now := s.now()
-	nonce, expiresAfter := hyperliquid.Nonce(now), hyperliquid.ExpiresAfter(now, p.ExpiresAt)
+	nonce, expiresAfter := hyperliquid.Nonce(now), hyperliquid.OneShotExpiresAfter(now, p.ExpiresAt)
 	// The coin's index and decimals are Hyperliquid's own (hlmarkets.go),
 	// never the engine's. A coin the venue's list cannot answer for, or a
 	// list too old for this order, is refused here: the channel would be

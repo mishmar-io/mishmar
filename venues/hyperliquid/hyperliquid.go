@@ -193,6 +193,27 @@ func ExpiresAfter(now, proposalEnd time.Time) uint64 {
 	return uint64(end.UnixMilli())
 }
 
+// OneShotLife is how long a one-shot message is good at the venue when its
+// proposal lasts longer. It covers what happens between the signer fixing
+// the message's times and the venue reading it: the signer finishing the
+// message (the venue's list of markets, the hook, a presigning round with
+// the engine), the proposal's way to the engine, and the engine deciding
+// and sending. It is no longer than that needs, because until the message
+// ends, a half-signed order that was never sent is still good at the venue.
+const OneShotLife = 30 * time.Second
+
+// OneShotExpiresAfter is the end time a one-shot message built now for a
+// proposal carries, in milliseconds: the proposal's own end, or OneShotLife
+// from now when that comes first. A message signed through the channel is
+// built by the engine when it is about to send it, and keeps ExpiresAfter.
+func OneShotExpiresAfter(now, proposalEnd time.Time) uint64 {
+	end := now.Add(OneShotLife)
+	if proposalEnd.Before(end) {
+		end = proposalEnd
+	}
+	return uint64(end.UnixMilli())
+}
+
 // CheckExpiry checks the end time of a message against the proposal it was
 // built for: there is one, and the action is not good at the venue later
 // than the proposal's end plus NonceWindow (the clock difference a nonce is

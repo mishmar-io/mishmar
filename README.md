@@ -176,8 +176,8 @@ the venue request and the signer's half travel inside the proposal
 limit orders, cancels and, on Binance, exits (reduce-only market orders);
 any other market order is bounded by the engine from the venue's order book
 and signed over the channel. A one-shot Hyperliquid message ends at the
-proposal's `expiresAt`, or a minute after the signer builds it when that
-comes first. A refusal is
+proposal's `expiresAt`, or thirty seconds after the signer builds it when
+that comes first. A refusal is
 `{"kind":"refusal","refusal":{"reason":…}}` with a stable code first
 (`message_mismatch: side "SELL" is not the proposed BUY`), which the engine
 records on the decision's `signing`. Decimals are compared exactly; no float

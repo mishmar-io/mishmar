@@ -132,18 +132,22 @@ func mustB64(t *testing.T, s string) []byte {
 	return b
 }
 
-// A one-step message is built to end with the proposal, or a minute from
-// now when the proposal lasts longer, and what the signer signs is the
-// digest with that end time.
+// A one-step message is built to end with the proposal, or thirty seconds
+// from now when the proposal lasts longer, and what the signer signs is the
+// digest with that end time. One built close to the proposal's end keeps
+// the proposal's end.
 func TestOneStepHyperliquidMessageEndsWithTheProposal(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		lasts time.Duration
 		ends  time.Duration // from the fixture's clock
 	}{
-		{"a proposal that lasts an hour", time.Hour, hyperliquid.NonceWindow},
-		{"a proposal that lasts a minute", time.Minute, time.Minute},
+		{"a proposal that lasts an hour", time.Hour, 30 * time.Second},
+		{"a proposal that lasts a minute", time.Minute, 30 * time.Second},
+		{"a proposal that lasts thirty-one seconds", 31 * time.Second, 30 * time.Second},
+		{"a proposal that lasts thirty seconds", 30 * time.Second, 30 * time.Second},
 		{"a proposal that lasts twenty seconds", 20 * time.Second, 20 * time.Second},
+		{"a proposal that ends in two seconds", 2 * time.Second, 2 * time.Second},
 	} {
 		for _, kind := range []string{"order", "cancel"} {
 			f := newHLFixture(t)

@@ -735,6 +735,35 @@ func TestDigestCoversTheEndTime(t *testing.T) {
 	}
 }
 
+// A one-shot message ends with the proposal, or thirty seconds from now
+// when that comes first; the end a channel message carries does not change
+// with it.
+func TestAOneShotMessageEndsWithTheProposalOrThirtySecondsOn(t *testing.T) {
+	now := time.UnixMilli(1761825600000)
+	ms := func(at time.Time) uint64 { return uint64(at.UnixMilli()) }
+	for name, tc := range map[string]struct {
+		proposalEnd time.Time
+		want        uint64
+	}{
+		"a proposal that lasts an hour":                           {now.Add(time.Hour), ms(now.Add(30 * time.Second))},
+		"a proposal that lasts a minute":                          {now.Add(time.Minute), ms(now.Add(30 * time.Second))},
+		"a proposal that ends a millisecond after thirty seconds": {now.Add(30*time.Second + time.Millisecond), ms(now.Add(30 * time.Second))},
+		"a proposal that ends in ten seconds":                     {now.Add(10 * time.Second), ms(now.Add(10 * time.Second))},
+		"a proposal that ends a millisecond on":                   {now.Add(time.Millisecond), ms(now.Add(time.Millisecond))},
+	} {
+		got := OneShotExpiresAfter(now, tc.proposalEnd)
+		if got != tc.want {
+			t.Errorf("%s: ends at %d, want %d", name, got, tc.want)
+		}
+		if err := CheckExpiry(got, tc.proposalEnd); err != nil {
+			t.Errorf("%s: the end fails the check it will meet: %v", name, err)
+		}
+	}
+	if got, want := ExpiresAfter(now, now.Add(time.Hour)), ms(now.Add(time.Minute)); got != want {
+		t.Errorf("a channel message for a proposal that lasts an hour ends at %d, want %d", got, want)
+	}
+}
+
 // A message is built to end with the proposal, or a minute from now when
 // that comes first, and never without an end after its nonce.
 func TestExpiresAfterIsTheEarlierOfTheProposalsEndAndAMinute(t *testing.T) {
