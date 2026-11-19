@@ -83,7 +83,7 @@ mishmar signer run
 If something else starts the binary for you:
 
 - **The Python and TypeScript SDKs** run the first binary they find: `$MISHMAR_BIN`, then the one on the PATH, then the newest under `~/.mishmar/bin/`. Upgrading the SDK package does not replace a binary they already find. After steps 1 to 4, restart your bot, and the signer it starts is the new version.
-- **The AI apps' `npx -y mishmar@0.5 mcp --app …`** (and `uvx`) runs the mishmar on your PATH when there is one. After steps 1 to 4, restart the app: the first Mishmar tool it uses then replaces the older background signer by itself. `npx -y mishmar@0.5 daemon status` prints the version that runs.
+- **AI apps (Claude Code, Cursor and the others).** Add the server to your app again and restart the app. This is required: an app you added before v0.6.0 keeps running the old version. The command is on Trade from Claude Code, Cursor or another AI app, and it names the current package. If you never installed `mishmar` yourself, you don't download anything: the package fetches the release it pins. If you put `mishmar` on your PATH yourself, the app runs that copy: do steps 1 to 4, then restart the app. Either way, the first Mishmar tool the app uses replaces the older background signer by itself. To check, run `npx -y mishmar@0.6 daemon status`: it prints the version that runs.
 
 ## When something goes wrong
 

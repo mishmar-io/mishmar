@@ -3,7 +3,7 @@ title: Trade from Claude Code, Cursor or another AI app
 description: Let an AI app on your own computer propose orders through Mishmar. Add Mishmar's trading server to the app, approve your computer in the browser after comparing a code, and authorise the trading key at the exchange. Your half of each trading key stays on your computer, and every order is checked against your limits.
 sidebar:
   order: 3
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-17
 draft: true
 ---
 
@@ -71,7 +71,7 @@ On Mishmar's testnet, add `--env testnet` at the end of the arguments (`"--env",
 
 In every app, the new server can be used only after the app has restarted, or the conversation continues in a new session: tools added during a conversation never reach it.
 
-The command runs `mishmar@0.6` rather than one exact version, so a new 0.6 release reaches the signer on your computer, and on everyone else's, the next time npx starts it: fixes arrive without a step on your side, and a bad release would arrive the same way. Mishmar publishes the packages only from the release workflow in its public repository, through npm's and PyPI's trusted publishing, so there is no long-lived publishing token that someone could steal.
+The command runs `mishmar@0.6` rather than one exact version, so a new 0.6 release reaches the signer on your computer, and on everyone else's, the next time npx starts it: fixes arrive without a step on your side (unless you installed `mishmar` yourself; then update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes), and a bad release would arrive the same way. Mishmar publishes the packages only from the release workflow in its public repository, through npm's and PyPI's trusted publishing, so there is no long-lived publishing token that someone could steal.
 
 ## 2. Ask the app to set up trading
 
@@ -135,6 +135,8 @@ You can also ask the app **what is my Mishmar trading status?**: it says what is
 **`Mishmar no longer takes this computer's key for claude-code (Key revoked)`**: the computer was disconnected in the console, or its key expired. Ask again to sign in with a new key.
 
 **`Mishmar's signer for this app is not running: another signer is running with …`**: a `mishmar signer run` was started by hand on the app's key file. Stop it; the background signer takes over.
+
+**`… signer_too_old): This signer is too old for this engine. Upgrade to v0.6.0.`**: the mishmar the app runs is older than Mishmar accepts. Update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes, then restart the app.
 
 **An approved order ends `Not forwarded: the agent's signer refused: order_already_signed: …`**: the signer on your computer had signed this order once already, and its answer did not reach Mishmar (a dropped connection, say). It never signs a second order for one proposal, because it cannot tell whether the first one went out. Check the exchange, then ask the app to propose the order again if it is not there.
 
