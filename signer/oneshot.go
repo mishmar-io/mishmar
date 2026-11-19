@@ -168,10 +168,15 @@ func (s *Signer) Prepare(ctx context.Context, p *api.ProposalSubmit) error {
 	if err != nil {
 		return err
 	}
+	// An order is recorded before the agent's half of its message exists
+	// (orders.go): the venue takes this message until req.ExpiresAt.
+	if r := s.recordOneShot(p, req.ClientOrderId, req.ExpiresAt, now); r != nil {
+		return r
+	}
 	ac := party.Commit()
 	as, err := party.Sign(message, engineCommitment, ac)
 	if err != nil {
-		return err
+		return oneShotFailed(p, err)
 	}
 	p.VenueMessage = &api.ProposalVenueMessage{
 		VenueKeyId: vkID, Scheme: api.SigningSchemeFrostEd25519, Message: req.Message, EngineCommitmentId: ec.Id,
@@ -268,15 +273,32 @@ func (s *Signer) prepareHyperliquid(ctx context.Context, p *api.ProposalSubmit, 
 	if err != nil {
 		return err
 	}
+	// An order is recorded before the agent's last message for it exists
+	// (orders.go): the venue takes this message until its expiresAfter.
+	if r := s.recordOneShot(p, req.ClientOrderId, time.UnixMilli(int64(expiresAfter)), now); r != nil {
+		return r
+	}
 	m4, err := key.Complete(presig, index, digest)
 	if err != nil {
-		return err
+		return oneShotFailed(p, err)
 	}
 	p.VenueMessage = &api.ProposalVenueMessage{
 		VenueKeyId: vkID, Scheme: api.SigningSchemeEcdsa2p, Message: base64.StdEncoding.EncodeToString(message),
 		EngineCommitmentId: slotID, Share: base64.StdEncoding.EncodeToString(m4),
 	}
 	return nil
+}
+
+// oneShotFailed is the failure of the last step of a one-shot message. For
+// an order the proposal is in the record by then, so it is returned as a
+// refusal: Propose sends nothing for the proposal, through the channel
+// either, where the record would hold it back. A cancel is not recorded and
+// keeps its error.
+func oneShotFailed(p *api.ProposalSubmit, err error) error {
+	if p.Kind != api.ProposalKindOrder {
+		return err
+	}
+	return &Refusal{RefuseOneShotFailed, fmt.Sprintf("the one-shot message for the proposal could not be finished (%v); nothing was sent for it, propose again", err)}
 }
 
 // Propose sends an unsigned proposal one-shot when Prepare can build it and

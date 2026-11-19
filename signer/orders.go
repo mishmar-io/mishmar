@@ -36,14 +36,26 @@ import (
 // place. An entry is kept until the proposal's expiresAt plus
 // orderRecordGrace, after which Policy.Check refuses the proposal anyway.
 //
-// Cancels are not recorded: pulling an order twice is harmless. Nor is a
-// one-shot order (Prepare): when the rules park it, the engine signs it again
-// through the channel once a person approves, and that one channel signature
-// is recorded.
+// Cancels are not recorded: pulling an order twice is harmless.
+//
+// A one-shot order (Prepare) is recorded too, before the agent's half of its
+// message is made: the proposal, the client order id the message carries and
+// the moment the message stops being good at the venue (oneShotUntil). When
+// the rules park such an order, the engine asks for it again through the
+// channel once a person approves. That request is refused, with a code of
+// its own, until oneShotUntil plus oneShotGrace has passed, so the proposal
+// never has two messages the venue would take at the same time; after that
+// it is signed once, and only under the client order id the one-shot message
+// carried. A second Prepare for the same proposal is refused.
 
 // orderRecordGrace is how long past a proposal's expiresAt its entry is kept:
 // the clock difference the checks allow elsewhere.
 const orderRecordGrace = BinanceClockTolerance
+
+// oneShotGrace is how long past a one-shot message's end at the venue the
+// channel still refuses its proposal: how far the venue's clock may be from
+// this machine's, the same allowance the message checks use.
+const oneShotGrace = BinanceClockTolerance
 
 // orderRecordLockWait bounds the wait for another process that holds the
 // record's lock.
@@ -60,21 +72,37 @@ func OrdersPathFor(config string) string {
 
 // signedOrder is one proposal the signer signed an order for: the proposal (its
 // key and nonce, its connected account, when it ends) and the request that was
-// signed.
+// signed. An entry Prepare wrote for a one-shot message has oneShotUntil, the
+// moment that message stops being good at the venue, and no request id until
+// a channel request is signed for the proposal. A signer from before the
+// field reads such an entry as a signed order and signs nothing more for it.
 type signedOrder struct {
-	KeyID              string    `json:"keyId"`
-	Nonce              string    `json:"nonce"`
-	ConnectedAccountID string    `json:"connectedAccountId"`
-	ExpiresAt          time.Time `json:"expiresAt"`
-	RequestID          string    `json:"requestId"`
-	DecisionID         string    `json:"decisionId,omitempty"`
-	ClientOrderID      string    `json:"clientOrderId,omitempty"`
-	SignedAt           time.Time `json:"signedAt"`
+	KeyID              string     `json:"keyId"`
+	Nonce              string     `json:"nonce"`
+	ConnectedAccountID string     `json:"connectedAccountId"`
+	ExpiresAt          time.Time  `json:"expiresAt"`
+	RequestID          string     `json:"requestId"`
+	DecisionID         string     `json:"decisionId,omitempty"`
+	ClientOrderID      string     `json:"clientOrderId,omitempty"`
+	SignedAt           time.Time  `json:"signedAt"`
+	OneShotUntil       *time.Time `json:"oneShotUntil,omitempty"`
 }
 
 type orderKey struct{ keyID, nonce string }
 
 func (o signedOrder) key() orderKey { return orderKey{o.KeyID, o.Nonce} }
+
+// oneShotOnly says the entry is Prepare's: a one-shot message went out for
+// the proposal and no channel request has been signed for it.
+func (o signedOrder) oneShotOnly() bool { return o.OneShotUntil != nil && o.RequestID == "" }
+
+// channelMay says whether a channel request with this client order id may be
+// signed now for a proposal whose entry is Prepare's: the one-shot message
+// is past its end at the venue by more than oneShotGrace, and the request
+// carries the id that message carried.
+func (o signedOrder) channelMay(clientOrderID string, now time.Time) bool {
+	return o.oneShotOnly() && now.After(o.OneShotUntil.Add(oneShotGrace)) && o.ClientOrderID != "" && clientOrderID == o.ClientOrderID
+}
 
 // ordersFile is the file's shape.
 type ordersFile struct {
@@ -118,19 +146,18 @@ func (r *orderRecord) find(k orderKey) (signedOrder, bool, error) {
 }
 
 // add records o unless its proposal is in the record already, in which case
-// that entry comes back and nothing changes. Entries past their proposal's end
-// go at the same time. With a path, the file is replaced and synced before add
-// returns, under a lock that other processes on the same file take too.
+// that entry comes back and nothing changes. The one entry o takes the place
+// of is Prepare's, when o is a channel request the entry allows now
+// (channelMay); o then keeps the entry's oneShotUntil. Entries past their
+// proposal's end go at the same time. With a path, the file is replaced and
+// synced before add returns, under a lock that other processes on the same
+// file take too.
 func (r *orderRecord) add(o signedOrder, now time.Time) (signedOrder, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.path == "" {
-		if had, ok := r.mem[o.key()]; ok {
-			return had, true, nil
-		}
-		prune(r.mem, now)
-		r.mem[o.key()] = o
-		return o, false, nil
+		got, seen := put(r.mem, o, now)
+		return got, seen, nil
 	}
 	unlock, err := lockOrders(r.path)
 	if err != nil {
@@ -141,15 +168,28 @@ func (r *orderRecord) add(o signedOrder, now time.Time) (signedOrder, bool, erro
 	if err != nil {
 		return signedOrder{}, false, err
 	}
-	if had, ok := m[o.key()]; ok {
-		return had, true, nil
+	got, seen := put(m, o, now)
+	if seen {
+		return got, true, nil
 	}
-	prune(m, now)
-	m[o.key()] = o
 	if err := writeOrders(r.path, m); err != nil {
 		return signedOrder{}, false, err
 	}
-	return o, false, nil
+	return got, false, nil
+}
+
+// put places o in m as add describes: the entry that stands in its way and
+// true, or o as it now stands in m and false.
+func put(m map[orderKey]signedOrder, o signedOrder, now time.Time) (signedOrder, bool) {
+	if had, ok := m[o.key()]; ok {
+		if o.RequestID == "" || !had.channelMay(o.ClientOrderID, now) {
+			return had, true
+		}
+		o.OneShotUntil = had.OneShotUntil
+	}
+	prune(m, now)
+	m[o.key()] = o
+	return o, false
 }
 
 // count is how many proposals the record holds; for the start's log line.
@@ -330,7 +370,41 @@ func (s *Signer) signedAlready(req api.SignRequest) *Refusal {
 	if !seen {
 		return nil
 	}
-	return signedRefusal(had, req)
+	return signedRefusal(had, req, s.now())
+}
+
+// recordOneShot records the one-shot order Prepare is about to give its half
+// for, before it does: the proposal, the client order id the message
+// carries, and until, the moment the message stops being good at the venue.
+// A proposal in the record already, signed or prepared, gets no second
+// message, and none is given while the record cannot be written. A cancel is
+// not recorded.
+func (s *Signer) recordOneShot(p *api.ProposalSubmit, clientOrderID *string, until, now time.Time) *Refusal {
+	if p.Kind != api.ProposalKindOrder {
+		return nil
+	}
+	// A proposal that names no key is sent under the client's (Client.Propose).
+	keyID := p.KeyId
+	if keyID == "" && s.Client != nil {
+		keyID = s.Client.KeyID
+	}
+	if keyID == "" || p.Nonce == "" || clientOrderID == nil || *clientOrderID == "" {
+		return &Refusal{RefuseMalformed, "the proposal carries no key id, no nonce or no client order id, which is how this signer knows the orders it signed"}
+	}
+	until = until.UTC()
+	o := signedOrder{
+		KeyID: keyID, Nonce: p.Nonce, ConnectedAccountID: p.ConnectedAccountId, ExpiresAt: p.ExpiresAt.UTC(),
+		ClientOrderID: *clientOrderID, SignedAt: now.UTC(), OneShotUntil: &until,
+	}
+	had, seen, err := s.orders().add(o, now)
+	if err != nil {
+		return &Refusal{RefuseOrderRecord, err.Error() + "; no one-shot message was made"}
+	}
+	if seen {
+		at := had.SignedAt.UTC().Format(time.RFC3339)
+		return &Refusal{RefuseOrderSigned, fmt.Sprintf("an order for proposal %s of key %s was signed or prepared already, at %s; a proposal gets one message, so no second one is made for it", had.Nonce, had.KeyID, at)}
+	}
+	return nil
 }
 
 // recordSigned records the order about to be released, before it is: an
@@ -362,13 +436,36 @@ func (s *Signer) recordSigned(req api.SignRequest) *Refusal {
 		return &Refusal{RefuseOrderRecord, err.Error() + "; the signature was not released"}
 	}
 	if seen {
-		return signedRefusal(had, req)
+		if r := signedRefusal(had, req, now); r != nil {
+			return r
+		}
+		// The entry allowed this request when it was checked and no longer
+		// does: another request took its place meanwhile.
+		return &Refusal{RefuseOrderSigned, fmt.Sprintf("an order for proposal %s of key %s was signed meanwhile; the signature was not released", had.Nonce, had.KeyID)}
 	}
 	return nil
 }
 
-// signedRefusal is the refusal of an order for a proposal in the record.
-func signedRefusal(had signedOrder, req api.SignRequest) *Refusal {
+// signedRefusal is the refusal of an order for a proposal in the record, or
+// nil for the one request the record allows: a channel request for a
+// proposal that went out one-shot, once that message is past its end at the
+// venue by more than oneShotGrace, under the client order id it carried.
+func signedRefusal(had signedOrder, req api.SignRequest, now time.Time) *Refusal {
+	if had.oneShotOnly() {
+		until := had.OneShotUntil.UTC()
+		after := until.Add(oneShotGrace)
+		if !now.After(after) {
+			return &Refusal{RefuseOneShotLive, fmt.Sprintf("proposal %s of key %s went out with a one-shot message the venue takes until %s; an order for it is signed through the channel after %s, not before", had.Nonce, had.KeyID, until.Format(time.RFC3339), after.Format(time.RFC3339))}
+		}
+		cid := ""
+		if req.ClientOrderId != nil {
+			cid = *req.ClientOrderId
+		}
+		if !had.channelMay(cid, now) {
+			return &Refusal{RefuseClientOrderID, fmt.Sprintf("proposal %s of key %s went out with a one-shot message under client order id %q; an order for it is signed through the channel under that id only, and this request carries %q", had.Nonce, had.KeyID, had.ClientOrderID, cid)}
+		}
+		return nil
+	}
 	at := had.SignedAt.UTC().Format(time.RFC3339)
 	if had.RequestID == req.Id {
 		return &Refusal{RefuseReplay, fmt.Sprintf("%s was answered already, at %s (attempt %d)", req.Id, at, req.Attempt)}

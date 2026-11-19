@@ -68,6 +68,21 @@ const (
 	// version it does not know, no room on the disk): no order is signed
 	// until it can be, so a lost record never lets a proposal be signed twice.
 	RefuseOrderRecord = "order_record_unavailable"
+	// RefuseOneShotLive is an order asked through the channel for a
+	// proposal that went out with a one-shot message the venue may still
+	// take (orders.go): it is not signed until that message's end at the
+	// venue plus the clock allowance has passed. It is the one refusal that
+	// means "ask again later", and its reason names the time.
+	RefuseOneShotLive = "one_shot_live"
+	// RefuseClientOrderID is an order asked through the channel, for a
+	// proposal that went out one-shot, under another client order id than
+	// the one-shot message carried: the two messages of one proposal carry
+	// one id.
+	RefuseClientOrderID = "client_order_id_mismatch"
+	// RefuseOneShotFailed is a one-shot order whose message could not be
+	// finished after the proposal was recorded: nothing is sent for the
+	// proposal, and the caller proposes again.
+	RefuseOneShotFailed = "one_shot_failed"
 	// RefuseVenueList is a Hyperliquid order refused because the signer's
 	// own copy of the venue's list of markets is missing or too old for it
 	// (hlmarkets.go): never read since the signer started, or older than
