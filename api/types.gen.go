@@ -3840,14 +3840,26 @@ type SigningStatus struct {
 	Detail      *string    `json:"detail,omitempty"`
 	RequestedAt *time.Time `json:"requestedAt,omitempty"`
 
+	// SendsAt The earliest time an approved order is sent, when that is later
+	// than its approval. An order that came with a one-shot venue
+	// message is signed for the venue again no sooner than that
+	// message's end there (ten seconds after it was built on Binance,
+	// its `expiresAfter` on Hyperliquid) plus one minute. A signer
+	// that is not reaching the engine at that time makes it later.
+	// Present only while such an order waits. An order whose
+	// proposal's `expiresAt` comes before this time is not sent, and
+	// the decision's `reason` says so.
+	SendsAt *time.Time `json:"sendsAt,omitempty"`
+
 	// Status waiting: the order is with the signer, or a person approved it
 	// and the signer holding the trading key's share is not reaching
-	// the engine; it is sent when that signer polls, until `waitUntil`.
-	// signed, refused: the signer's answer. unreachable: no signer
-	// answered by the deadline. A wait ended because something stopped
-	// the order (a stop, a pause, a restriction, the rules, a
-	// revocation) leaves no signing status: the decision's `reason`
-	// says why it was not forwarded.
+	// the engine; it is sent when that signer polls, until `waitUntil`,
+	// and no sooner than `sendsAt` when there is one. signed, refused:
+	// the signer's answer. unreachable: no signer answered by the
+	// deadline. A wait ended because something stopped the order (a
+	// stop, a pause, a restriction, the rules, a revocation) leaves no
+	// signing status: the decision's `reason` says why it was not
+	// forwarded.
 	Status SigningStatusStatus `json:"status"`
 
 	// WaitUntil Until when an approved order waits for the signer, which is the
@@ -3858,12 +3870,13 @@ type SigningStatus struct {
 
 // SigningStatusStatus waiting: the order is with the signer, or a person approved it
 // and the signer holding the trading key's share is not reaching
-// the engine; it is sent when that signer polls, until `waitUntil`.
-// signed, refused: the signer's answer. unreachable: no signer
-// answered by the deadline. A wait ended because something stopped
-// the order (a stop, a pause, a restriction, the rules, a
-// revocation) leaves no signing status: the decision's `reason`
-// says why it was not forwarded.
+// the engine; it is sent when that signer polls, until `waitUntil`,
+// and no sooner than `sendsAt` when there is one. signed, refused:
+// the signer's answer. unreachable: no signer answered by the
+// deadline. A wait ended because something stopped the order (a
+// stop, a pause, a restriction, the rules, a revocation) leaves no
+// signing status: the decision's `reason` says why it was not
+// forwarded.
 type SigningStatusStatus string
 
 // SnapshotSource observed: read from the venue at that moment. rebuilt: worked out

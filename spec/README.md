@@ -40,6 +40,24 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-19 (0.23.2)
+
+An approved order that came with a one-shot venue message is sent no sooner
+than that message has ended at the venue plus one minute, and the decision
+says when (Product, 19 Nov 2026; MIS-30).
+
+- `SigningStatus.sendsAt`, new and optional: the earliest time such an order
+  is sent, present only while it waits (`status` waiting). It is the
+  one-shot message's end at the venue (ten seconds after it was built on
+  Binance, its `expiresAfter` on Hyperliquid) plus one minute. A signer that
+  is not reaching the engine then makes it later.
+- An order whose proposal's `expiresAt` comes before that time is not sent.
+  Its decision's `reason` says so, and says to propose it again with a
+  longer deadline.
+- An order with no one-shot message is sent as before, when its signer is
+  there; it has no `sendsAt`.
+- No other field, code or status changes.
+
 ## Decided on 2026-11-19 (0.23.1)
 
 An account's agents have a ceiling on the exits and cancels they send a
