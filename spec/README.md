@@ -40,6 +40,22 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-19 (0.23.1)
+
+An account's agents have a ceiling on the exits and cancels they send a
+venue (Product, 19 Nov 2026).
+
+- `Entitlements.venueBudgets`, text only: "exits and cancels always go" is
+  no longer true and is gone. Exits and cancels are still not taken from the
+  share, and a spent share still does not hold them. They are counted apart:
+  an account's agents may send a venue as many exits and cancels a minute as
+  the share holds, and the next one is refused with `rate_limited` and
+  `Retry-After`, as a held new order is.
+- A person's own requests, Stop included, are never counted against the
+  ceiling or refused by it.
+- No field, code or status changes. A venue with no share listed has no
+  ceiling.
+
 ## Decided on 2026-11-19 (0.23.0)
 
 Four plans, and only trade agents count against a plan (Ishai, 16 Nov 2026).
