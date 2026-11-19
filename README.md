@@ -151,8 +151,14 @@ key and, for each request, refuses unless, in this order:
   `order_already_signed`, whatever its timestamp and after a restart too; the
   same request id again is still `request_already_answered`. A record that
   cannot be read or written refuses every order
-  (`order_record_unavailable`) and never starts over empty. Cancels are
-  not recorded;
+  (`order_record_unavailable`) and never starts over empty. An order it
+  sends in one step (the message built and half signed with the proposal)
+  is recorded before that message is made, with the moment the message
+  stops being good at the venue. A request for that proposal through the
+  channel is `one_shot_live` until that moment plus a minute has passed;
+  after that it is signed once, and only under the client order id the
+  first message carried (`client_order_id_mismatch` otherwise). Cancels
+  are not recorded;
 - the hook, when the config names one, exits 0 (it gets the request's JSON
   on stdin and two seconds; its first line of output is the refusal reason).
 
