@@ -3,7 +3,7 @@ title: Add a read agent
 description: Let an AI app such as Claude or Cursor read the accounts you pick, with one address, mcp.mishmar.io, and your approval in Mishmar; no key to copy. Or, for scripts and bots, add a read agent with a Mishmar API key and read over MCP, from the Python or TypeScript SDK, or with the mishmar CLI. Neither can trade.
 sidebar:
   order: 2
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-19
 ---
 
 A **read agent** reads the accounts you give it, and nothing else: their balances, the venue's positions, their transactions and their value over time. It holds no signer and no trading key, so it can never trade: Mishmar refuses its orders. Every read it makes shows on the account's **Access** tab.
@@ -20,7 +20,6 @@ There is no key to copy, and through this address it cannot place, change or can
 - **An account to read**, connected [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/). If you have none yet, the approval page offers **Connect an account**.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot connect an app.
 - **A passkey or a linked wallet on your Mishmar login.** Approving asks for a fresh proof of one. Add one under **Profile** in the console's sidebar.
-- **Room on your plan.** The app becomes one of the plan's agents, and the free plan holds one. When the plan is full, the approval page offers to remove an agent to make room.
 - **An AI app that takes a remote MCP server address**, such as Claude or Cursor.
 
 ### 1. Give the app Mishmar's address
@@ -62,7 +61,7 @@ It answers from the accounts its agent can read: the ones you ticked, and any th
 
 In the console, open **Agents** and click the app's agent. On **Overview**, under **App access**, the **Read** row has **Disconnect**. Click it, then **Disconnect** again to confirm. No passkey is needed to disconnect.
 
-It ends at once: Mishmar revokes the key it holds for the app, and within seconds every read the app tries is refused. If the agent never traded, it is removed as well, which frees its place on your plan. Deleting the agent ends the connection too.
+It ends at once: Mishmar revokes the key it holds for the app, and within seconds every read the app tries is refused. If the agent never traded, it is removed as well. Deleting the agent ends the connection too.
 
 To give the app more accounts, or take one away, use **Accounts** on its agent's page, as [below](#give-it-more-accounts-or-take-one-away).
 
@@ -89,7 +88,7 @@ It takes about two minutes.
 - **An account to read**, connected [on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/). The dialog can connect one on the way.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot add agents.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one agent, read and trade agents together.
+- **No room needed on your plan.** A plan counts trade agents only. An account can hold up to 50 read agents, on every plan.
 - **Something to read with**: an MCP client and the [mishmar CLI](/start/install-the-cli/) (or `npx`/`uvx`, as in [the MCP setup](/assistants/use-mishmar-from-claude-cursor-or-any-mcp-client/#without-installing-the-cli)), the Python or TypeScript SDK, or the CLI alone.
 
 ### 1. Add the agent
@@ -235,4 +234,4 @@ To stop the agent reading altogether, revoke its Mishmar API key on its **Keys**
 - **`… does not accept this key (…): it may have been revoked; issue a new one in the console`**: the key is not one Mishmar knows, or was revoked. Copy it again, or revoke it on the **Keys** tab and issue another.
 - **`… holds another key than MISHMAR_API_KEY; remove the file to set the agent up again`**: the MCP server found another agent's config at the default path. Give this agent its own with `--config`, as above.
 - **A read for a past moment comes back not found**: Mishmar has nothing that far back, either because it connected the account later or because the plan keeps 90 days. [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) has how far back each kind goes.
-- **`The Mishmar account's plan holds 1 agent; delete one or move to a larger plan`**, or **Add agent** is greyed out with the reason beside it: the free plan holds one agent, read and trade agents together. Delete one, or move to a larger plan.
+- **`A Mishmar account holds at most 50 read agents, on every plan; delete one to add another`**: a plan counts trade agents only, and an account can hold up to 50 read agents whatever its plan. Delete a read agent you no longer use.

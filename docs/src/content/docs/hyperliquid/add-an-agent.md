@@ -3,7 +3,7 @@ title: Add an agent on Hyperliquid
 description: Add an agent that trades on a Hyperliquid account you connected. Give it its Mishmar API key, start it with that one key, and approve the API wallet its signer generates at Hyperliquid's own API page. Four steps in one dialog, one command on the agent's machine, nothing signed in the console.
 sidebar:
   order: 2
-lastUpdated: 2026-11-18
+lastUpdated: 2026-11-19
 ---
 
 When you are done, the agent has two keys:
@@ -23,7 +23,7 @@ It takes about five minutes.
 - **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one agent and one connection.
+- **Room on your plan.** The free plan holds one trade agent and one connection.
 
 :::note[Three agents per Hyperliquid account]
 Hyperliquid lets a master account approve up to three named API wallets, and each Mishmar agent on that account uses one. Named API wallets you use for other bots count toward the three. Mishmar names every key of one agent the same (`mishmar-` and the last eight characters of the agent's id), so a replacement key takes over the slot of the one it replaces.
@@ -33,9 +33,9 @@ Hyperliquid lets a master account approve up to three named API wallets, and eac
 
 In the console, open **Agents** and click **Add agent**. The dialog has four steps and moves on by itself as the agent and the venue do their part.
 
-- **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Trade**. Nothing is picked until you choose.
 - Under **How it trades**, choose **A bot of your own**. The fields below appear after you choose.
+- **Name**: what you call the agent everywhere in Mishmar.
 - **Trades on**: the account the agent gets its trading key on. Pick your Hyperliquid **Perps** account if you connected it already (the only one there is is picked for you; accounts Mishmar only reads, such as Spot, are left out), or click **Connect an account**, which opens [the same steps as connecting one](/hyperliquid/connect-an-account/) without leaving the dialog and picks the Perps account when it is done.
 - **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside those of the whole Mishmar account, the connection and the account.
 - **Description** (optional): what it trades and how.
@@ -166,9 +166,11 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 - **The approval does not show up.** Check the address you pasted is the one the dialog showed, and that you approved on the account's network (testnet or mainnet). Mishmar looks once a minute; open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify** to look now.
 - **You clicked Generate at Hyperliquid.** That made another wallet, which Mishmar does not hold half of. Remove it there and paste the dialog's address instead.
 - **The signer logs `engine refused (426 signer_too_old): This signer is too old for this engine. Upgrade to v0.6.0.`**, or `mishmar propose` prints it when it signs the order itself (`--config`): the mishmar CLI on the agent's machine is older than Mishmar accepts. Update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes, then start the signer again.
+- **The signer stops with `signer: stopped. … has refused this key for five minutes (Unknown key).`** Mishmar no longer knows the agent's key: the agent or its key was most likely removed in the console. The signer says so once, at the first refusal, and stops after five minutes of nothing else. Add the agent again or issue a new key, then start the signer with it.
+- **The signer stops with `signer: stopped. … refused this key (Key revoked).`**, or `(Key expired)`: the key was revoked in the console, or its time ran out. Issue a new key in the console, then start the signer with it.
 - **`Agent …'s key on connected account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
-- **`The Mishmar account's plan holds 1 agent; delete one or move to a larger plan`**, or the same for a connection. The free plan holds one agent and one connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
-- **An order comes back `rate_limited`: `The Mishmar account's request budget for hyperliquid is spent for now; send it again in … s`.** Each plan has a share of what Hyperliquid lets one address send. The SDKs and `mishmar signer run` send the order again after the wait. Closing positions and cancels always go.
+- **`The Mishmar account's plan holds 1 trade agent; delete one or move to a larger plan`**, or the same for a connection. The free plan holds one trade agent and one connection. At the limit, **Trade** in the **Add agent** dialog is greyed out with the reason on it; an agent that only reads can still be added. Delete a trade agent to make room. Larger plans are coming soon: [mishmar.io/pricing](https://mishmar.io/pricing).
+- **An order comes back `rate_limited`: `The Mishmar account's request budget for hyperliquid is spent for now; send it again in … s`.** Each plan has a share of what Hyperliquid lets one address send. The SDKs and `mishmar signer run` send the order again after the wait. Exits and cancels are counted apart from new orders: your account's agents may send Hyperliquid as many exits and cancels a minute as the share holds. The next one comes back `rate_limited` too, with `The Mishmar account's agents have reached their limit on exits and cancels to hyperliquid for now; send it again in … s. Stop in the console still works`, and is sent again after the wait the same way. What you do yourself in the console, Stop included, is never counted against it or refused by it.
 - **The account's page says New orders are blocked: Mishmar has lost the venue's stream of this account's fills and orders.** While Mishmar can't see the account's fills and orders, it blocks new risk. Closing positions still works. Trading starts again by itself once the stream is back; if it hasn't within a few minutes, tell us.
 
 ## When the key expires

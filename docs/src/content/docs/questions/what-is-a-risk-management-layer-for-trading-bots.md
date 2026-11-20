@@ -3,7 +3,7 @@ title: What is a risk management layer for trading bots?
 description: A risk management layer sits between a trading bot or AI agent and the exchange and decides, for every order, whether it may go out. It checks limits before the order is sent, holds large orders for a person, keeps a kill switch the bot cannot override, and records every decision. What it does, where the idea comes from, and why it has to sit outside the bot.
 sidebar:
   order: 0
-lastUpdated: 2026-11-14
+lastUpdated: 2026-11-19
 ---
 
 A risk management layer for trading bots is a check that sits between the bot and the exchange and decides, for every order, whether it may go out. It values the order before it is sent, compares what the account would hold afterwards with limits you set (order size, exposure, leverage, concentration, drawdown, daily loss), and then sends the order, holds it for a person, or refuses it. Because it sits outside the bot, a bug, a bad prompt or a compromised machine cannot switch it off.
@@ -49,4 +49,4 @@ There are two ways to hold something the order needs. A proxy can hold the whole
 - [Is there an MCP server for trading on Hyperliquid or Binance with limits?](/questions/is-there-an-mcp-server-for-trading-on-hyperliquid-or-binance-with-limits/): the same layer for a language-model agent.
 - [Is it safe to give a trading bot my exchange API key?](/questions/is-it-safe-to-give-a-trading-bot-my-exchange-api-key/)
 
-Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The free plan covers one agent and one connection, with real money or on testnet.
+Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The free plan covers one trading agent and one connection, with real money or on testnet.
