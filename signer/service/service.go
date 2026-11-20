@@ -48,6 +48,13 @@ const (
 	NonceTTL = 24 * time.Hour
 	// MaxCommitments bounds one issue of FROST commitments.
 	MaxCommitments = 1024
+	// MaxUnused is the most unexpired presigned slots and FROST commitments
+	// the service holds for one key, counted together, the nonces an open
+	// presigning session is making among them. It is twice the largest
+	// batch an account's entitlement may name (4096), so a caller that lost
+	// its own list once is still served. A place is free again when its slot
+	// or commitment is used or expires.
+	MaxUnused = 2 * 4096
 )
 
 // Options configure a Service.
@@ -94,10 +101,16 @@ func (k *keygenSession) abandon() {
 	}
 }
 
+// presignSession is an open presigning run. Its count nonces are counted
+// against the key's MaxUnused from step 1 on. finishing is set while step 2
+// computes: the session keeps its places until its slots are stored, takes
+// no second step 2 and is not swept.
 type presignSession struct {
-	keyID   string
-	run     *ecdsa2p.Presign
-	started time.Time
+	keyID     string
+	run       *ecdsa2p.Presign
+	started   time.Time
+	count     int
+	finishing bool
 }
 
 type slot struct {
@@ -279,6 +292,28 @@ func (s *Service) unused(id string) int {
 	now := s.opts.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.unusedLocked(id, now)
+}
+
+// room refuses n more slots or commitments for the key when they would take
+// it past MaxUnused: what it holds unused and what its open presigning
+// sessions are making are counted together. The caller holds s.mu, and
+// stores what it was given room for before letting go of it.
+func (s *Service) room(id string, n int, now time.Time) error {
+	held := s.unusedLocked(id, now)
+	for _, p := range s.presigns {
+		if p.keyID == id {
+			held += p.count
+		}
+	}
+	if held+n > MaxUnused {
+		return conflict("key %s holds %d unused presigned slots and commitments, those its open presigning sessions are making among them, and %d more would pass the %d the service keeps for one key; a place is free again when one is used or expires", id, held, n, MaxUnused)
+	}
+	return nil
+}
+
+// unusedLocked is unused for a caller that holds s.mu.
+func (s *Service) unusedLocked(id string, now time.Time) int {
 	n := 0
 	for sid, sl := range s.slots {
 		switch {
@@ -385,7 +420,10 @@ func (s *Service) forget(keyID string) {
 	}
 	for id, p := range s.presigns {
 		if p.keyID == keyID {
-			p.run.Abandon()
+			// A session in its step 2 is that step's to end.
+			if !p.finishing {
+				p.run.Abandon()
+			}
 			delete(s.presigns, id)
 		}
 	}
@@ -589,7 +627,12 @@ func (s *Service) PresignStep(_ context.Context, r signerapi.PresignStepRequestO
 			run.Abandon()
 			return fail(conflict("session %s is open already", r.Body.SessionId))
 		}
-		s.presigns[r.Body.SessionId] = &presignSession{keyID: r.KeyId, run: run, started: now}
+		if err := s.room(r.KeyId, *r.Body.Count, now); err != nil {
+			s.mu.Unlock()
+			run.Abandon()
+			return fail(err)
+		}
+		s.presigns[r.Body.SessionId] = &presignSession{keyID: r.KeyId, run: run, started: now, count: *r.Body.Count}
 		s.mu.Unlock()
 		m1, err := run.First()
 		if err != nil {
@@ -601,27 +644,42 @@ func (s *Service) PresignStep(_ context.Context, r signerapi.PresignStepRequestO
 		}
 		return signerapi.PresignStep200JSONResponse(signerapi.PresignStepResult{Message: b64(m1)}), nil
 	case signerapi.PresignStepStepN2:
+		// The session takes one step 2, from its own key. It stays in the
+		// list, finishing, until its slots are stored, so that its nonces
+		// are counted against the key's MaxUnused without a break. A step 2
+		// under another key finds no session and leaves this one as it is.
 		s.mu.Lock()
 		ses, ok := s.presigns[r.Body.SessionId]
+		if ok && (ses.finishing || ses.keyID != r.KeyId) {
+			ok = false
+		}
 		if ok {
-			delete(s.presigns, r.Body.SessionId)
+			ses.finishing = true
 		}
 		s.mu.Unlock()
-		if !ok || ses.keyID != r.KeyId {
+		if !ok {
 			return fail(notFound("no open presigning session %s for %s", r.Body.SessionId, r.KeyId))
+		}
+		closeSession := func() {
+			s.mu.Lock()
+			delete(s.presigns, r.Body.SessionId)
+			s.mu.Unlock()
 		}
 		m2, err := decodeB64(r.Body.AgentMessage)
 		if err != nil {
+			closeSession()
 			ses.run.Abandon()
 			return fail(invalid("agentMessage: %v", err))
 		}
 		m3, presig, err := ses.run.Last(m2)
 		if err != nil {
+			closeSession()
 			return fail(refused("presigning failed: %v", err))
 		}
 		expires := now.Add(NonceTTL)
 		slots := make([]signerapi.Slot, presig.Len())
 		s.mu.Lock()
+		delete(s.presigns, r.Body.SessionId)
 		for i := range slots {
 			id := randomID("ps_", 12)
 			s.slots[id] = &slot{keyID: r.KeyId, presig: presig, index: i, expires: expires}
@@ -644,7 +702,7 @@ func (s *Service) sweep(now time.Time) {
 		}
 	}
 	for id, p := range s.presigns {
-		if now.Sub(p.started) > SessionTTL {
+		if !p.finishing && now.Sub(p.started) > SessionTTL {
 			p.run.Abandon()
 			delete(s.presigns, id)
 		}
@@ -978,10 +1036,14 @@ func (s *Service) IssueCommitments(_ context.Context, r signerapi.IssueCommitmen
 	if err != nil {
 		return fail(err)
 	}
-	expires := s.opts.Now().Add(NonceTTL)
+	now := s.opts.Now()
+	expires := now.Add(NonceTTL)
 	out := make([]signerapi.Commitment, 0, r.Body.Count)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.room(r.KeyId, r.Body.Count, now); err != nil {
+		return fail(err)
+	}
 	for range r.Body.Count {
 		party, err := share.Party()
 		if err != nil {
