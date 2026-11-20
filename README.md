@@ -331,6 +331,13 @@ config: a second `Signer()` on the same config fails, naming the process
 that holds it), or to keep the signer connected and its presigned slots warm
 while the bot restarts.
 
+An AI app that only needs to read your accounts, such as Claude or Cursor,
+needs no install and no key: give it one address, `https://mcp.mishmar.io`,
+and approve in Mishmar what it may read
+([Add a read agent](https://docs.mishmar.io/start/add-a-read-agent/)). An AI
+assistant setting Mishmar up for someone starts at
+[its own page](https://docs.mishmar.io/assistants/set-up-for-someone/).
+
 `mishmar mcp` is the same signer behind an MCP server on stdio: a language
 model gets tools to propose orders and cancels, follow a decision parked
 for a person, read positions, PnL, approvals and venue rules, and read the
