@@ -3,7 +3,7 @@ title: What Mishmar keeps of your accounts
 description: Mishmar reads every account you connect every minute, with or without an agent, and keeps its balances, positions, value over time and transactions, each trade marked with who placed it. How often, how far back, how long, who can read it and how every agent read is logged, and what happens while a free Mishmar account sleeps.
 sidebar:
   order: 2
-lastUpdated: 2026-11-17
+lastUpdated: 2026-11-19
 ---
 
 Once you connect an account ([on Hyperliquid](/hyperliquid/connect-an-account/) or [on Binance](/binance/connect-an-account/)), Mishmar reads it on its own and keeps what it reads. You see it in the console, on the account's page, and the agents you give the account read it with their Mishmar API key. None of it needs an agent or a trading key: Mishmar reads a Hyperliquid account by its address and a Binance account with a read-only key.
@@ -39,11 +39,11 @@ The positions here are the venue's, for the account as a whole. Each agent's own
 - Mishmar reads every account whose connection it has verified, whether or not an agent uses it, and whether trading on it is running, paused or stopped. An account stays **Pending**, and is not read, until its connection's checks pass.
 - On Binance it reads only while the read-only key can do nothing but read, which it checks every hour.
 
-Mishmar reads a connection's accounts together, so the connection's page says how current each kind is, under **Data** on its **Setup** tab: **Up to date**, **Catching up**, **Reading its history** (with how far it has got), or **Failing**, with the time it is as of and how far back its history goes. While reads of a kind fail, the connection's page and each of its accounts' pages say so at the top, with the reason.
+Mishmar reads a connection's accounts together, so the connection's page says how current each kind is, under **Data** on its **Setup** tab: **Up to date**, **Catching up**, **Reading its history** (with how far it has got), or **Failing**, with the time it is as of. While reads of a kind fail, the connection's page and each of its accounts' pages say so at the top, with the reason.
 
-![The Data panel on a connection's Setup tab: balances, positions, value and transactions each Up to date, with how long ago they were read and the date their history starts](/screens/concepts/what-mishmar-keeps-of-your-accounts/data.png)
+![The Data panel on a connection's Setup tab: balances, positions, value and transactions each Up to date, with how long ago they were read](/screens/concepts/what-mishmar-keeps-of-your-accounts/data.png)
 
-![The Data panel of a connection made a moment ago: balances, positions and value up to date, and transactions still Reading its history, 48% of the way](/screens/concepts/what-mishmar-keeps-of-your-accounts/data-reading-history.png)
+![The Data panel of a connection made a moment ago: balances, positions and value up to date, read seconds ago, and transactions still Reading its history, 47% of the way, with no time as of yet](/screens/concepts/what-mishmar-keeps-of-your-accounts/data-reading-history.png)
 
 ## How long it is kept
 
@@ -78,7 +78,7 @@ The Python and TypeScript SDKs, the `mishmar` CLI and the MCP server make these 
 
 ## While a free Mishmar account sleeps
 
-On the free plan, a Mishmar account that has been quiet for a few hours (three, today) is stopped, as long as it holds no position and no approval waits, and it starts again on the next call that needs it, which can take up to a minute. Pro is always on.
+On the free plan, a Mishmar account that has been quiet for a few hours (three, today) is stopped, as long as it holds no position and no approval waits, and it starts again on the next call that needs it, which can take up to a minute. Plus and Pro are always on.
 
 Reading goes on while it is stopped. Mishmar keeps reading its connections' accounts on the same timer, so nothing it shows is stale when it wakes. It answers an agent's reads of this data straight away, without waking the Mishmar account, and those reads don't keep it awake.
 

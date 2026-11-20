@@ -3,7 +3,7 @@ title: Is it safe to give a trading bot my exchange API key?
 description: What an exchange API key lets a bot do, what the exchanges' own restrictions cover and what they leave open, and how a split key with limits in front of the exchange changes the answer.
 sidebar:
   order: 1
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-19
 ---
 
 Not as the exchange hands it out. An API key with trading enabled lets whoever holds it place any order the account can carry: the whole balance, at the highest leverage the exchange allows, on any market. The restrictions the exchanges offer protect the balance from being withdrawn and the key from being used from another machine. None of them limits what the key trades.
@@ -55,4 +55,4 @@ A stolen bot's half is useless on its own: it signs nothing without Mishmar's ha
 3. Add an agent [on Hyperliquid](/hyperliquid/add-an-agent/) or [on Binance](/binance/add-an-agent/). Its trading key is made split, and you approve or register the public half at the exchange.
 4. Set the limits, then point the bot at the SDK's `Signer`, so the bot's process holds no key at all.
 
-The free plan covers one agent and one connection, with real money or on testnet.
+The free plan covers one trading agent and one connection, with real money or on testnet.

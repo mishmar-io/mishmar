@@ -3,7 +3,7 @@ title: How do I add a kill switch and approval step to a trading bot?
 description: Put both outside the bot, where every order has to pass before it is signed. Pause lets a bot close positions and nothing else, Stop refuses everything but cancels, and an approval rule holds large orders for a person with a passkey. What each does, what the bot sees, and the code to handle it.
 sidebar:
   order: 5
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-19
 ---
 
 Put both outside the bot, at the point every order has to pass before it is signed. A kill switch written into the bot is a flag the bot can ignore, and an approval step written into the bot is a prompt the bot can skip: the bug or the bad prompt that sends the wrong order is the same one that skips the check. With Mishmar the kill switch and the approval step sit with the half of the trading key the bot does not have, so the bot only has to handle the answer.
@@ -39,9 +39,9 @@ What happens to a held order:
 2. The order shows in the console and the Mishmar account's owner gets an email.
 3. You approve or reject it in the console, and approving takes a passkey, so an injected "approve it" in a model's context goes nowhere.
 4. At the moment you approve, the rules run again against the account as it is then. If a rule now blocks it, or a pause or stop is on, the approval is refused and the order stays held. If the numbers moved enough to change a rule's outcome since you looked, you are asked to confirm again.
-5. Approved, the order is signed by both halves and sent. Rejected or expired, it is dropped.
+5. Approved, the order is signed by both halves and sent. A limit order, or an exit on Binance, is sent no sooner than 70 seconds after the bot proposed it (up to 2 minutes on Hyperliquid); the approval shows the time. Rejected or expired, it is dropped.
 
-A held order expires at the bot's own deadline for it or after 30 minutes, whichever comes first. The SDKs set that deadline to 60 seconds unless you say otherwise, so an order that may wait for a person needs a longer one: `valid_for` in Python, `validForSeconds` in TypeScript, and in the MCP server's `propose_order`.
+A held order expires at the bot's own deadline for it or after 30 minutes, whichever comes first. The SDKs set that deadline to 60 seconds unless you say otherwise, so an order that may wait for a person needs a longer one, at least 3 minutes: an approved order whose deadline passes before it can be sent is not sent, and its decision says so. Set it with `valid_for` in Python, `validForSeconds` in TypeScript, and in the MCP server's `propose_order`.
 
 ## In the bot
 
@@ -89,4 +89,4 @@ In regulated markets the kill switch belongs to the firm that sends the orders, 
 3. Give orders that may be held a deadline long enough for you to answer, and handle all three verdicts in the bot.
 4. Try Pause and Stop once on the hosted testnet before you need them, and watch what the bot does.
 
-The free plan covers one agent and one connection, with real money or on testnet.
+The free plan covers one trading agent and one connection, with real money or on testnet.
