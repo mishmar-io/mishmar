@@ -16,7 +16,7 @@ npm install mishmar
 The package also puts `mishmar` on the path, so `npx -y mishmar mcp` runs
 the MCP server and `npx -y mishmar signer run` the signer without the CLI
 installed: the command runs the binary in `MISHMAR_BIN` or on the PATH,
-and otherwise the release this package pins (v0.6.0), which it fetches into
+and otherwise the release this package pins (v0.6.1), which it fetches into
 that release's folder under `~/.mishmar/bin` first when it is not there,
 checked against the release's checksums. A newer package therefore brings
 its newer release; other releases under `~/.mishmar/bin` are not used. When
