@@ -15,7 +15,15 @@
 # a cache entry another workflow wrote could put its own object files in them.
 # That costs about ten minutes a release (CI keeps its cache).
 #
-# Run by hand (workflow_dispatch) it builds every archive and attaches nothing.
+# The run of a version tag also attests what it built: a signed statement,
+# kept by GitHub, that this workflow built the four archives and SHA256SUMS
+# from this tag (`gh attestation verify <archive> --repo mishmar-io/mishmar`).
+# The job that asks GitHub for the identity the statement is signed with can
+# read the repository and nothing more; the job that writes the release has no
+# such identity. The release gets the files the statement names, byte for byte.
+#
+# Run by hand (workflow_dispatch) it builds every archive, attests nothing and
+# attaches nothing.
 name: Release
 
 on:
@@ -153,9 +161,62 @@ jobs:
             mishmar/dist/*.sha256
           if-no-files-found: error
 
+  attest:
+    name: Attest the archives and their checksums
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # the identity the statement is signed with; no other job may ask for it
+      attestations: write # to store the statement with the repository
+    steps:
+      - name: Collect the binaries
+        uses: actions/download-artifact@v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The four archives by name, each checked against the checksum its own
+      # build job wrote, and SHA256SUMS in the order it always had. Anything
+      # else among the run's artifacts stops the release.
+      - name: Checksums, and the release's five files and no other
+        run: |
+          set -euo pipefail
+          mkdir release
+          for platform in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
+            archive="mishmar_${GITHUB_REF_NAME}_${platform}.tar.gz"
+            (cd dist && shasum -a 256 -c "${archive}.sha256")
+            cat "dist/${archive}.sha256" >> release/SHA256SUMS
+            mv "dist/${archive}" release/
+            rm "dist/${archive}.sha256"
+          done
+          if [ -n "$(ls -A dist)" ]; then
+            echo "not built by this run's four jobs:" && ls -A dist
+            exit 1
+          fi
+          cat release/SHA256SUMS
+
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/mishmar_${{ github.ref_name }}_darwin_amd64.tar.gz
+            release/mishmar_${{ github.ref_name }}_darwin_arm64.tar.gz
+            release/mishmar_${{ github.ref_name }}_linux_amd64.tar.gz
+            release/mishmar_${{ github.ref_name }}_linux_arm64.tar.gz
+            release/SHA256SUMS
+
+      - name: Keep the attested files
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: mishmar-release
+          path: release/
+          if-no-files-found: error
+
   release:
     name: Attach to the release
-    needs: build
+    needs: attest
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -166,15 +227,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Collect the binaries
+      - name: Collect the attested files
         uses: actions/download-artifact@v4.3.0
         with:
+          name: mishmar-release
           path: dist
-          merge-multiple: true
 
       - name: Checksums
         working-directory: dist
-        run: cat *.sha256 > SHA256SUMS && cat SHA256SUMS
+        run: shasum -a 256 -c SHA256SUMS && cat SHA256SUMS
 
       - name: Create the release (draft)
         env:
