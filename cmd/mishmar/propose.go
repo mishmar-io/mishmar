@@ -151,7 +151,9 @@ func propose(ctx context.Context, o proposeOptions, out io.Writer) error {
 	var d api.Decision
 	if cfg != nil && !o.channel {
 		cfg.Engine = engine
-		s, err := signer.New(cfg, client, slog.New(slog.NewTextHandler(os.Stderr, nil)))
+		// NewSender: an order this command sends in one step goes into the
+		// record beside the config, the file "signer run" on it keeps.
+		s, err := signer.NewSender(o.config, cfg, client, slog.New(slog.NewTextHandler(os.Stderr, nil)))
 		if err != nil {
 			return err
 		}

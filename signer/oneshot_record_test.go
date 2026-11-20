@@ -235,3 +235,41 @@ func TestPrepareRecordsTheOneShotOrder(t *testing.T) {
 		t.Fatalf("the same proposal again sent something: one-shot %d, plain %d", len(eng.sigs), eng.plain)
 	}
 }
+
+// "mishmar propose --config" and "signer run" on one config keep one record:
+// the first is built by NewSender, as the command builds it, the second with
+// ConfigPath. An order the first sent in one step is refused by the second
+// through the channel while its message may still be taken at the venue.
+func TestTheSendersRecordIsTheRunningSignersRecord(t *testing.T) {
+	f := newFixture(t)
+	config := filepath.Join(t.TempDir(), "agent.json")
+	clock := &testClock{t: now}
+	running := recordSigner(t, f, "", clock.now)
+	running.ConfigPath = config
+	sender, err := NewSender(config, running.Config, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sender.Now = clock.now
+	p := f.liveProposal(t, "n1", clock.now(), 10*time.Minute)
+	prepared(t, sender, p, clock, 10*time.Second)
+
+	clock.add(time.Second)
+	r1, _, _ := f.orderAt(t, p, "sr_1", clock.now())
+	wantRefusal(t, "a channel request at the running signer, a second after the sender's one-shot message", running.Handle(context.Background(), r1), RefuseOneShotLive)
+}
+
+// The entry is filed under the config's key id, the one the channel's checks
+// hold a proposal to, whatever key id the proposal itself names.
+func TestAOneShotOrderIsFiledUnderTheConfigsKey(t *testing.T) {
+	f := newFixture(t)
+	path := filepath.Join(t.TempDir(), "agent.signed.json")
+	clock := &testClock{t: now}
+	s := recordSigner(t, f, path, clock.now)
+	p := f.liveProposal(t, "n1", clock.now(), 10*time.Minute)
+	p.KeyId = "key_b"
+	prepared(t, s, p, clock, 10*time.Second)
+	if rec := readOrders(t, path); len(rec.Orders) != 1 || rec.Orders[0].KeyID != "key_a" || rec.Orders[0].Nonce != "n1" {
+		t.Fatalf("the record: %+v, want one entry under key_a", rec)
+	}
+}

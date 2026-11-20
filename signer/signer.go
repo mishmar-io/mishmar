@@ -103,6 +103,24 @@ type Signer struct {
 	fileSeen  fileStamp
 }
 
+// NewSender makes the signer of a command that sends proposals from the
+// config file at path and then ends ("mishmar propose --config"). An order
+// it sends in one step is recorded in the file beside that config
+// (OrdersPathFor), the record a signer running on the same config keeps, so
+// the two know of each other's orders. It does not keep the config's keys in
+// step with the engine: that is Run's, with ConfigPath.
+func NewSender(path string, cfg *Config, client *Client, log *slog.Logger) (*Signer, error) {
+	if path == "" {
+		return nil, errors.New("signer: NewSender needs the config's path")
+	}
+	s, err := New(cfg, client, log)
+	if err != nil {
+		return nil, err
+	}
+	s.OrdersPath = OrdersPathFor(path)
+	return s, nil
+}
+
 // New makes a signer for the config. A nil client is made from the config;
 // a nil logger discards.
 func New(cfg *Config, client *Client, log *slog.Logger) (*Signer, error) {

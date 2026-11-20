@@ -86,7 +86,8 @@ signer/      the agent's signer as a library: config.go (the 0600 file, validati
              the FROST round), orders.go (the record of the proposals signed for: one order signature per
              proposal, by its key and nonce, for its whole life and across restarts; <config>.signed.json
              beside the config, 0600, written atomically under <file>.lock before the share leaves, in memory
-             without a ConfigPath; a file that does not read refuses every order; a one-shot order is recorded
+             without a ConfigPath or an OrdersPath; "mishmar propose --config" names the same file through
+             NewSender; a file that does not read refuses every order; a one-shot order is recorded
              by Prepare before its message is made, with the moment that message ends at the venue, and
              its proposal is signed through the channel once, after that moment plus a minute, under the
              same client order id; cancels are not recorded), oneshot.go (Prepare and Propose: the venue request built here and the agent's

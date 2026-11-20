@@ -383,8 +383,14 @@ func (s *Signer) recordOneShot(p *api.ProposalSubmit, clientOrderID *string, unt
 	if p.Kind != api.ProposalKindOrder {
 		return nil
 	}
-	// A proposal that names no key is sent under the client's (Client.Propose).
-	keyID := p.KeyId
+	// The entry is filed under the config's key, the one the channel's checks
+	// hold a proposal to. A config that names none files it under the
+	// proposal's, and a proposal that names none is sent under the client's
+	// (Client.Propose).
+	keyID := s.Config.KeyID
+	if keyID == "" {
+		keyID = p.KeyId
+	}
 	if keyID == "" && s.Client != nil {
 		keyID = s.Client.KeyID
 	}
