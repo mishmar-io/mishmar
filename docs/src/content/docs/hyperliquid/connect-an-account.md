@@ -60,11 +60,11 @@ From now on Mishmar reads both accounts every minute, whether or not an agent us
 ## Check it worked
 
 - **Connected accounts** lists the connection with its two accounts under it, **Perps** and **Spot**, each **Active**. The connection's row says **Verified** under **Status**, and the time of its last read under **Data**.
-- On the connection's page, under its **Setup** tab, **Setup** shows the **Master address** and the **Network**, **Verification** lists the two checks, both passed, and **Data** lists balances, positions, value and transactions as **Up to date**, each with how far back its history goes. **Connection**, beside them, says **Master account** under **Type** and **Its address** under **Reached with**.
+- On the connection's page, under its **Setup** tab, **Setup** shows the **Master address** and the **Network**, **Verification** lists the two checks, both passed, and **Data** lists balances, positions, value and transactions as **Up to date**, each with the time it is as of. **Connection**, beside them, says **Master account** under **Type** and **Its address** under **Reached with**.
 - Open an account from the connection's **Overview**, under **Accounts**. Its **Balances**, **Positions**, **Transactions** and **Value** tabs show what Mishmar read.
 - Copy the Perps account's **Id** (`ta_…`) from its **Overview**: an agent proposes orders to it, and reads it by it.
 
-![The connection's Setup tab: Setup with the master address and the network, Verification with its three checks passed, and Data with balances, positions, value and transactions up to date and the date each one's history starts](/screens/hyperliquid/connect-an-account/account-page.png)
+![The connection's Setup tab: Setup with the master address and the network, Verification with its two checks passed, Master account found on the network with the address and Network matches with testnet, and Data with balances, positions, value and transactions up to date, each with how long ago it was read](/screens/hyperliquid/connect-an-account/account-page.png)
 
 ## Who trades here
 

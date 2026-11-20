@@ -3,7 +3,7 @@ title: How do I add a kill switch and approval step to a trading bot?
 description: Put both outside the bot, where every order has to pass before it is signed. Pause lets a bot close positions and nothing else, Stop refuses everything but cancels, and an approval rule holds large orders for a person with a passkey. What each does, what the bot sees, and the code to handle it.
 sidebar:
   order: 5
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-19
 ---
 
 Put both outside the bot, at the point every order has to pass before it is signed. A kill switch written into the bot is a flag the bot can ignore, and an approval step written into the bot is a prompt the bot can skip: the bug or the bad prompt that sends the wrong order is the same one that skips the check. With Mishmar the kill switch and the approval step sit with the half of the trading key the bot does not have, so the bot only has to handle the answer.
@@ -89,4 +89,4 @@ In regulated markets the kill switch belongs to the firm that sends the orders, 
 3. Give orders that may be held a deadline long enough for you to answer, and handle all three verdicts in the bot.
 4. Try Pause and Stop once on the hosted testnet before you need them, and watch what the bot does.
 
-The free plan covers one agent and one connection, with real money or on testnet.
+The free plan covers one trading agent and one connection, with real money or on testnet.

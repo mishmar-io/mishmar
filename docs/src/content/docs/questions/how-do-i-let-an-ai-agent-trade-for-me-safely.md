@@ -3,7 +3,7 @@ title: How do I let an AI agent trade for me safely?
 description: Treat the model as an untrusted process. Give it tools, not keys; put the limits where its tool calls cannot reach; have a person approve large orders; keep a record of every decision; and keep a stop button that does not depend on the model.
 sidebar:
   order: 3
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-19
 ---
 
 Treat the model the way you would treat a contractor you have never met: give it tools, not keys; set limits it cannot change; look at anything large before it goes out; keep a record; and keep a stop button in your own hand. A language model that trades is a bot with two extra failure modes, and the setup has to survive both.
@@ -45,4 +45,4 @@ A rule set to start with, for a model trading a small account:
 
 ## What this does not do
 
-Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet with the rule set above, and read the ledger before you widen anything. The free plan covers one agent and one connection, with real money or on testnet.
+Mishmar decides whether an order is allowed, not whether it is wise. A model that trades badly inside its limits trades badly. Start on the hosted testnet with the rule set above, and read the ledger before you widen anything. The free plan covers one trading agent and one connection, with real money or on testnet.

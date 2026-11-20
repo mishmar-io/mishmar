@@ -3,7 +3,7 @@ title: "Limiting a trading bot on Hyperliquid and Binance futures: what the venu
 description: If a bot or an AI agent trades your account, what Hyperliquid and Binance USDⓈ-M futures stop by themselves (API wallets, sub-accounts, leverage, Binance's agent connection, API keys on a sub-account), what their docs do not offer (a limit per key on order size, position or loss), and what is left to you. Checked against the venues' own docs on 16 November 2026.
 sidebar:
   order: 8
-lastUpdated: 2026-11-16
+lastUpdated: 2026-11-19
 ---
 
 If a bot or an AI agent trades your account, three things can go wrong: it can move money out, it can place an order far bigger than you meant, and it can keep losing all day. Here is what each venue stops by itself, and what it leaves to you. Checked against the venues' own docs on 16 November 2026.
@@ -26,4 +26,4 @@ If a bot or an AI agent trades your account, three things can go wrong: it can m
 
 On both venues the money can be walled off, but the size of an order and the loss in a day are whatever the bot decides. Most people write those checks into the bot. That works until the bug is in the bot.
 
-The other way is to check each order outside the bot, before it is signed. That is what Mishmar does: the bot's trading key is split in two, and the second half signs only if the order is inside the limits you set (order size, gross exposure, leverage, drawdown, daily loss, [among eight](/questions/how-do-i-limit-what-my-trading-bot-can-do/)), and each limit can block the order or hold it for your approval. It works on Hyperliquid perps and Binance USDⓈ-M futures and is free for one agent and one exchange connection. A stolen bot key can still trade inside your limits; it cannot trade past them.
+The other way is to check each order outside the bot, before it is signed. That is what Mishmar does: the bot's trading key is split in two, and the second half signs only if the order is inside the limits you set (order size, gross exposure, leverage, drawdown, daily loss, [among eight](/questions/how-do-i-limit-what-my-trading-bot-can-do/)), and each limit can block the order or hold it for your approval. It works on Hyperliquid perps and Binance USDⓈ-M futures and is free for one trading agent and one exchange connection. A stolen bot key can still trade inside your limits; it cannot trade past them.

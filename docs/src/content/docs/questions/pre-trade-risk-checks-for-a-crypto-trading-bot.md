@@ -3,7 +3,7 @@ title: "Pre-trade risk checks for a crypto trading bot: what are the options?"
 description: Four places a pre-trade check can live (in the bot or its framework, at the exchange, in a risk proxy you run, or in a service that holds half the key), compared on the question that matters, whether the bot can send an order without passing the check, plus what any check has to get right.
 sidebar:
   order: 6
-lastUpdated: 2026-11-14
+lastUpdated: 2026-11-19
 ---
 
 A pre-trade check can live in four places: in the bot's own code or framework, at the exchange, in a risk proxy you run between the bot and the exchange, or in a service that holds half of the trading key. They differ on one question: can the bot, or whoever controls it, send an order without passing the check? Inside the bot it can. At the exchange it cannot, but the limits are the exchange's, not yours. A proxy closes the gap but holds the whole key in one place. A split key closes it without that.
@@ -46,4 +46,4 @@ Whichever you choose, check it does these:
 - **Has a person in the loop for the large ones,** and a kill switch the bot does not control. [How do I add a kill switch and approval step to a trading bot?](/questions/how-do-i-add-a-kill-switch-and-approval-step-to-a-trading-bot/) has both, with code.
 - **Keeps a record you can check.** In Mishmar every decision, allowed, held or blocked, is signed and chained to the one before it, and the ledger exports and verifies.
 
-Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The free plan covers one agent and one connection, with real money or on testnet.
+Mishmar works with Hyperliquid perpetuals and Binance USD-M futures, from Python, TypeScript, a CLI or any MCP client. The free plan covers one trading agent and one connection, with real money or on testnet.

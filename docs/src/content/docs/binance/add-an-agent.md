@@ -3,7 +3,7 @@ title: Add an agent on Binance
 description: Add an agent that trades on a Binance account you connected. Give it its Mishmar API key, start it with that one key, and register the Ed25519 trading key its signer generates at Binance. Four steps in one dialog, one command on the agent's machine.
 sidebar:
   order: 2
-lastUpdated: 2026-11-18
+lastUpdated: 2026-11-19
 ---
 
 When you are done, the agent has two keys:
@@ -23,15 +23,15 @@ It takes about ten minutes.
 - **The machine the agent runs on**, with the [mishmar CLI installed](/start/install-the-cli/), or the Python or TypeScript SDK, which carries it.
 - **The owner or admin role** on the Mishmar account. Approvers and viewers cannot set up agents.
 - **A passkey or a linked wallet on your Mishmar login.** Hosted Mishmar asks for a fresh proof of one before adding an agent. Add one under **Profile** in the console's sidebar: **Add passkey on this device** under **Passkeys**, or **Link this browser's wallet** under **Wallets**.
-- **Room on your plan.** The free plan holds one agent and one connection.
+- **Room on your plan.** The free plan holds one trade agent and one connection.
 
 ## 1. Add the agent
 
 In the console, open **Agents** and click **Add agent**. The dialog has four steps and moves on by itself as the agent and the venue do their part.
 
-- **Name**: what you call the agent everywhere in Mishmar.
 - **What it is for**: choose **Trade**. Nothing is picked until you choose.
 - Under **How it trades**, choose **A bot of your own**. The fields below appear after you choose.
+- **Name**: what you call the agent everywhere in Mishmar.
 - **Trades on**: the account the agent gets its trading key on. Pick your Binance **USDⓈ-M Futures** account if you connected it already (the only one there is is picked for you; accounts Mishmar only reads, such as Spot, are left out), or click **Connect an account**, which opens [the same steps as connecting one](/binance/connect-an-account/) without leaving the dialog, read-only key included, and picks the USDⓈ-M Futures account when it is done.
 - **Capital (optional)**: the dollars you set aside for this agent, which its own leverage and drawdown rules are measured against. A number you set: no money is moved anywhere. Leave it empty if the agent will have no such rule; you can set it later. [Where rules apply](/start/where-rules-apply/) says how its rules sit beside those of the whole Mishmar account, the connection and the account.
 - **Description** (optional): what it trades and how.
@@ -170,8 +170,10 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 - **Account has margin fails, with `$0 available`**: the USDⓈ-M Futures account has no available balance in a USD stablecoin. Mishmar counts USDT, USDC and the other USD stablecoins at a dollar each; a balance in BNB, BTC or another coin is named in the check but not counted, unless the account is in Multi-Assets Mode, where Binance's own USD total is used. Add a stablecoin to the USDⓈ-M Futures account at Binance, then verify the key again.
 - **An order comes back `allow` with `(Not forwarded: …)`**: Mishmar's rules allowed it, but Binance refused it, in the words after `Not forwarded:`. A size under the symbol's minimum is the usual reason. Change the order and propose again.
 - **The signer logs `engine refused (426 signer_too_old): This signer is too old for this engine. Upgrade to v0.6.0.`**, or `mishmar propose` prints it when it signs the order itself (`--config`): the mishmar CLI on the agent's machine is older than Mishmar accepts. Update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes, then start the signer again.
+- **The signer stops with `signer: stopped. … has refused this key for five minutes (Unknown key).`** Mishmar no longer knows the agent's key: the agent or its key was most likely removed in the console. The signer says so once, at the first refusal, and stops after five minutes of nothing else. Add the agent again or issue a new key, then start the signer with it.
+- **The signer stops with `signer: stopped. … refused this key (Key revoked).`**, or `(Key expired)`: the key was revoked in the console, or its time ran out. Issue a new key in the console, then start the signer with it.
 - **`Agent …'s key on connected account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
-- **`The Mishmar account's plan holds 1 agent; delete one or move to a larger plan`**. The free plan holds one agent and one connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
+- **`The Mishmar account's plan holds 1 trade agent; delete one or move to a larger plan`**. The free plan holds one trade agent and one connection. At the limit, **Trade** in the **Add agent** dialog is greyed out with the reason on it; an agent that only reads can still be added. Delete a trade agent to make room. Larger plans are coming soon: [mishmar.io/pricing](https://mishmar.io/pricing).
 - **An order comes back `rate_limited`: `The Mishmar account's request budget for binance is spent for now; send it again in … s. Exits and cancels still go`.** Each plan has a share of what Binance lets one address send. The SDKs and `mishmar signer run` send the order again after the wait.
 - **The account's page says New orders are blocked: Mishmar has lost the venue's stream of this account's fills and orders.** While Mishmar can't see the account's fills and orders, it blocks new risk. Closing positions still works. Trading starts again by itself once the stream is back; if it hasn't within a few minutes, tell us.
 
