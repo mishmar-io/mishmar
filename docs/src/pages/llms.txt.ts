@@ -1,9 +1,19 @@
 import type { APIRoute } from 'astro'
 import { SECTIONS, markdownPath, pages, sectionOf } from '../lib/markdown'
 
+/**
+ * The page written for an assistant that sets Mishmar up for someone (MIS-26). Its three rules are
+ * copied here from the page itself, word for word, because an assistant may never follow the link.
+ */
+const ASSISTANT_PAGE = 'assistants/set-up-for-someone'
+
 /** The index an agent reads first (llmstxt.org): what Mishmar is, then every page as Markdown. */
 export const GET: APIRoute = async ({ site }) => {
   const all = await pages()
+  const assistant = all.find((p) => p.id === ASSISTANT_PAGE)
+  const rules = assistant?.body?.match(/^## Three rules before anything else\n+([\s\S]*?)\n+## /m)?.[1]
+  // A build without them would publish an index that drops the rules an assistant must not miss.
+  if (!assistant || !rules) throw new Error(`llms.txt: no "Three rules" section in ${ASSISTANT_PAGE}`)
   const groups = [...SECTIONS, ['', 'More'] as const]
     .map(([folder, label]) => {
       const lines = all
@@ -19,6 +29,7 @@ export const GET: APIRoute = async ({ site }) => {
     '> Mishmar is a risk management layer for trading bots and AI agents: every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.',
     'How to set up Mishmar, step by step: connections and their accounts, the agents that read them or trade on them, and the split keys they trade with. Each page below is plain Markdown. All of them in one file: ' +
       new URL('/llms-full.txt', site).href,
+    `## ${assistant.data.title}\n\nThe steps, yours and your user's, in order: ${new URL(markdownPath(assistant.id), site).href}\n\nThree rules before anything else:\n\n${rules}`,
     ...groups,
     '## Optional\n\n- [Website](https://mishmar.io/llms.txt): what Mishmar is, who it is for\n- [Source](https://github.com/mishmar-io/mishmar): the CLI, the signer, the Python and TypeScript SDKs, the API contract',
   ]

@@ -3,8 +3,10 @@ title: Set up your coding assistant
 description: "Give Claude Code, Cursor, Codex or any other coding assistant what it needs to write a bot against Mishmar correctly, in one line each: a skill, a rule file or an AGENTS.md snippet, and a link that opens Claude with the docs loaded."
 sidebar:
   order: 1
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-20
 ---
+
+If you are an assistant and your user has not set Mishmar up yet, start at [If you are an AI assistant setting Mishmar up for someone](/assistants/set-up-for-someone/).
 
 An assistant that has never seen Mishmar will write a bot that holds an exchange key, treats a decision as a fill and sends prices as floats. The files on this page tell it the three things that matter (the bot holds no key, an order comes back with one of three verdicts, numbers are decimal strings) and where the docs are as Markdown. Each is a few lines. Add the one for your assistant to the bot's repo.
 
@@ -67,6 +69,10 @@ The same prompt, for any assistant:
 ```text
 Read https://docs.mishmar.io/llms.txt, then help me set up a trading bot that trades through Mishmar on the hosted testnet: install the mishmar CLI, connect an account and add an agent, set the first rules, and write the bot with the Python SDK Signer.
 ```
+
+## An AI app that only reads
+
+An AI app that only needs to read your accounts, such as Claude or Cursor, needs none of the files above and no key. Give it one address, `https://mcp.mishmar.io`, and approve in Mishmar what it may read: [Add a read agent](/start/add-a-read-agent/).
 
 ## For the agent itself
 
