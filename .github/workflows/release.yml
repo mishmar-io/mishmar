@@ -63,7 +63,7 @@ jobs:
       GOARCH: ${{ matrix.arch }}
     steps:
       - name: Check out mishmar
-        uses: actions/checkout@v4.4.0
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
           path: mishmar
@@ -73,7 +73,7 @@ jobs:
         run: echo "ref=$(tr -d '[:space:]' < mishmar/cbmpc.ref)" >> "$GITHUB_OUTPUT"
 
       - name: Check out the cb-mpc-go fork (with the cb-mpc submodule)
-        uses: actions/checkout@v4.4.0
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
           repository: mishmar-io/cb-mpc-go
@@ -223,7 +223,7 @@ jobs:
       contents: write
     steps:
       - name: Check out mishmar
-        uses: actions/checkout@v4.4.0
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
