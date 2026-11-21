@@ -40,6 +40,24 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-19 (0.23.0)
+
+Four plans, and only trade agents count against a plan (Ishai, 16 Nov 2026).
+
+- `Tier` is `free`, `plus`, `pro` or `team`. `plus` is new. `team` takes the
+  place of `enterprise` and, like it, is by agreement. An engine goes on
+  taking `enterprise` from a control plane that still says it, and records
+  it as `team`.
+- `Entitlements.maxAgents` counts trade agents only, stopped ones included.
+  The field keeps its name. A read agent is not counted against any plan.
+- An account may have up to 50 read agents, on every plan. This is a
+  ceiling of the engine's, not a plan limit: the fifty-first is refused
+  with `limit_reached`, and no plan has more.
+- Turning a read agent into a trade agent (updateAgent, `permission`) is
+  checked against `maxAgents` as adding a trade agent is, and refused with
+  `limit_reached` at the limit. The agent goes on reading.
+- An account already over a limit keeps what it has, as before.
+
 ## Decided on 2026-11-17 (signer service 0.14.0)
 
 The engine can state the venue terms of a decision, and the signer service
