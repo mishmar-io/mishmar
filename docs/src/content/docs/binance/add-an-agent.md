@@ -3,7 +3,7 @@ title: Add an agent on Binance
 description: Add an agent that trades on a Binance account you connected. Give it its Mishmar API key, start it with that one key, and register the Ed25519 trading key its signer generates at Binance. Four steps in one dialog, one command on the agent's machine.
 sidebar:
   order: 2
-lastUpdated: 2026-11-18
+lastUpdated: 2026-11-21
 ---
 
 When you are done, the agent has two keys:
@@ -170,6 +170,7 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 - **Account has margin fails, with `$0 available`**: the USDⓈ-M Futures account has no available balance in a USD stablecoin. Mishmar counts USDT, USDC and the other USD stablecoins at a dollar each; a balance in BNB, BTC or another coin is named in the check but not counted, unless the account is in Multi-Assets Mode, where Binance's own USD total is used. Add a stablecoin to the USDⓈ-M Futures account at Binance, then verify the key again.
 - **An order comes back `allow` with `(Not forwarded: …)`**: Mishmar's rules allowed it, but Binance refused it, in the words after `Not forwarded:`. A size under the symbol's minimum is the usual reason. Change the order and propose again.
 - **The signer logs `engine refused (426 signer_too_old): This signer is too old for this engine. Upgrade to v0.6.0.`**, or `mishmar propose` prints it when it signs the order itself (`--config`): the mishmar CLI on the agent's machine is older than Mishmar accepts. Update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes, then start the signer again.
+- **`Agent …'s key on … is not verified yet.`**: start the agent's signer as in [step 2](#2-start-the-agent), then on the agent's **Keys** tab click **⋯** on the key's row and choose **Verify**.
 - **`Agent …'s key on connected account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
 - **`The Mishmar account's plan holds 1 agent; delete one or move to a larger plan`**. The free plan holds one agent and one connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
 - **An order comes back `rate_limited`: `The Mishmar account's request budget for binance is spent for now; send it again in … s. Exits and cancels still go`.** Each plan has a share of what Binance lets one address send. The SDKs and `mishmar signer run` send the order again after the wait.
