@@ -85,7 +85,7 @@ func TestTradingStatusSaysWhereThingsStand(t *testing.T) {
 			[]string{"The last sign-in: " + SignInDenied}},
 		{"waiting for the person", daemon.Status{App: "claude-code", State: daemon.SigningIn, SignIn: &daemon.SignIn{State: "waiting", URL: "https://api.testnet.mishmar.io/oauth/authorize?x", Code: "AS3N-N9TM", Fingerprint: "AS3N-N9TM-CD3M-R0M5", ExpiresAt: time.Date(2026, 11, 13, 9, 10, 0, 0, time.UTC)}, Daemon: bg},
 			[]string{"Open this link in your browser to approve it: https://api.testnet.mishmar.io/oauth/authorize?x", "Check the page shows this code: AS3N-N9TM", "works until 09:10 UTC",
-				"you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code",
+				"you asked me to use Mishmar on this computer in the last few minutes; nobody from Mishmar will send you this link or a code",
 				"\nThe key's full fingerprint, to compare all of it on the page: AS3N-N9TM-CD3M-R0M5"}},
 		{"signed in, reading", daemon.Status{App: "claude-code", State: daemon.SignedIn, Record: signedInRecord, Code: "AS3N-N9TM", Permission: "read", Signer: daemon.SignerState{Running: true}, Daemon: bg},
 			[]string{"Signed in to Mishmar for claude-code as agent Claude Code (agt_1) on account acc_1, from 'Ishai's MacBook Pro' with key code AS3N-N9TM, signed in 13 Nov 2026. The key stops working on 12 May 2027",
