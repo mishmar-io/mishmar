@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
@@ -39,7 +41,7 @@ func serveWithMetrics(t *testing.T, metricsListen string) (apiAddr string, stop 
 		root := newRootCmd()
 		root.SetOut(io.Discard)
 		root.SetErr(io.Discard)
-		root.SetArgs([]string{"signer", "serve", "--listen", apiAddr, "--store", filepath.Join(t.TempDir(), "keys.json"), "--log-level", "error"})
+		root.SetArgs([]string{"signer", "serve", "--listen", apiAddr, "--store", filepath.Join(t.TempDir(), "keys.json"), "--log-level", "error", "--without-decision-checks"})
 		done <- root.ExecuteContext(ctx)
 	}()
 	stop = func() error {
@@ -124,12 +126,36 @@ func TestSignerServeRefusesAMetricsPortInUse(t *testing.T) {
 	root := newRootCmd()
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
-	root.SetArgs([]string{"signer", "serve", "--listen", freePort(t), "--store", filepath.Join(t.TempDir(), "keys.json"), "--log-level", "error"})
+	root.SetArgs([]string{"signer", "serve", "--listen", freePort(t), "--store", filepath.Join(t.TempDir(), "keys.json"), "--log-level", "error", "--without-decision-checks"})
 	err = root.ExecuteContext(context.Background())
 	if err == nil || !strings.Contains(err.Error(), service.MetricsListenEnv) {
 		t.Fatalf("got %v, want an error naming %s", err, service.MetricsListenEnv)
 	}
 	if !strings.Contains(err.Error(), fmt.Sprint(taken.Addr())) {
 		t.Errorf("the error does not name the address: %v", err)
+	}
+}
+
+// The service does not start without the engine's public key, which is what
+// it verifies decisions with, unless the flag that says so by name is given;
+// and the two are not given together.
+func TestSignerServeNeedsTheEngineKey(t *testing.T) {
+	t.Setenv(service.MasterKeyEnv, strings.Repeat("01", 32))
+	t.Setenv(service.MetricsListenEnv, "")
+	run := func(extra ...string) error {
+		root := newRootCmd()
+		root.SetOut(io.Discard)
+		root.SetErr(io.Discard)
+		root.SetArgs(append([]string{"signer", "serve", "--listen", freePort(t), "--store", filepath.Join(t.TempDir(), "keys.json"), "--log-level", "error"}, extra...))
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return root.ExecuteContext(ctx)
+	}
+	if err := run(); err == nil || !strings.Contains(err.Error(), "--engine-key is required") {
+		t.Fatalf("no key and no flag: got %v, want an error that the key is required", err)
+	}
+	key := base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))
+	if err := run("--engine-key", key, "--without-decision-checks"); err == nil || !strings.Contains(err.Error(), "cannot be given together") {
+		t.Fatalf("a key and the flag: got %v, want an error that they cannot be given together", err)
 	}
 }

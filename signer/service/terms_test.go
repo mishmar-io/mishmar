@@ -59,8 +59,8 @@ func (h *harness) hlMarket(clientOrderID, side, price, mark string) (message []b
 
 // When a request carries the engine's venue terms, the service signs only an
 // action that matches them, and only terms that are the engine's, for this
-// decision, this key, this network and this kind of action. A request
-// without terms is signed as before.
+// decision, this key, this network and this kind of action. A decision
+// without terms is refused.
 func TestHyperliquidActionIsCheckedAgainstTheEnginesTerms(t *testing.T) {
 	h := newHarness(t)
 	key := h.keygen("vk_hl", "ks_1")
@@ -114,7 +114,7 @@ func TestHyperliquidActionIsCheckedAgainstTheEnginesTerms(t *testing.T) {
 		terms func(hyperliquid.Terms) *signerapi.VenueTermsProof // nil: the request carries none
 		want  string                                             // "" when the service signs
 	}{
-		{"a limit order, no terms", aLimit, nil, ""},
+		{"a limit order, no terms", aLimit, nil, "no venue terms"},
 		{"a limit order, its terms", aLimit, honest, ""},
 		{"signed by another key", aLimit, func(b hyperliquid.Terms) *signerapi.VenueTermsProof { return h.terms(b, stranger) }, "the terms' engine signature does not verify"},
 		{"signed by the engine without the domain line", aLimit, func(b hyperliquid.Terms) *signerapi.VenueTermsProof {
@@ -137,7 +137,7 @@ func TestHyperliquidActionIsCheckedAgainstTheEnginesTerms(t *testing.T) {
 		{"the other side", aLimit, with(func(t *hyperliquid.Terms) { t.Side = "sell" }), "the terms' side"},
 		{"reduce-only, the decision is not", aLimit, with(func(t *hyperliquid.Terms) { t.ReduceOnly = true }), "the terms' reduceOnly"},
 		{"a price bound on a limit order", aLimit, bound("66000"), "not a market order"},
-		{"a limit price more than 1 % from the decision's, no terms", aFarLimit, nil, ""},
+		{"a limit price more than 1 % from the decision's, no terms", aFarLimit, nil, "no venue terms"},
 		{"a limit price more than 1 % from the decision's", aFarLimit, honest, "more than 1% from the proposed 70000"},
 
 		{"a market buy at its bound", aBuy, bound("66000"), ""},
@@ -149,7 +149,7 @@ func TestHyperliquidActionIsCheckedAgainstTheEnginesTerms(t *testing.T) {
 		{"a market sell above its bound", aSell, bound("63500"), ""},
 		{"a market sell past its bound", aSell, bound("64001"), "sell price 64000 is below the terms' bound 64001"},
 
-		{"a cancel, no terms", aCancel, nil, ""},
+		{"a cancel, no terms", aCancel, nil, "no venue terms"},
 		{"a cancel, its terms", aCancel, honest, ""},
 		{"a cancel on another asset", aCancel, with(func(t *hyperliquid.Terms) { t.AssetIndex = "1" }), "asset 0 is not the target's 1"},
 		{"terms for an order with a cancel", aCancel, func(hyperliquid.Terms) *signerapi.VenueTermsProof { return h.terms(orderTerms("buy"), h.engine) }, "not a cancel"},
@@ -163,6 +163,7 @@ func TestHyperliquidActionIsCheckedAgainstTheEnginesTerms(t *testing.T) {
 			t.Fatal(err)
 		}
 		d := h.decision(c.k.proposal)
+		d.Terms = nil
 		if c.terms != nil {
 			d.Terms = c.terms(c.k.base)
 		}
