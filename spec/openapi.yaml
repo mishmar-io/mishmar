@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.22.0
+  version: 0.23.1
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -178,8 +178,10 @@ paths:
         accounts it is given and can never trade) or `trade` (it may also hold
         trading keys). `connectedAccountIds` gives it accounts from the start;
         more are given and taken away with giveAgentConnectedAccount and
-        takeAgentConnectedAccount. A read agent counts against
-        `Entitlements.maxAgents` like any other.
+        takeAgentConnectedAccount. A trade agent counts against
+        `Entitlements.maxAgents`. A read agent does not: an account may have
+        up to 50 read agents on every plan, and the next one is refused with
+        `limit_reached`.
       requestBody:
         required: true
         content:
@@ -2248,6 +2250,8 @@ components:
             `limit_reached` (403) means the account's plan holds no more of what
             the request would add (`Entitlements.maxAgents`, `maxVenueConnections`).
             Sending it again changes nothing: delete one, or move to a larger plan.
+            It also answers a read agent past the 50 an account may have on any
+            plan; there a larger plan changes nothing. `details.limit` is the limit.
             `unavailable` (503) means the request did nothing: the engine cannot read its
             state, it is starting or waiting for its account, or it is stopping. Send the
             same request again after the seconds in the `Retry-After` header (one, while
@@ -2318,10 +2322,11 @@ components:
 
     Tier:
       type: string
-      enum: [free, pro, enterprise]
+      enum: [free, plus, pro, team]
       description: |
-        The account's plan: free, pro, or enterprise (by contact; billing never
-        puts an account on it by itself). There is no team plan (7 November 2026).
+        The account's plan: free, plus, pro, or team (by agreement; billing
+        never puts an account on it by itself). Before contract 0.23.0 there
+        was no plus, and team was `enterprise`.
     SignerTransport:
       type: string
       enum: [long_poll, websocket, webhook, queue]
@@ -2360,9 +2365,13 @@ components:
           type: integer
           minimum: 1
           description: |
-            The most agents the account may have, stopped ones and read agents
-            included. Absent means no limit. An account already over it keeps what it has;
-            createAgent is refused with `limit_reached` until one is deleted.
+            The most trade agents the account may have, stopped ones included.
+            Read agents are not counted. Absent means no limit. An account
+            already over it keeps what it has; adding a trade agent
+            (createAgent), and turning a read agent into a trade agent
+            (updateAgent), are refused with `limit_reached` until a trade
+            agent is deleted or made a read agent. Before contract 0.23.0
+            this counted every agent.
         maxVenueConnections:
           type: integer
           minimum: 1
@@ -2383,8 +2392,12 @@ components:
             takes no more than its share. The engine counts every request it
             makes to the venue for the account: reads, polling, orders and
             cancels. When the share is spent, polling waits, and a new order
-            is refused with `rate_limited` until the share refills; exits and
-            cancels always go. A venue not listed has no share of its own.
+            is refused with `rate_limited` until the share refills. Exits and
+            cancels are counted apart from new orders: an account's agents
+            may send a venue as many exits and cancels a minute as the share
+            holds, and the next one is refused with `rate_limited`. A
+            person's own requests, Stop included, are never counted against
+            it or refused by it. A venue not listed has no share of its own.
           items: { $ref: '#/components/schemas/VenueBudget' }
     VenueBudget:
       type: object
@@ -2659,7 +2672,10 @@ components:
           $ref: '#/components/schemas/AgentPermission'
           description: |
             read to trade lets the agent get trading keys from then on; each
-            still needs its own setup at the venue. trade to read is refused
+            still needs its own setup at the venue. It makes the agent count
+            against `Entitlements.maxAgents`, and is refused with
+            `limit_reached` when the plan holds no more trade agents; the
+            agent goes on reading. trade to read is refused
             with 409 `conflict` while the agent holds an unrevoked trading key.
     VenueKeyScheme:
       type: string
