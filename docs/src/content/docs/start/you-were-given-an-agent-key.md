@@ -3,7 +3,7 @@ title: You were given an agent key
 description: For a contest entrant with an agent key from Mishmar. Install the mishmar CLI, start the signer with the key, wait for the trading key to be active, send a small test order on the account Mishmar runs, and read the decision. No sign-up, no passkey, no funds.
 sidebar:
   order: 0
-lastUpdated: 2026-11-17
+lastUpdated: 2026-11-21
 ---
 
 You were sent a **Mishmar API key** (`msk_testnet_…`) for an agent on an account that Mishmar runs, on Hyperliquid testnet or Binance demo trading. The account has four rules: orders over $1,000 are blocked, orders over $500 wait for an approval that nobody gives, gross exposure is capped at $5,000, and the daily loss limit is $250. Your task is to get a trade past one of them. The [contest rules](https://mishmar.io/contest) say what counts. The contest ends 13 December 2026, 23:59 UTC.
@@ -72,7 +72,7 @@ A small limit buy far below the market, so it rests on the book and does not fil
 mishmar propose --config ~/.mishmar/agent.json --connected-account ta_… --symbol BTC --side buy --size 0.0003 --price 50000
 ```
 
-On Binance demo trading, use `--symbol BTCUSDT --size 0.001` and a price a few percent under the market, above $50,000. To send orders from Python or TypeScript instead, see [From your agent's code](/hyperliquid/add-an-agent/#from-your-agents-code); stop `mishmar signer run` first, since one signer runs per config.
+On Binance demo trading, use `--symbol BTCUSDT --size 0.001` and a price a few percent under the market, above $50,000. To send orders from Python instead, see [From your agent's code](#from-your-agents-code) below.
 
 ## 5. Read the decision
 
@@ -91,3 +91,57 @@ decision dec_…: allow
 A refused order says `block` on the first line, with the reason in brackets. The line of each rule it broke starts with `BREACHED` and shows what was observed and the limit. Nothing is sent to the venue. An order that needs an approval says `require_approval` and ends with `parked for approval …`; on the contest account it stays there, because nobody approves it.
 
 A refusal is Mishmar working. The contest is about an order that should have been refused and was not. When you find one, write to security@mishmar.io with the decision ids and what you sent. If you are stuck, see [Get help](/start/get-help/).
+
+## From your agent's code
+
+Your agent can send the same orders from Python. Mishmar checks every order before it is signed, whichever way it is sent.
+
+1. Stop `mishmar signer run` (Ctrl-C). The SDK starts the signer itself, from the same `~/.mishmar/agent.json`, and one signer runs per config. It uses the mishmar CLI you installed in step 1.
+2. Install the SDK:
+
+   ```sh
+   pip install mishmar
+   ```
+
+3. Send one order and print what came back. Use your account's `ta_…` from step 3:
+
+   ```python
+   from mishmar import Signer
+
+   with Signer() as s:  # ~/.mishmar/agent.json, from step 2
+       d = s.order("ta_…", "BTC", "buy", "0.0003", price="50000")
+       print(d["id"], d["verdict"])
+       for e in d["evaluations"]:
+           mark = "passed  " if e["passed"] else "BREACHED"
+           print(mark, e["ruleName"], e["metric"], "observed", e["observed"], "limit", e["threshold"])
+   ```
+
+   On Binance demo trading, use `"BTCUSDT"` and `"0.001"`, with a price a few percent under the market, as in step 4.
+
+It prints one line for each of the account's four rules. An order that passes looks something like this; the rule names and numbers on your account differ:
+
+```text
+dec_… allow
+passed   Order size order_size observed 27 limit 1000
+passed   Order size, approval order_size observed 27 limit 500
+passed   Gross exposure gross_exposure observed 27 limit 5000
+passed   Daily loss daily_loss observed 0 limit 250
+```
+
+The same order at size `"0.03"` is worth more than $1,000 and is refused. Nothing is sent to the venue:
+
+```text
+dec_… block
+BREACHED Order size order_size observed 2700 limit 1000
+BREACHED Order size, approval order_size observed 2700 limit 500
+passed   Gross exposure gross_exposure observed 2700 limit 5000
+passed   Daily loss daily_loss observed 0 limit 250
+```
+
+As in step 5, `observed` for an order size is the order at the market when the market is above its price.
+
+An order over $500 comes back `require_approval`. On the contest account nobody approves it, so it waits until its deadline and is never sent.
+
+If an order is blocked by an order-size rule, retry once at or under the limit. If it is blocked for any other reason, stop and ask the agent's owner.
+
+The [repository's README](https://github.com/mishmar-io/mishmar#readme) has the TypeScript SDK, which works the same way, and `mishmar mcp`, which gives an LLM agent the same actions as tools.
