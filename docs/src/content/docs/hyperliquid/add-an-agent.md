@@ -41,7 +41,7 @@ In the console, open **Agents** and click **Add agent**. The dialog has four ste
 - **Daily loss limit ($)** (optional): Mishmar refuses this agent's new orders once its loss today passes this amount. Orders sent as reduce-only, and cancels, still go through. It does not close positions, so an open position can lose more. It counts only this agent's own trades. The day starts at 00:00 UTC. If you fill it in, the console makes a daily loss rule on this agent, and you change it on the Rules page like any other rule.
 - **Description** (optional): what it trades and how.
 
-![Step 1 of 4, Add agent: the name Trend follower, Trade chosen under What it is for, Trades on set to Hyperliquid · Main · Perps with Connect an account beside it, Capital left empty, and a description](/screens/hyperliquid/add-an-agent/add-agent.png)
+![Step 1 of 4, Add agent: the name Trend follower, Trade chosen under What it is for, Trades on set to Hyperliquid · Main · Perps with Connect an account beside it, Capital and Daily loss limit ($) left empty, and a description](/screens/hyperliquid/add-an-agent/add-agent.png)
 
 Click **Add agent**. The console may ask you to confirm with your passkey or wallet first; the proof lasts ten minutes. Mishmar creates the agent, issues its Mishmar API key, gives it the account and sets a trading key aside on it, all at once. The agent reads the account it trades on too: [What Mishmar keeps of your accounts](/concepts/what-mishmar-keeps-of-your-accounts/) says what it can read.
 
