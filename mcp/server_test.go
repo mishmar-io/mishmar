@@ -26,6 +26,7 @@ type fakeBackend struct {
 	calls     []string // the account reads, as record writes them
 	perm      api.AgentPermission
 	permErr   error
+	approvals []api.Approval // list_approvals' answer; nil is none
 }
 
 func (f *fakeBackend) Submit(_ context.Context, r signer.ProposeRequest) (api.Decision, error) {
@@ -59,6 +60,9 @@ func (f *fakeBackend) Decisions(context.Context, signer.DecisionQuery) (api.Deci
 	return api.DecisionPage{Items: []api.Decision{f.decision}}, nil
 }
 func (f *fakeBackend) Approvals(context.Context, string) ([]api.Approval, error) {
+	if f.approvals != nil {
+		return f.approvals, nil
+	}
 	return []api.Approval{}, nil
 }
 func (f *fakeBackend) Positions(context.Context) ([]api.Position, error) {
