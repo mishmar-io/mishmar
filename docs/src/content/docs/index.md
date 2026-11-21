@@ -1,10 +1,10 @@
 ---
 title: Mishmar docs
 description: What Mishmar does, and where to start. Connect an account, then add an agent that reads it or trades on it.
-lastUpdated: 2026-11-15
+lastUpdated: 2026-11-19
 ---
 
-Give AI agents your trading accounts, on your terms. You connect an exchange account once, then decide which agent can see it, which can trade on it, and within what limits. Every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.
+Give AI agents your trading accounts, on your terms. Connect an exchange account once, then decide which agent can see it, which can trade on it, and within what limits. Every read and every order is on the record. Every order is checked against your limits before it reaches the exchange, large orders wait for your approval, and no key can trade alone.
 
 An agent proposes an order; Mishmar checks it against your limits and then signs it together with the agent's signer, sends it for your approval, or blocks it. The key the exchange knows is split in two, one half with the agent's signer and one with Mishmar, so neither can sign by itself.
 

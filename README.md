@@ -3,13 +3,14 @@
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/mishmar-io/mishmar)
 [![Mishmar MCP on mcprush](https://mcprush.com/badge/mishmar-mcp/score.svg)](https://mcprush.com/mishmar-io/mishmar-mcp)
 
-[Mishmar](https://mishmar.io) is a risk management layer for trading bots
-and AI agents: every order is checked against your limits before it reaches
-the exchange, large orders wait for your approval, and no key can trade
-alone. This is the client side: the API contract, the test vectors every SDK
-must pass, the agent's signer, the `mishmar` CLI and MCP server, and the
-SDKs themselves. The engine that enforces the rules is a separate, private
-repo; this one is what runs next to your agent.
+Give AI agents your trading accounts, on your terms. Connect an exchange
+account once, then decide which agent can see it, which can trade on it, and
+within what limits. Every read and every order is on the record.
+
+This is the client side of [Mishmar](https://mishmar.io): the API contract,
+the test vectors every SDK must pass, the agent's signer, the `mishmar` CLI
+and MCP server, and the SDKs themselves. The engine that enforces the rules
+is a separate, private repo; this one is what runs next to your agent.
 
 Status: live. Mishmar runs with real money on Hyperliquid and Binance USDⓈ-M
 futures, or on their testnets first. The contract, the Go packages, the
