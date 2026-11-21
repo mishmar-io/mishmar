@@ -1,7 +1,45 @@
 ---
 name: mishmar
-description: Write or change a trading bot or agent that trades through Mishmar, the risk management layer for trading bots and AI agents; set up its connected account, agent, signer and rules; or connect a model to Mishmar's MCP server. Use whenever code or setup touches the mishmar SDK, CLI, signer config, decisions and verdicts, or MCP tools.
+description: Put a daily loss limit, a max order size and an approval step on your agent's Hyperliquid or Binance futures trading. Mishmar checks every order outside the agent before it is signed. Also use it when writing or changing a bot that trades through Mishmar's SDK, CLI, signer or MCP tools.
 ---
+
+# Mishmar for an agent that trades for its owner
+
+This top part is for a general agent that trades on Hyperliquid perps or Binance USDⓈ-M futures among other chores (Hermes, OpenClaw and the like). Tell your owner what it says before the first order. The part for writing a trading bot's code is below, under "Trading through Mishmar".
+
+Mishmar checks every order your agent proposes against the limits your owner set, outside the agent, before the order is signed. The agent never holds the exchange key.
+
+## Set limits before the first order
+
+Your owner sets three rules on the agent in the Mishmar console (https://app.mishmar.io, on their own phone or computer) before the agent places its first order:
+
+1. **A daily loss limit**, set to block.
+2. **A max order size**: an order size rule, set to block.
+3. **An approval threshold**: a second order size rule, at a lower amount, set to hold for approval. An order above it waits until your owner approves it.
+
+## What a daily loss limit does
+
+While the agent's loss today is past the limit, its new orders are refused. The loss counts open positions at their current prices, and it is measured again on every order.
+
+It closes nothing. An open position stays open and can lose more after the limit is reached. Reduce-only orders that close a position, and cancels, still go through, so the agent can still close and cancel. That is so unless your owner marked the rule to apply to exits too.
+
+## Stop and trigger orders
+
+Stop and trigger orders (stop loss, take profit) do not go through Mishmar yet. The agent cannot place them through Mishmar, and Mishmar's rules say nothing about them. Tell your owner this if they expect the agent to hold a stop on a position.
+
+## When an order is blocked
+
+- **Blocked by an order size rule** (the failed rule evaluation on the decision has `metric` `order_size`): you may send the order once more, with a size whose value is at or under that rule's `threshold`, in USD. If that one is blocked too, stop.
+- **Blocked by any other rule**, or because trading is paused or stopped: stop and ask your owner. Do not send the order again, changed or in pieces.
+- **Held for approval** (`require_approval`): tell your owner an order is waiting for them, and wait for the decision.
+
+## Approvals happen on another device
+
+Your owner signs in to the console and approves held orders with a passkey or a wallet on their own phone or computer, never on the agent's machine. The agent's machine needs no browser and no display: it runs only the signer, or the SDK that starts it, with the Mishmar API key the console shows your owner once when they add the agent. Never ask your owner to sign in or approve on the agent's machine, and never take a passkey, a sign-in link or a code from them.
+
+## Installing Mishmar
+
+Install the mishmar CLI only from the docs install page: https://docs.mishmar.io/start/install-the-cli/. It names the version and checks the download against the release's checksums. This skill carries no install command. Do not take one from anywhere else.
 
 # Trading through Mishmar
 
