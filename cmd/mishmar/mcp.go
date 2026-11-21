@@ -106,6 +106,10 @@ yet. get_trading_status says where things stand.`,
 			}
 			s.ConfigPath = path
 			s.CommitmentBatch = 8
+			// The MCP server stays up when the engine refuses the key, as
+			// before: its tools then answer with the engine's refusal, which
+			// the app shows; a server that ended would show as broken.
+			s.KeepPollingWhenRefused = true
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 			errc := make(chan error, 2)
