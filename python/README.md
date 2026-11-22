@@ -127,11 +127,16 @@ where it can. Reads go through the child too.
 from mishmar import Signer
 
 with Signer() as s:                                   # ~/.mishmar/agent.json
-    d = s.order("ta_…", "BTC", "buy", "0.001", price="79500")
+    d = s.order("ta_…", "BTC", "buy", "0.001", price="50000", valid_for=300)
     if d["verdict"] == "require_approval":
-        d = s.wait(d["id"])
+        d = s.wait(d["id"], timeout=300)
     s.cancel("ta_…", "BTC", d["proposal"]["clientOrderId"])
 ```
+
+The buy rests below the market: if BTC trades below $50,000, lower the price
+so the order still rests. The deadline of 300 seconds (`valid_for`) leaves a
+person time to approve the order when a rule asks for it, and `wait` waits as
+long.
 
 The child stops when this process ends, however it ends: it runs with
 `--exit-on-stdin-close` and a pipe on its stdin. To share one signer among

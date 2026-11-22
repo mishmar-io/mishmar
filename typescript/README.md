@@ -129,14 +129,19 @@ import { Signer } from "mishmar";
 
 const s = await new Signer().start(); // ~/.mishmar/agent.json
 try {
-  let d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
-  if (d.verdict === "require_approval") d = await s.wait(d.id);
+  let d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "50000", validForSeconds: 300 });
+  if (d.verdict === "require_approval") d = await s.wait(d.id, { timeoutMs: 300_000 });
   const { clientOrderId } = d.proposal as { clientOrderId: string };
   await s.cancel("ta_…", "BTC", clientOrderId);
 } finally {
   await s.stop();
 }
 ```
+
+The buy rests below the market: if BTC trades below $50,000, lower the price
+so the order still rests. The deadline of 300 seconds (`validForSeconds`)
+leaves a person time to approve the order when a rule asks for it, and `wait`
+waits as long.
 
 The child stops when this process ends, however it ends. To share one signer
 among several processes, or keep it connected across restarts, run it on its
