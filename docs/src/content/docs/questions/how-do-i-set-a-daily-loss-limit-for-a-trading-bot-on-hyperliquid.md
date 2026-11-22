@@ -17,7 +17,7 @@ Hyperliquid has no daily loss limit that you can put on a bot's API wallet. An A
 This describes the rule as set below: the **Daily loss** metric, with **Block**.
 
 - Once the agent's loss today passes your limit, Mishmar refuses the agent's new orders.
-- An order that only closes part or all of this agent's own position still goes through, unless you turned on "Applies to exits". Cancels always go through.
+- An order that only closes part or all of this agent's own position still goes through, unless you turned on "Applies to exits". This rule never stops a cancel.
 - It closes nothing. A position that is already open can go on losing after the limit is passed. Keep the logic that closes positions in your bot.
 - The loss is the agent's whole result for the day: its closed trades, fees, funding, and its open positions at current prices. It is measured again on every order. If prices recover and the day's loss falls back under the limit, the agent's orders pass again the same day.
 - Trades you make by hand at Hyperliquid do not count toward it.
@@ -49,4 +49,4 @@ When an order is refused, Mishmar's answer lists each rule that was checked, the
 
 ## What it is not
 
-It is not a stop-loss on a position, and it does not limit what an open position can lose. Through Mishmar, an agent sends limit and market orders only. It cannot place a stop or trigger order. If you rely on a stop resting at Hyperliquid, place it there yourself.
+It is not a stop-loss on a position, and it does not limit what an open position can lose. For what Hyperliquid and Binance stop by themselves, see [what the venues stop a bot doing, and what they leave to you](/questions/limiting-a-trading-bot-on-hyperliquid-and-binance-futures/). Through Mishmar, an agent sends limit and market orders only. It cannot place a stop or trigger order. If you rely on a stop resting at Hyperliquid, place it there yourself.
