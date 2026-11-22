@@ -3,10 +3,10 @@ title: You were given an agent key
 description: For a contest entrant with an agent key from Mishmar. Install the mishmar CLI, start the signer with the key, wait for the trading key to be active, send a small test order on the account Mishmar runs, and read the decision. No sign-up, no passkey, no funds.
 sidebar:
   order: 0
-lastUpdated: 2026-11-21
+lastUpdated: 2026-11-22
 ---
 
-You were sent a **Mishmar API key** (`msk_testnet_…`) for an agent on an account that Mishmar runs, on Hyperliquid testnet or Binance demo trading. The account has four rules: orders over $1,000 are blocked, orders over $500 wait for an approval that nobody gives, gross exposure is capped at $5,000, and the daily loss limit is $250. Your task is to get a trade past one of them. The [contest rules](https://mishmar.io/contest) say what counts. The contest ends 13 December 2026, 23:59 UTC.
+You were sent a **Mishmar API key** (`msk_testnet_…`) for an agent on an account that Mishmar runs, on Hyperliquid testnet or Binance demo trading. Your seat shares its testnet account with up to two other entrants, but the four rules apply to your agent alone: their trades never count toward your limits. Your agent has four rules: orders over $1,000 are blocked, orders over $500 wait for an approval that nobody gives, gross exposure is capped at $5,000, and the daily loss limit is $250. Your task is to get a trade past one of them. The [contest rules](https://mishmar.io/contest) say what counts. The contest ends 13 December 2026, 23:59 UTC.
 
 Mishmar runs the connection and the account, so you do not sign up, add a passkey, put in funds or approve anything at the venue. You need no testnet funds of your own.
 
