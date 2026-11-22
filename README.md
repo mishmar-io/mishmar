@@ -302,18 +302,23 @@ checksums.
 from mishmar import Signer
 
 with Signer() as s:                                   # ~/.mishmar/agent.json
-    d = s.order("ta_…", "BTC", "buy", "0.001", price="79500")
+    d = s.order("ta_…", "BTC", "buy", "0.001", price="50000", valid_for=300)
     if d["verdict"] == "require_approval":
-        d = s.wait(d["id"])
+        d = s.wait(d["id"], timeout=300)
 ```
 
 ```ts
 import { Signer } from "mishmar";
 
 const s = await new Signer().start();
-const d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "79500" });
+const d = await s.order({ connectedAccountId: "ta_…", symbol: "BTC", side: "buy", size: "0.001", price: "50000", validForSeconds: 300 });
 await s.stop();
 ```
+
+The buy rests below the market: if BTC trades below $50,000, lower the price
+so the order still rests. The deadline of 300 seconds (`valid_for`,
+`validForSeconds`) leaves a person time to approve the order when a rule asks
+for it, and `wait` waits as long.
 
 The child lives and dies with the bot. The SDK starts it with
 `--exit-on-stdin-close` and a pipe on its stdin that it never writes to; the
