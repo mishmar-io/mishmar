@@ -2772,9 +2772,10 @@ type HyperliquidSetup struct {
 
 	// MasterAddress The customer's Hyperliquid master account. Reads need no key: the info
 	// API is public by address. Each agent's API wallet (its VenueKey) is
-	// approved by this account. Absent until known: an account added
-	// without one learns it from the first of its agents' API wallets the
-	// master approves at Hyperliquid.
+	// approved by this account. A connection made before contract 0.23.4
+	// may have none: the engine learns such a connection's from the first
+	// of its agents' API wallets that the master approves at Hyperliquid,
+	// and verifies the connection then. A new connection always has one.
 	MasterAddress *string                 `json:"masterAddress,omitempty"`
 	Network       HyperliquidSetupNetwork `json:"network"`
 
@@ -4186,11 +4187,9 @@ type VenueConnectionCreate struct {
 		ApiUserId string `json:"apiUserId"`
 	} `json:"fireblocks,omitempty"`
 	Hyperliquid *struct {
-		// MasterAddress The master account. Absent, the engine learns it from the first
-		// API wallet an agent gets on one of this connection's accounts that
-		// the master approves at Hyperliquid (`userRole` names the approving
-		// account), and verifies the connection then; until that it is pending.
-		MasterAddress *string `json:"masterAddress,omitempty"`
+		// MasterAddress The master account's address. Required: without it the engine
+		// answers 422.
+		MasterAddress string `json:"masterAddress"`
 
 		// Network A paper-mode engine accepts testnet only; a live engine accepts mainnet only.
 		Network VenueConnectionCreateHyperliquidNetwork `json:"network"`

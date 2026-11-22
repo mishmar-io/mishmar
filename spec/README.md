@@ -40,6 +40,21 @@ the YAML before the engine implements it.
 - Approvals have no `/approvals/{id}` page in the app yet; decisions link to
   the list. Add one if the hosted tier wants deep links in pager messages.
 
+## Decided on 2026-11-22 (0.23.4)
+
+A Hyperliquid connection is created with the address of its master account
+(Product, 21 Nov 2026; MIS-278).
+
+- `VenueConnectionCreate.hyperliquid.masterAddress` is required: without it
+  the engine answers 422 (validation). The owner names the account a
+  connection is for; no screen, CLI or SDK ever left it out.
+- A connection that already exists without a master address keeps working as
+  before: the engine learns its address from the first of its agents' API
+  wallets that the master approves at Hyperliquid, and verifies the connection
+  then (`HyperliquidSetup.masterAddress`).
+- A breaking change only for a caller of the API that left the field out. No
+  other field, code or status changes.
+
 ## Decided on 2026-11-19 (0.23.3)
 
 An agent whose signer the engine turned away as too old says so, where until
