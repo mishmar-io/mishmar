@@ -3,7 +3,7 @@ title: Install the mishmar CLI
 description: Download the mishmar binary for macOS or Linux, check it against the release's checksums, and put it on the PATH of the machine your agent runs on. Update an existing install the same way.
 sidebar:
   order: 1
-lastUpdated: 2026-11-17
+lastUpdated: 2026-11-22
 ---
 
 The `mishmar` binary is the agent's side of Mishmar. It writes the agent's signer config, makes the agent's half of each trading key with Mishmar, runs the signer, and can propose orders from the command line. The Python and TypeScript SDKs run the same binary as a child process.
@@ -43,6 +43,8 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
    mishmar_{{MISHMAR_VERSION}}_darwin_arm64.tar.gz: OK
    ```
 
+   Optional: before you unpack it, you can also check where it was built. See [Check where it was built](#check-where-it-was-built-optional) below.
+
 4. Unpack it and put the binary on your PATH.
 
    ```sh
@@ -51,6 +53,24 @@ Install it on the machine your agent runs on. That machine holds the agent's hal
    ```
 
    The archive also holds `LICENSE` and `THIRD_PARTY_NOTICES`, the licenses of mishmar and of the libraries built into it.
+
+## Check where it was built (optional)
+
+From v0.6.2, every release's four archives and its `SHA256SUMS` carry a build attestation: a record, signed through GitHub, that the file was built from the release's tag by the release workflow of `mishmar-io/mishmar`. The checksum in step 3 says the file is the one the release lists. The attestation also says where that file came from.
+
+To check it, you need the [GitHub CLI](https://cli.github.com), signed in (`gh auth login`). Run this in the folder where you downloaded the archive, after step 3 and before you unpack it:
+
+```sh
+gh attestation verify $NAME --repo mishmar-io/mishmar \
+  --signer-workflow mishmar-io/mishmar/.github/workflows/release.yml \
+  --source-ref refs/tags/$VERSION
+```
+
+`--signer-workflow` and `--source-ref` make the check stricter than `--repo` alone: the attestation must come from the release workflow, run for that version's tag, and not from any other workflow or branch of the repository.
+
+When the attestation matches, the command ends without an error (`echo $?` prints `0`). If it prints an error for v0.6.2 or later, do not install the file, and write to support@mishmar.io.
+
+Releases before v0.6.2 have no attestation, so the command fails for them. That says nothing about the file: the checksum in step 3 still holds.
 
 ## Check it worked
 
