@@ -87,7 +87,28 @@ func (h *harness) record(d api.Decision) *signerapi.Decision {
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	return &signerapi.Decision{Record: b64(record), Signature: b64(ed25519.Sign(h.engine, record))}
+	out := &signerapi.Decision{Record: b64(record), Signature: b64(ed25519.Sign(h.engine, record))}
+	if d.Proposal.Venue == api.VenueHyperliquid {
+		out.Terms = h.termsFor(d)
+	}
+	return out
+}
+
+// termsFor is the venue terms the engine signs for d's proposal on the
+// testnet key vk_hl: BTC's asset index and size decimals, an order's side
+// and reduce-only, or a cancel. A market order's bound is its mark, which
+// the tests that send one replace.
+func (h *harness) termsFor(d api.Decision) *signerapi.VenueTermsProof {
+	t := hyperliquid.Terms{
+		Kind: hyperliquid.TermsKind, DecisionID: d.Id, VenueKeyID: "vk_hl", Venue: "hyperliquid", Network: "testnet",
+		Purpose: hyperliquid.TermsOrder, AssetIndex: "0", SizeDecimals: "5", Side: string(d.Proposal.Side), ReduceOnly: d.Proposal.ReduceOnly,
+	}
+	if d.Proposal.Kind == api.ProposalKindCancel {
+		t.Purpose, t.Side, t.ReduceOnly = hyperliquid.TermsCancel, "", false
+	} else if d.Proposal.OrderType == api.ProposalOrderTypeMarket && d.Proposal.Price != nil {
+		t.PriceBound = *d.Proposal.Price
+	}
+	return h.terms(t, h.engine)
 }
 
 // approval is the engine's signed statement about a decision, in the shape
