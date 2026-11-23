@@ -1,6 +1,6 @@
 {
   "name": "mishmar",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "mcpName": "io.github.mishmar-io/mishmar",
   "description": "Give AI agents your trading accounts, on your terms. The TypeScript SDK: run the agent's signer, propose orders, read decisions.",
   "license": "Apache-2.0",
