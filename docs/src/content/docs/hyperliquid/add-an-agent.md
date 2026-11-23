@@ -3,7 +3,7 @@ title: Add an agent on Hyperliquid
 description: Add an agent that trades on a Hyperliquid account you connected. Give it its Mishmar API key, start it with that one key, and approve the API wallet its signer generates at Hyperliquid's own API page. Four steps in one dialog, one command on the agent's machine, nothing signed in the console.
 sidebar:
   order: 2
-lastUpdated: 2026-11-18
+lastUpdated: 2026-11-22
 ---
 
 When you are done, the agent has two keys:
@@ -136,10 +136,12 @@ The SDKs start the signer and turn an order into a proposal; the bot itself neve
 from mishmar import Signer
 
 with Signer() as s:  # MISHMAR_API_KEY in the environment, or ~/.mishmar/agent.json from before
-    d = s.order("ta_…", "BTC", "buy", "0.0003", price="50000")
+    d = s.order("ta_…", "BTC", "buy", "0.0003", price="50000", valid_for=300)
     if d["verdict"] == "require_approval":
-        d = s.wait(d["id"])
+        d = s.wait(d["id"], timeout=300)
 ```
+
+The deadline of 300 seconds (`valid_for`) leaves a person time to approve the order when a rule asks for it, and `wait` waits as long.
 
 For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repository's README](https://github.com/mishmar-io/mishmar#readme) covers both.
 

@@ -3,7 +3,7 @@ title: Add an agent on Binance
 description: Add an agent that trades on a Binance account you connected. Give it its Mishmar API key, start it with that one key, and register the Ed25519 trading key its signer generates at Binance. Four steps in one dialog, one command on the agent's machine.
 sidebar:
   order: 2
-lastUpdated: 2026-11-18
+lastUpdated: 2026-11-22
 ---
 
 When you are done, the agent has two keys:
@@ -100,18 +100,20 @@ The dialog says the agent is ready. Click **Finish**: the agent's page opens.
 
 ## Place a test order
 
-With the signer running, in a second terminal on the agent's machine, propose a small limit buy a few percent under the market, so it rests on the book and does not fill. Use the USDⓈ-M Futures account's id (`ta_…`, on its page in the console) and a price about 3% under BTCUSDT's current price:
+With the signer running, in a second terminal on the agent's machine, propose a small limit buy well under the market, so it rests on the book and does not fill. Use the USDⓈ-M Futures account's id (`ta_…`, on its page in the console):
 
 ```sh
-mishmar propose --config ~/.mishmar/agent.json --connected-account ta_… --symbol BTCUSDT --side buy --size 0.001 --price 75000
+mishmar propose --config ~/.mishmar/agent.json --connected-account ta_… --symbol BTCUSDT --side buy --size 0.001 --price 52000
 ```
+
+This buy rests below the market. If BTC is already at or below $52,000 when you run it, it fills at once. Do not go below $50,000: at 0.001 BTC, Binance refuses an order worth under $50.
 
 The output looks something like this. Your rules and numbers will differ.
 
 ```text
 decision dec_…: allow
-  buy 0.001 BTCUSDT on binance, notional 75, latency 2.10 ms, revision 12
-  passed  Max order size                       order_size observed 75, limit 150
+  buy 0.001 BTCUSDT on binance, notional 52, latency 2.10 ms, revision 12
+  passed  Max order size                       order_size observed 52, limit 150
   signing: signed (one-shot: the agent's half came with the proposal)
   venue: resting order 28665991418 at 2026-11-04T16:26:54Z
 ```
@@ -124,8 +126,6 @@ The order is on Binance's book, and the decision is on the console's **Decisions
 mishmar propose --config ~/.mishmar/agent.json --connected-account ta_… --symbol BTCUSDT --cancel msh-…
 ```
 
-Binance refuses an order worth less than its minimum for the symbol, $50 on BTCUSDT, live and on demo trading, at the time of writing. At 0.001 BTC, keep the price above $50,000.
-
 ### From your agent's code
 
 The SDKs start the signer and turn an order into a proposal; the bot itself never holds a key. Only one signer runs per config file, so stop the `mishmar signer run` from step 2 first.
@@ -134,10 +134,12 @@ The SDKs start the signer and turn an order into a proposal; the bot itself neve
 from mishmar import Signer
 
 with Signer() as s:  # MISHMAR_API_KEY in the environment, or ~/.mishmar/agent.json from before
-    d = s.order("ta_…", "BTCUSDT", "buy", "0.001", price="75000")
+    d = s.order("ta_…", "BTCUSDT", "buy", "0.001", price="52000", valid_for=300)
     if d["verdict"] == "require_approval":
-        d = s.wait(d["id"])
+        d = s.wait(d["id"], timeout=300)
 ```
+
+The deadline of 300 seconds (`valid_for`) leaves a person time to approve the order when a rule asks for it, and `wait` waits as long.
 
 For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repository's README](https://github.com/mishmar-io/mishmar#readme) covers both.
 
