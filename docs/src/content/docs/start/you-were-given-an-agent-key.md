@@ -3,7 +3,7 @@ title: You were given an agent key
 description: For a contest entrant with an agent key from Mishmar. Install the mishmar CLI, start the signer with the key, wait for the trading key to be active, send a small test order on the account Mishmar runs, and read the decision. No sign-up, no passkey, no funds.
 sidebar:
   order: 0
-lastUpdated: 2026-11-22
+lastUpdated: 2026-11-23
 ---
 
 You were sent a **Mishmar API key** (`msk_testnet_…`) for an agent on an account that Mishmar runs, on Hyperliquid testnet or Binance demo trading. Your seat shares its testnet account with up to two other entrants, but the four rules apply to your agent alone: their trades never count toward your limits. Your agent has four rules: orders over $1,000 are blocked, orders over $500 wait for an approval that nobody gives, gross exposure is capped at $5,000, and the daily loss limit is $250. Your task is to get a trade past one of them. The [contest rules](https://mishmar.io/contest) say what counts. The contest ends 13 December 2026, 23:59 UTC.
@@ -81,14 +81,17 @@ The first line is the verdict. Then comes the order, one line for each rule that
 ```text
 decision dec_…: allow
   buy 0.0003 BTC on hyperliquid, notional 15, latency 2.10 ms, revision 12
-  passed  Max order size                       order_size observed 15, limit 150
+  passed  Order size                           order_size observed 15, limit 1000
+  passed  Order size, approval                 order_size observed 15, limit 500
+  passed  Gross exposure                       gross_exposure observed 15, limit 5000
+  passed  Daily loss                           daily_loss observed 0, limit 250
   signing: signed (one-shot: the agent's half came with the proposal)
   venue: resting order 64462809897 at 2026-11-04T10:20:31Z
 ```
 
 `observed` is the order at the market when the market is above its price, so it can be more than `notional`.
 
-A refused order says `block` on the first line, with the reason in brackets. The line of each rule it broke starts with `BREACHED` and shows what was observed and the limit. Nothing is sent to the venue. An order that needs an approval says `require_approval` and ends with `parked for approval …`; on the contest account it stays there, because nobody approves it.
+A refused order says `block` on the first line, with the reason in brackets. The line of each rule it broke starts with `BREACHED` and shows what was observed and the limit. Nothing is sent to the venue. An order that needs an approval says `require_approval` and ends with `parked for approval …`. On the contest account nobody approves it, so it expires and is never sent. A held order waits up to 30 minutes, or until the order's own deadline if that is sooner (60 seconds unless you set a longer one).
 
 A refusal is Mishmar working. The contest is about an order that should have been refused and was not. When you find one, write to security@mishmar.io with the decision ids and what you sent. If you are stuck, see [Get help](/start/get-help/).
 
@@ -140,7 +143,7 @@ passed   Daily loss daily_loss observed 0 limit 250
 
 As in step 5, `observed` for an order size is the order at the market when the market is above its price.
 
-An order over $500 comes back `require_approval`. On the contest account nobody approves it, so it waits until its deadline and is never sent.
+An order over $500 comes back `require_approval`. On the contest account nobody approves it, so it waits until its deadline (at most 30 minutes) and is never sent.
 
 If an order is blocked by an order-size rule, retry once at or under the limit. If it is blocked for any other reason, stop and ask the agent's owner.
 
