@@ -3,7 +3,7 @@ title: Add an agent on Hyperliquid
 description: Add an agent that trades on a Hyperliquid account you connected. Give it its Mishmar API key, start it with that one key, and approve the API wallet its signer generates at Hyperliquid's own API page. Four steps in one dialog, one command on the agent's machine, nothing signed in the console.
 sidebar:
   order: 2
-lastUpdated: 2026-11-18
+lastUpdated: 2026-11-21
 ---
 
 When you are done, the agent has two keys:
@@ -166,6 +166,10 @@ For an LLM agent, `mishmar mcp` serves the same actions as MCP tools. The [repos
 - **The approval does not show up.** Check the address you pasted is the one the dialog showed, and that you approved on the account's network (testnet or mainnet). Mishmar looks once a minute; open the agent's **Keys** tab, click **⋯** on the key's row and choose **Verify** to look now.
 - **You clicked Generate at Hyperliquid.** That made another wallet, which Mishmar does not hold half of. Remove it there and paste the dialog's address instead.
 - **The signer logs `engine refused (426 signer_too_old): This signer is too old for this engine. Upgrade to v0.6.0.`**, or `mishmar propose` prints it when it signs the order itself (`--config`): the mishmar CLI on the agent's machine is older than Mishmar accepts. Update it as [Update an existing install](/start/install-the-cli/#update-an-existing-install) describes, then start the signer again.
+- **`Agent …'s key on … has not been made yet.`**: the agent's signer has not made its half of the trading key. Start the signer as in [step 2](#2-start-the-agent), then approve its API wallet at Hyperliquid as in [step 3](#3-approve-the-api-wallet-at-hyperliquid).
+- **`Agent …'s key on … is not approved at Hyperliquid yet.`**: approve its API wallet as in [step 3](#3-approve-the-api-wallet-at-hyperliquid). Mishmar checks every minute, so once it is approved there is nothing to press: send the order again a minute later.
+- **`Agent …'s key on … is approved at Hyperliquid, but the account holds no funds there, so the key cannot trade yet.`**: deposit USDC to that account at Hyperliquid on mainnet, or testnet USDC on testnet ([What you need](/hyperliquid/connect-an-account/#what-you-need) on the page about connecting the account says where testnet USDC comes from). Mishmar checks every minute and the key goes live on its own, with nothing to press.
+- **`Agent …'s key on … is approved at Hyperliquid and Mishmar has not confirmed it yet.`**: Mishmar checks every minute. Send the order again in a minute.
 - **`Agent …'s key on connected account … has expired; give the agent a new key`**: see [When the key expires](#when-the-key-expires).
 - **`The Mishmar account's plan holds 1 agent; delete one or move to a larger plan`**, or the same for a connection. The free plan holds one agent and one connection, read and trade agents together, and **Add agent** is greyed out with the reason beside it. Delete one, or move to a larger plan.
 - **An order comes back `rate_limited`: `The Mishmar account's request budget for hyperliquid is spent for now; send it again in … s`.** Each plan has a share of what Hyperliquid lets one address send. The SDKs and `mishmar signer run` send the order again after the wait. Closing positions and cancels always go.
