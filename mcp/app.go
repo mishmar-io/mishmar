@@ -56,9 +56,9 @@ const (
 	// the link, then the code. Plan section 2.3. A matching code shows the
 	// page is for the key this program made; it does not show who started the
 	// request, so the person is also asked whether they did, just now.
-	SignInOpened = "This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until %s."
+	SignInOpened = "This computer is not signed in to Mishmar yet. I opened Mishmar in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you asked me to use Mishmar on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until %s."
 	// SignInLink is the same when no browser could be opened here.
-	SignInLink = "This computer is not signed in to Mishmar yet. Open this link in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you asked me to set up trading on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until %s."
+	SignInLink = "This computer is not signed in to Mishmar yet. Open this link in your browser to approve it: %s. Check the page shows this code: %s. Approve only if it matches and you asked me to use Mishmar on this computer in the last few minutes; nobody from Mishmar will send you this link or a code. Then ask me again. The link works until %s."
 	// SignInFingerprint is the line after either: the key's whole
 	// fingerprint, which the page shows too, for a closer comparison than
 	// the code's.

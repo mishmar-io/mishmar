@@ -68,8 +68,10 @@ const FirstUse = "The first Mishmar trading tool opens the browser to approve th
 // Windows build yet.
 const Windows = "On Windows, run the app inside WSL (the Linux steps work there): Mishmar's signer has no Windows release yet."
 
-// SayAfter is what the person says to the app once the server is in.
-const SayAfter = "set up trading with Mishmar"
+// SayAfter is what the person says to the app once the server is in. It asks
+// for something the server has (list_connected_accounts); the first tool the
+// app calls is what signs the computer in, whichever it is.
+const SayAfter = "Show my Mishmar accounts"
 
 // Flags is the server's arguments after mcp: --app and the slug, and
 // --env outside prod.
