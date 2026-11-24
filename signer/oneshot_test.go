@@ -364,7 +364,11 @@ func TestOneShotFallsBack(t *testing.T) {
 	if left := s.oneShot().commitments["vk_1"]; len(left) != 0 {
 		t.Fatalf("%d commitments kept after the engine said it did not know them", len(left))
 	}
-	if _, err := s.Propose(context.Background(), limitProposal()); err != nil {
+	// The caller's next proposal is a new one, under its own nonce (the
+	// first is in the record of signed orders and gets no second message).
+	next := limitProposal()
+	next.Nonce = "n2"
+	if _, err := s.Propose(context.Background(), next); err != nil {
 		t.Fatalf("the caller's next proposal: %v", err)
 	}
 	if eng.plain != 0 || len(eng.sigs) != 1 {
