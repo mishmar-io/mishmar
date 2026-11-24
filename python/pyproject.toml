@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mishmar"
-version = "0.6.3"
+version = "0.7.0"
 description = "Give AI agents your trading accounts, on your terms. The Python SDK: run the agent's signer, propose orders, read decisions."
 readme = "README.md"
 license = "Apache-2.0"
