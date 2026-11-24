@@ -2658,8 +2658,12 @@ type Entitlements struct {
 	// takes no more than its share. The engine counts every request it
 	// makes to the venue for the account: reads, polling, orders and
 	// cancels. When the share is spent, polling waits, and a new order
-	// is refused with `rate_limited` until the share refills; exits and
-	// cancels always go. A venue not listed has no share of its own.
+	// is refused with `rate_limited` until the share refills. Exits and
+	// cancels are counted apart from new orders: an account's agents
+	// may send a venue as many exits and cancels a minute as the share
+	// holds, and the next one is refused with `rate_limited`. A
+	// person's own requests, Stop included, are never counted against
+	// it or refused by it. A venue not listed has no share of its own.
 	VenueBudgets *[]VenueBudget `json:"venueBudgets,omitempty"`
 }
 
