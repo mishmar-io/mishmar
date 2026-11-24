@@ -2658,8 +2658,12 @@ type Entitlements struct {
 	// takes no more than its share. The engine counts every request it
 	// makes to the venue for the account: reads, polling, orders and
 	// cancels. When the share is spent, polling waits, and a new order
-	// is refused with `rate_limited` until the share refills; exits and
-	// cancels always go. A venue not listed has no share of its own.
+	// is refused with `rate_limited` until the share refills. Exits and
+	// cancels are counted apart from new orders: an account's agents
+	// may send a venue as many exits and cancels a minute as the share
+	// holds, and the next one is refused with `rate_limited`. A
+	// person's own requests, Stop included, are never counted against
+	// it or refused by it. A venue not listed has no share of its own.
 	VenueBudgets *[]VenueBudget `json:"venueBudgets,omitempty"`
 }
 
@@ -3811,7 +3815,8 @@ type SignerPoll struct {
 // minute. `lastSeenAt` is its last signer call since the engine started;
 // absent when there was none. Kept in memory, so an engine restart
 // forgets it until the signer polls again, which a running signer does
-// within seconds.
+// within seconds. `tooOld` says the signer did reach the engine and was
+// turned away for its version.
 type SignerPresence struct {
 	Connected bool `json:"connected"`
 
@@ -3819,6 +3824,25 @@ type SignerPresence struct {
 	// trading keys' shares, when the agent has several keys.
 	KeyId      *string    `json:"keyId,omitempty"`
 	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
+
+	// TooOld Present when the engine refused this key's last poll with 426
+	// `signer_too_old`, and until a poll of the key is taken. Such a
+	// signer is not `connected`; this says why, so a client can tell
+	// the person to upgrade instead of showing a signer that is only
+	// away. Set by a poll alone, after the key that signed it was
+	// checked. Kept in memory with the rest, so an engine restart
+	// forgets it until the old signer polls again. Nothing reads it to
+	// decide, hold or sign anything. An engine from before this field
+	// sends none.
+	TooOld *struct {
+		// MinVersion The oldest signer version this engine works with, as the
+		// refusal's message names it (for example `v0.6.0`). It is the
+		// engine's own number, never something the signer sent.
+		MinVersion string `json:"minVersion"`
+
+		// RefusedAt When the engine last refused the key's poll, by the engine's clock.
+		RefusedAt time.Time `json:"refusedAt"`
+	} `json:"tooOld,omitempty"`
 }
 
 // SignerTransport How the engine reaches an agent's signer. The messages are the same on every transport.
@@ -3836,14 +3860,26 @@ type SigningStatus struct {
 	Detail      *string    `json:"detail,omitempty"`
 	RequestedAt *time.Time `json:"requestedAt,omitempty"`
 
+	// SendsAt The earliest time an approved order is sent, when that is later
+	// than its approval. An order that came with a one-shot venue
+	// message is signed for the venue again no sooner than that
+	// message's end there (ten seconds after it was built on Binance,
+	// its `expiresAfter` on Hyperliquid) plus one minute. A signer
+	// that is not reaching the engine at that time makes it later.
+	// Present only while such an order waits. An order whose
+	// proposal's `expiresAt` comes before this time is not sent, and
+	// the decision's `reason` says so.
+	SendsAt *time.Time `json:"sendsAt,omitempty"`
+
 	// Status waiting: the order is with the signer, or a person approved it
 	// and the signer holding the trading key's share is not reaching
-	// the engine; it is sent when that signer polls, until `waitUntil`.
-	// signed, refused: the signer's answer. unreachable: no signer
-	// answered by the deadline. A wait ended because something stopped
-	// the order (a stop, a pause, a restriction, the rules, a
-	// revocation) leaves no signing status: the decision's `reason`
-	// says why it was not forwarded.
+	// the engine; it is sent when that signer polls, until `waitUntil`,
+	// and no sooner than `sendsAt` when there is one. signed, refused:
+	// the signer's answer. unreachable: no signer answered by the
+	// deadline. A wait ended because something stopped the order (a
+	// stop, a pause, a restriction, the rules, a revocation) leaves no
+	// signing status: the decision's `reason` says why it was not
+	// forwarded.
 	Status SigningStatusStatus `json:"status"`
 
 	// WaitUntil Until when an approved order waits for the signer, which is the
@@ -3854,12 +3890,13 @@ type SigningStatus struct {
 
 // SigningStatusStatus waiting: the order is with the signer, or a person approved it
 // and the signer holding the trading key's share is not reaching
-// the engine; it is sent when that signer polls, until `waitUntil`.
-// signed, refused: the signer's answer. unreachable: no signer
-// answered by the deadline. A wait ended because something stopped
-// the order (a stop, a pause, a restriction, the rules, a
-// revocation) leaves no signing status: the decision's `reason`
-// says why it was not forwarded.
+// the engine; it is sent when that signer polls, until `waitUntil`,
+// and no sooner than `sendsAt` when there is one. signed, refused:
+// the signer's answer. unreachable: no signer answered by the
+// deadline. A wait ended because something stopped the order (a
+// stop, a pause, a restriction, the rules, a revocation) leaves no
+// signing status: the decision's `reason` says why it was not
+// forwarded.
 type SigningStatusStatus string
 
 // SnapshotSource observed: read from the venue at that moment. rebuilt: worked out
