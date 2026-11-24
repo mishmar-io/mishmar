@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mishmar API
-  version: 0.23.0
+  version: 0.23.2
   summary: Trading-aware policy service at the signing layer.
   description: |
     Mishmar checks every order, transaction or signed message an agent produces
@@ -2392,8 +2392,12 @@ components:
             takes no more than its share. The engine counts every request it
             makes to the venue for the account: reads, polling, orders and
             cancels. When the share is spent, polling waits, and a new order
-            is refused with `rate_limited` until the share refills; exits and
-            cancels always go. A venue not listed has no share of its own.
+            is refused with `rate_limited` until the share refills. Exits and
+            cancels are counted apart from new orders: an account's agents
+            may send a venue as many exits and cancels a minute as the share
+            holds, and the next one is refused with `rate_limited`. A
+            person's own requests, Stop included, are never counted against
+            it or refused by it. A venue not listed has no share of its own.
           items: { $ref: '#/components/schemas/VenueBudget' }
     VenueBudget:
       type: object
@@ -4580,12 +4584,13 @@ components:
           description: |
             waiting: the order is with the signer, or a person approved it
             and the signer holding the trading key's share is not reaching
-            the engine; it is sent when that signer polls, until `waitUntil`.
-            signed, refused: the signer's answer. unreachable: no signer
-            answered by the deadline. A wait ended because something stopped
-            the order (a stop, a pause, a restriction, the rules, a
-            revocation) leaves no signing status: the decision's `reason`
-            says why it was not forwarded.
+            the engine; it is sent when that signer polls, until `waitUntil`,
+            and no sooner than `sendsAt` when there is one. signed, refused:
+            the signer's answer. unreachable: no signer answered by the
+            deadline. A wait ended because something stopped the order (a
+            stop, a pause, a restriction, the rules, a revocation) leaves no
+            signing status: the decision's `reason` says why it was not
+            forwarded.
         waitUntil:
           type: string
           format: date-time
@@ -4593,6 +4598,19 @@ components:
             Until when an approved order waits for the signer, which is the
             proposal's `expiresAt`. Absent when it is not waiting on an
             approval.
+        sendsAt:
+          type: string
+          format: date-time
+          description: |
+            The earliest time an approved order is sent, when that is later
+            than its approval. An order that came with a one-shot venue
+            message is signed for the venue again no sooner than that
+            message's end there (ten seconds after it was built on Binance,
+            its `expiresAfter` on Hyperliquid) plus one minute. A signer
+            that is not reaching the engine at that time makes it later.
+            Present only while such an order waits. An order whose
+            proposal's `expiresAt` comes before this time is not sent, and
+            the decision's `reason` says so.
         requestedAt: { type: string, format: date-time }
         answeredAt: { type: string, format: date-time }
         attempts: { type: integer }
