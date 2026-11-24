@@ -145,34 +145,39 @@ func permissionOf(me api.AgentIdentity) api.AgentPermission {
 // learnPermission asks GET /agent/me until it answers, or ctx ends, and
 // records the answer. follow says whether the engine reports the
 // permission at all: one from before it (no /agent/me, or no field) never
-// will, so there is nothing to ask again.
-func (s *Signer) learnPermission(ctx context.Context) (perm api.AgentPermission, follow bool) {
+// will, so there is nothing to ask again. err is set only when the engine
+// no longer takes the key (keyRefused): the signer stops with it.
+func (s *Signer) learnPermission(ctx context.Context) (perm api.AgentPermission, follow bool, err error) {
 	backoff := minBackoff
 	for {
 		me, err := s.Client.Me(ctx)
 		var refused *Error
 		switch {
 		case err == nil:
+			s.keyAccepted()
 			perm = permissionOf(me)
 			s.setPermission(perm)
-			return perm, me.Permission != "" || me.KeyScope != nil
+			return perm, me.Permission != "" || me.KeyScope != nil, nil
 		case errors.As(err, &refused) && refused.Status == http.StatusNotFound:
 			// An engine from before 0.19.0 has no GET /agent/me: trade, as before.
 			s.setPermission(api.AgentPermissionTrade)
-			return api.AgentPermissionTrade, false
+			return api.AgentPermissionTrade, false, nil
 		}
 		if ctx.Err() != nil {
-			return "", false
+			return "", false, nil
 		}
 		st := s.permissionState()
 		st.mu.Lock()
 		st.lastErr = err
 		st.mu.Unlock()
 		s.Logger.Warn("signer: asking the engine whether the agent reads or trades (GET /agent/me) failed", "err", err, "retryIn", backoff)
+		if err := s.keyRefused(err); err != nil {
+			return "", false, err
+		}
 		select {
 		case <-time.After(backoff):
 		case <-ctx.Done():
-			return "", false
+			return "", false, nil
 		}
 		backoff = min(backoff*2, maxBackoff)
 	}
@@ -205,9 +210,13 @@ func (s *Signer) permissionInterval() time.Duration {
 // Run learns whether the agent reads or trades, then runs the signer
 // channel while it trades (runChannel: the poll loop and, with ConfigPath,
 // the key sync) and nothing but a slow GET /agent/me while it reads, until
-// ctx ends.
+// ctx ends (nil), or until the engine no longer takes the key (keyRefused:
+// learnPermission's or the signer channel's error, which says so).
 func (s *Signer) Run(ctx context.Context) error {
-	perm, follow := s.learnPermission(ctx)
+	perm, follow, err := s.learnPermission(ctx)
+	if err != nil {
+		return err
+	}
 	if ctx.Err() != nil {
 		return nil
 	}
@@ -227,15 +236,16 @@ func (s *Signer) Run(ctx context.Context) error {
 		}
 		channel, stop := context.WithCancel(ctx)
 		done := make(chan struct{})
+		var channelErr error // set before done closes: the engine no longer takes the key
 		go func() {
 			defer close(done)
-			_ = s.runChannel(channel)
+			channelErr = s.runChannel(channel)
 		}()
 		if !follow {
 			// The engine does not say what an agent may do: trade, for good.
 			<-done
 			stop()
-			return nil
+			return channelErr
 		}
 		for perm != api.AgentPermissionRead {
 			select {
@@ -243,6 +253,10 @@ func (s *Signer) Run(ctx context.Context) error {
 				stop()
 				<-done
 				return nil
+			case <-done:
+				// The channel stopped on its own: the key is gone.
+				stop()
+				return channelErr
 			case <-time.After(interval):
 			}
 			perm = s.recheckPermission(ctx, perm)
@@ -250,5 +264,8 @@ func (s *Signer) Run(ctx context.Context) error {
 		s.Logger.Info("signer: the agent is a read agent now; stopping the signer channel and the key sync", "agent", s.Config.AgentID)
 		stop()
 		<-done
+		if channelErr != nil {
+			return channelErr
+		}
 	}
 }

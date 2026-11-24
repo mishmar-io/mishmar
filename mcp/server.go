@@ -432,13 +432,32 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 			text, err := t.run(ctx, args)
 			if err != nil {
 				s.log.Info("mcp: tool failed", "tool", t.name, "err", err)
-				return toolResult("Error: "+err.Error(), true), nil
+				return toolResult("Error: "+err.Error()+keyGone(err), true), nil
 			}
 			return toolResult(text, false), nil
 		}
 		return nil, &rpcError{Code: codeInvalidParams, Message: "no tool named " + p.Name}
 	}
 	return nil, &rpcError{Code: codeMethodNotFound, Message: "no method " + req.Method}
+}
+
+// keyGone is what a tool's error says after the engine's own words when the
+// engine no longer takes the agent's key (401 "Unknown key", "Key revoked",
+// "Key expired"): the likely cause and what to do, since the engine's two
+// words do not say. The server stays up; `mishmar signer run` stops on the
+// same answers (signer.Run). Anything else adds nothing.
+func keyGone(err error) string {
+	var e *signer.Error
+	if !errors.As(err, &e) || e.Status != http.StatusUnauthorized {
+		return ""
+	}
+	switch e.Message {
+	case "Unknown key":
+		return ". The agent or its key was most likely removed in the console. Add the agent again or issue a new key, then set this server up with it."
+	case "Key revoked", "Key expired":
+		return ". Issue a new key in the console, then set this server up with it."
+	}
+	return ""
 }
 
 func toolResult(text string, isError bool) map[string]any {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -20,9 +21,17 @@ import (
 const (
 	DefaultPollWait   = 25 * time.Second
 	DefaultWorkers    = 8
-	minBackoff        = time.Second
-	maxBackoff        = 30 * time.Second
 	answeredRemembers = 4096
+	// DefaultKeyGoneGrace is how long the engine must keep refusing the key
+	// as "Unknown key" before the signer stops (keyRefused).
+	DefaultKeyGoneGrace = 5 * time.Minute
+)
+
+// The backoff of a poll that failed, and of a GET /agent/me that did; vars
+// only so that tests can make them short.
+var (
+	minBackoff = time.Second
+	maxBackoff = 30 * time.Second
 )
 
 // Signer holds the agent's shares, polls the engine and answers its sign
@@ -64,6 +73,13 @@ type Signer struct {
 	// it stops polling, then finishes what it holds). Zero ends them with
 	// the context, as before.
 	DrainTimeout time.Duration
+	// KeyGoneGrace is how long the engine must keep refusing the key as
+	// "Unknown key" before Run stops (DefaultKeyGoneGrace).
+	KeyGoneGrace time.Duration
+	// KeepPollingWhenRefused, when true, keeps Run polling whatever the
+	// engine says of the key, as before keyRefused: for a caller that
+	// watches the engine's refusals itself.
+	KeepPollingWhenRefused bool
 	// HyperliquidInfoURL is for tests that stand in for the venue (this
 	// package's, and the engine's end-to-end tests): it replaces the address
 	// the signer reads Hyperliquid's list of markets from. Nil, as in every
@@ -73,6 +89,7 @@ type Signer struct {
 	HyperliquidInfoURL func(hyperliquid.Network) string
 
 	perm      *permissionState
+	refusal   keyRefusal
 	record    *orderRecord
 	key       *agentkey.Key
 	pub       string
@@ -247,7 +264,9 @@ func (s *Signer) share(venueKeyID string) (*frost.Share, error) {
 // the trading keys in line with the engine's. A poll that fails is retried
 // after a backoff that doubles from one second to thirty. The first poll
 // after a start or a failure does not wait, so a new engine instance (a
-// restart) is seen as soon as the engine answers.
+// restart) is seen as soon as the engine answers. When the engine no longer
+// takes the key (keyRefused) it stops the key sync and the answers in
+// flight and returns why, the only error it returns.
 func (s *Signer) runChannel(ctx context.Context) error {
 	workers := s.Workers
 	if workers <= 0 {
@@ -260,6 +279,10 @@ func (s *Signer) runChannel(ctx context.Context) error {
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 	defer wg.Wait()
+	// Cancelled before wg.Wait, so the key sync and the answers in flight
+	// end when the channel stops on its own (keyRefused), not only with ctx.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if s.ConfigPath != "" {
 		wg.Add(1)
 		go func() {
@@ -283,6 +306,9 @@ func (s *Signer) runChannel(ctx context.Context) error {
 		quick = err != nil
 		if err != nil {
 			s.Logger.Warn("signer: poll failed", "err", err, "retryIn", backoff)
+			if err := s.keyRefused(err); err != nil {
+				return err
+			}
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
@@ -292,6 +318,7 @@ func (s *Signer) runChannel(ctx context.Context) error {
 			continue
 		}
 		backoff = minBackoff
+		s.keyAccepted()
 		s.engineSeen(s.Client.EngineInstance())
 		for _, req := range reqs {
 			select {
@@ -309,6 +336,55 @@ func (s *Signer) runChannel(ctx context.Context) error {
 			}(req)
 		}
 	}
+}
+
+// keyRefusal is what the signer remembers of the engine refusing its key:
+// when it first answered 401 "Unknown key" since its last good answer (zero:
+// not since). learnPermission and then runChannel use it, one after the
+// other, never at once, so it needs no lock.
+type keyRefusal struct {
+	since time.Time
+}
+
+// keyAccepted is told of a good answer (a poll, a GET /agent/me): the
+// engine takes the key, and an "Unknown key" before it is forgotten.
+func (s *Signer) keyAccepted() {
+	s.refusal.since = time.Time{}
+}
+
+// keyRefused is told of a poll or a GET /agent/me that failed with err, and
+// says whether the signer stops: a 401 "Key revoked" or "Key expired" stops
+// it at once; a 401 "Unknown key" is logged at the first one since the last
+// good answer, and stops it once the engine has said so for KeyGoneGrace
+// with no good answer between. Anything else (the network, a 5xx, another
+// 401) is nil and changes nothing, and so is everything with
+// KeepPollingWhenRefused.
+func (s *Signer) keyRefused(err error) error {
+	var e *Error
+	if s.KeepPollingWhenRefused || !errors.As(err, &e) || e.Status != http.StatusUnauthorized {
+		return nil
+	}
+	switch e.Message {
+	case "Key revoked", "Key expired":
+		return fmt.Errorf("signer: stopped. %s refused this key (%s). Issue a new key in the console, then start the signer with it.", s.Client.Engine, e.Message)
+	case "Unknown key":
+		now := s.now()
+		if s.refusal.since.IsZero() {
+			s.refusal.since = now
+			s.Logger.Warn("signer: the engine refused this key (Unknown key). If the agent or its key was removed in the console, that is why. The signer stops if this goes on for five minutes.")
+		}
+		if now.Sub(s.refusal.since) >= s.keyGoneGrace() {
+			return fmt.Errorf("signer: stopped. %s has refused this key for five minutes (Unknown key). The agent or its key was most likely removed in the console. Add the agent again or issue a new key, then start the signer with it.", s.Client.Engine)
+		}
+	}
+	return nil
+}
+
+func (s *Signer) keyGoneGrace() time.Duration {
+	if s.KeyGoneGrace > 0 {
+		return s.KeyGoneGrace
+	}
+	return DefaultKeyGoneGrace
 }
 
 // serve answers one request and logs one line about it.
