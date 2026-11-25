@@ -113,7 +113,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.ref }}
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - name: Test
         working-directory: python
         run: uv run --extra test python -m pytest -q
