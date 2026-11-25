@@ -6,7 +6,7 @@ workflows:
     '.github/workflows/ci.yml':
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v4.4.0'
-        - 'actions/setup-go@v5.6.0'
+        - 'actions/setup-go@v7.1.0'
         - 'actions/setup-node@v7.1.0'
         - 'astral-sh/setup-uv@v10.3.3'
     '.github/workflows/docs.yml':
@@ -28,7 +28,7 @@ workflows:
         - 'actions/attest-build-provenance@v4.2.2'
         - 'actions/checkout@v4.4.0'
         - 'actions/download-artifact@v4.3.0'
-        - 'actions/setup-go@v5.6.0'
+        - 'actions/setup-go@v7.1.0'
         - 'actions/upload-artifact@v4.6.2'
     '.github/workflows/workflow-security.yml':
         - 'actions/checkout@v7.0.1'
@@ -65,9 +65,9 @@ dependencies:
         commit: 'sha1-d3f86a106a0bac45b974a628896c90dbdf5c8093'
         owner_id: 44036562
         repo_id: 192626254
-    'actions/setup-go@v5.6.0':
-        ref: 'v5.6.0'
-        commit: 'sha1-40f1582b2485089dde7abd97c1529aa768e1baff'
+    'actions/setup-go@v7.1.0':
+        ref: 'v7.1.0'
+        commit: 'sha1-d8cbb8045d7f43706b9177cceb36c1f91a6644d5'
         owner_id: 44036562
         repo_id: 192624594
     'actions/setup-node@v7.1.0':
